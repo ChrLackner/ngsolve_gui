@@ -1,0 +1,18 @@
+[build-system]
+requires = [ "setuptools>=60", "wheel", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ngsolve_gui"
+dynamic = ["version"]
+dependencies = []
+
+[project.scripts]
+ngsolve = "ngsolve_gui.run:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ngsolve_gui.__version__"}
+
