@@ -43,15 +43,18 @@ class Sidebar(QDrawer):
 
 
 class GeometryComponent(QLayout):
-    def __init__(self, title, geometry, global_clipping, app_data, settings):
+    def __init__(
+        self, title, geometry, global_clipping, app_data, settings, global_camera
+    ):
         self.title = title
         self.settings = settings
         self.app_data = app_data
         self.geo = geometry
         self.wgpu = WebgpuComponent()
-        self.global_clipping = global_clipping
+        self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
+        self.global_clipping = (global_clipping,)
+        self.global_camera = global_camera
         self.sidebar = Sidebar(self)
-        self.wgpu.ui_style = "width: 100%; height: calc(100vh - 140px);"
         self.draw()
         super().__init__(
             self.sidebar,
@@ -78,4 +81,4 @@ class GeometryComponent(QLayout):
 
     def draw(self):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
-        self.wgpu.draw([self.geo_renderer])
+        self.wgpu.draw([self.geo_renderer], camera=self.global_camera)

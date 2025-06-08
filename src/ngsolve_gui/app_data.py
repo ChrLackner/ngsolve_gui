@@ -20,13 +20,10 @@ class AppData:
         self._data = {"tabs": {}, "active_tab": None}
         self._update = None
 
-    def add_mesh(self, title: str, mesh: ngs.Mesh):
-        """
-        Add a mesh to the AppData instance.
+    def get_settings(self, name: str):
+        return Settings(self._data["tabs"][name]["settings"])
 
-        :param title: The title of the mesh.
-        :param mesh: The mesh object to be added.
-        """
+    def add_mesh(self, title: str, mesh: ngs.Mesh):
         _type = "mesh"
         name = _type + "_" + title.lower().replace(" ", "_")
         self._data["tabs"][name] = {
@@ -41,28 +38,31 @@ class AppData:
         if self._update is not None:
             self._update()
 
-    def get_settings(self, name: str):
-        """
-        Get the settings for a specific tab by name.
-
-        :param name: The name of the tab.
-        :return: The settings dictionary for the specified tab.
-        """
-        return Settings(self._data["tabs"][name]["settings"])
-
     def add_geometry(self, title: str, geometry: ngocc.OCCGeometry):
-        """
-        Add a geometry to the AppData instance.
-
-        :param name: The name of the geometry.
-        :param geometry: The geometry object to be added.
-        """
         _type = "geometry"
         name = _type + "_" + title.lower().replace(" ", "_")
         self._data["tabs"][name] = {
             "type": _type,
             "icon": "mdi-cube",
             "data": geometry,
+            "name": name,
+            "title": title,
+            "settings": {},
+        }
+        self.active_tab = name
+        if self._update is not None:
+            self._update()
+
+    def add_function(
+        self, title: str, function: ngs.CoefficientFunction, mesh: ngs.Mesh
+    ):
+        _type = "function"
+        print("add function")
+        name = _type + "_" + title.lower().replace(" ", "_")
+        self._data["tabs"][name] = {
+            "type": _type,
+            "icon": "mdi-function-variant",
+            "data": {"function": function, "mesh": mesh},
             "name": name,
             "title": title,
             "settings": {},
@@ -78,6 +78,9 @@ class AppData:
         :return: A dictionary of tabs.
         """
         return self._data["tabs"]
+
+    def get_tab(self, name):
+        return self._data["tabs"].get(name, None)
 
     def delete_tab(self, name):
         """

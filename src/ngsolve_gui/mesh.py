@@ -1,12 +1,16 @@
 from ngapp.components import *
 
+import ngsolve as ngs
 from ngsolve_webgpu.mesh import *
 from webgpu.labels import Labels
+from webgpu.canvas import debounce
+
+from .clipping import ClippingSettings
+from .region_colors import RegionColors
 
 
-class Sidebar(QDrawer):
+class ViewOptions(QCard):
     def __init__(self, comp):
-        self.geo_comp = comp
         wireframe = QCheckbox(
             "Wireframe", ui_model_value=comp.settings.get("wireframe_visible", True)
         )
@@ -30,33 +34,80 @@ class Sidebar(QDrawer):
         view_options = Div(
             wireframe, element2d, elements3d, Row(Col(Label("Shrink")), Col(shrink))
         )
-
-        view_card = QMenu(
-            QCard(
-                QCardSection(Heading("View Options", 5)),
-                QCardSection(view_options),
-                ui_flat=True,
-            ),
-            ui_anchor="top right",
+        super().__init__(
+            QCardSection(Heading("View Options", 5)),
+            QCardSection(view_options),
+            ui_flat=True,
         )
 
+
+class ColorOptions(QCard):
+    def __init__(self, comp):
+        self.comp = comp
+        colors = [fd.color for fd in comp.mesh.ngmesh.FaceDescriptors()]
+        colors = [(c[0], c[1], c[2], c[3]) for c in colors]
+        names = [fd.bcname for fd in comp.mesh.ngmesh.FaceDescriptors()]
+        face_colors = RegionColors(comp, colors, names)
+        face_colors_card = QCard(
+            Heading("Face Colors", 7),
+            face_colors,
+            ui_flat=True,
+            ui_bordered=True,
+            ui_style="padding: 10px;",
+        )
+        face_colors.on_change_color(self.change_color)
+        super().__init__(QCardSection(Heading("Colors", 4), face_colors_card))
+
+    def change_color(self, name, color):
+        colors = []
+        for fd in self.comp.mesh.ngmesh.FaceDescriptors():
+            if fd.bcname == name:
+                fd.color = color
+            colors.append([fd.color[0], fd.color[1], fd.color[2], fd.color[3]])
+        print("colors = ", colors)
+        self.comp.elements2d.colormap.set_colormap(colors)
+        self.comp.elements2d.set_needs_update()
+        self.comp.wgpu.scene.render()
+
+
+class Sidebar(QDrawer):
+    def __init__(self, comp):
+        self.geo_comp = comp
+
+        self.view_menu = QMenu(ViewOptions(comp), ui_anchor="top right")
+        clipping_menu = QMenu(ClippingSettings(comp), ui_anchor="top right")
+        color_menu = QMenu(ColorOptions(comp), ui_anchor="top right")
         items = [
             QItem(
                 QItemSection(QIcon(ui_name="mdi-eye"), ui_avatar=True),
                 QItemSection("View"),
-                view_card,
+                self.view_menu,
                 ui_clickable=True,
-            )
+            ),
+            QItem(
+                QItemSection(QIcon(ui_name="mdi-cube-off-outline"), ui_avatar=True),
+                QItemSection("Clipping"),
+                clipping_menu,
+                ui_clickable=True,
+            ),
+            QItem(
+                QItemSection(QIcon(ui_name="mdi-palette"), ui_avatar=True),
+                QItemSection("Colors"),
+                color_menu,
+                ui_clickable=True,
+            ),
         ]
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+        # self.add_keybinding("v", self.view_menu.ui_toggle)
 
 
 class MeshComponent(QLayout):
-    def __init__(self, title, mesh, global_clipping, app_data, settings):
+    def __init__(self, title, mesh, global_clipping, app_data, settings, global_camera):
         self.title = title
         self.app_data = app_data
         self.settings = settings
+        self.global_camera = global_camera
         self.mesh = mesh
         self.wgpu = WebgpuComponent()
         self.global_clipping = global_clipping
@@ -109,6 +160,7 @@ class MeshComponent(QLayout):
         self.wgpu.scene.render()
 
     def draw(self):
+        print("draw")
         self.mdata = MeshData(self.mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
@@ -119,7 +171,7 @@ class MeshComponent(QLayout):
             self.elements3d.shrink = self.settings.get("shrink", 1.0)
         self.mesh_info = Labels(
             [
-                f"El: {self.mesh.ne} F: {self.mesh.nface} E: {self.mesh.nedge} V: {self.mesh.nv}"
+                f"VOL: {self.mesh.GetNE(ngs.VOL)} BND: {self.mesh.GetNE(ngs.BND)} CD2: {self.mesh.GetNE(ngs.BBND)} CD3: {self.mesh.GetNE(ngs.BBBND)}"
             ],
             [(-0.99, -0.99)],
             font_size=14,
@@ -135,5 +187,4 @@ class MeshComponent(QLayout):
             ]
             if obj is not None
         ]
-
-        self.wgpu.draw(render_objects)
+        self.wgpu.draw(render_objects, camera=self.global_camera)

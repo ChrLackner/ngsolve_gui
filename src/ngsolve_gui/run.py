@@ -14,4 +14,8 @@ def main():
     app_args = {}
     if args.filename:
         app_args["filename"] = Path(args.filename).resolve()
-    host_local_app("ngsolve_gui.appconfig", watch_code=args.dev, app_args=app_args)
+    host_local_app(
+        "ngsolve_gui.appconfig",
+        watch_code=args.dev,
+        app_args=app_args,
+    )
