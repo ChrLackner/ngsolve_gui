@@ -47,24 +47,33 @@ class ColorOptions(QCard):
         colors = [fd.color for fd in comp.mesh.ngmesh.FaceDescriptors()]
         colors = [(c[0], c[1], c[2], c[3]) for c in colors]
         names = [fd.bcname for fd in comp.mesh.ngmesh.FaceDescriptors()]
-        face_colors = RegionColors(comp, colors, names)
+        face_colors = RegionColors("Face Colors", colors, names)
         face_colors_card = QCard(
-            Heading("Face Colors", 7),
             face_colors,
             ui_flat=True,
             ui_bordered=True,
             ui_style="padding: 10px;",
         )
-        face_colors.on_change_color(self.change_color)
         super().__init__(QCardSection(Heading("Colors", 4), face_colors_card))
+        face_colors.on_change_color(self.change_color)
 
     def change_color(self, name, color):
         colors = []
         for fd in self.comp.mesh.ngmesh.FaceDescriptors():
-            if fd.bcname == name:
-                fd.color = color
-            colors.append([fd.color[0], fd.color[1], fd.color[2], fd.color[3]])
-        print("colors = ", colors)
+            try:
+                index = name.index(fd.bcname)
+            except ValueError:
+                index = -1
+            if index >= 0:
+                fd.color = color[index]
+            colors.append(
+                [
+                    int(fd.color[0] * 255),
+                    int(fd.color[1] * 255),
+                    int(fd.color[2] * 255),
+                    int(fd.color[3] * 255),
+                ]
+            )
         self.comp.elements2d.colormap.set_colormap(colors)
         self.comp.elements2d.set_needs_update()
         self.comp.wgpu.scene.render()
@@ -160,7 +169,6 @@ class MeshComponent(QLayout):
         self.wgpu.scene.render()
 
     def draw(self):
-        print("draw")
         self.mdata = MeshData(self.mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)

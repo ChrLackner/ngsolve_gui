@@ -7,6 +7,8 @@ _appdata: AppData
 
 
 def DrawImpl(obj, mesh=None, name=None, **kwargs):
+    if isinstance(obj, ngocc.TopoDS_Shape):
+        obj = ngocc.OCCGeometry(obj)
     if isinstance(obj, ngocc.OCCGeometry):
         if name is None:
             name = "Geometry"

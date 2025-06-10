@@ -12,7 +12,7 @@ from ngsolve_webgpu import Clipping
 from webgpu.camera import Camera
 
 _colors = {
-    "primary": "#3B5BDB",  # indigo blue
+    "primary": "#164d7d",  # ngsolve blue
     "secondary": "#93B1D4",  # light slate blue
     "accent": "#14B8A6",  # teal
     "dark": "#0F172A",  # dark slate gray
@@ -99,15 +99,13 @@ class NGSolveGui(App):
             QSpace(),
             close_btn,
             ui_style="height: 60px",
-            ui_class="bg-secondary",
+            ui_class="bg-primary text-grey-4",
         )
 
         self.tab_panel = Panel(self.app_data)
         self.tabs.on_update_model_value(lambda e: self._click_tab(e.value))
         self.tab_components = {}
-        self.component = Div(
-            bar, self.tab_panel, ui_class="text-dark", id="main_component"
-        )
+        self.component = Div(bar, self.tab_panel, id="main_component")
         self.component.on_load(self.__on_load)
         self.component.on_before_save(self.__on_before_save)
         load_file(filename, self.app_data)
