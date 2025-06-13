@@ -39,7 +39,6 @@ class Panel(Div):
 
     def set_tab(self):
         name = self.app_data.active_tab
-        print("active = ", name)
         if name is None:
             self.ui_children = []
             return

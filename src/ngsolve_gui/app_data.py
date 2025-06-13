@@ -57,7 +57,6 @@ class AppData:
         self, title: str, function: ngs.CoefficientFunction, mesh: ngs.Mesh
     ):
         _type = "function"
-        print("add function")
         name = _type + "_" + title.lower().replace(" ", "_")
         self._data["tabs"][name] = {
             "type": _type,
