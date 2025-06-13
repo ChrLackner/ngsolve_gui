@@ -49,13 +49,22 @@ class ColorOptions(QCard):
         names = [fd.bcname for fd in comp.mesh.ngmesh.FaceDescriptors()]
         face_colors = RegionColors("Face Colors", colors, names)
         face_colors_card = QCard(
-            face_colors,
+            QCardSection(face_colors),
             ui_flat=True,
-            ui_bordered=True,
-            ui_style="padding: 10px;",
-        )
-        super().__init__(QCardSection(Heading("Colors", 4), face_colors_card))
+            ui_bordered=True)
+        dnames = list(set(comp.mesh.GetMaterials()))
+        dcolors = [(1.,0.,0.,1.) for _ in range(len(dnames))]
+        domain_colors = RegionColors("Domain Colors", dcolors, dnames)
+        self.dcolors = [[int(c[0] * 255), int(c[1] * 255), int(c[2] * 255), int(c[3] * 255)] for c in dcolors]
+        domain_colors_card = QCard(
+            QCardSection(
+                domain_colors),
+                ui_flat=True,
+                ui_bordered=True)
+        super().__init__(QCardSection(Heading("Colors", 4), face_colors_card,
+                                      domain_colors_card))
         face_colors.on_change_color(self.change_color)
+        domain_colors.on_change_color(self.change_d_color)
 
     def change_color(self, name, color):
         colors = []
@@ -76,6 +85,19 @@ class ColorOptions(QCard):
             )
         self.comp.elements2d.colormap.set_colormap(colors)
         self.comp.elements2d.set_needs_update()
+        self.comp.wgpu.scene.render()
+
+    def change_d_color(self, name, color):
+        colors = []
+        for i,d in enumerate(self.comp.mesh.GetMaterials()):
+            try:
+                index = name.index(d)
+            except ValueError:
+                index = -1
+            c = color[index]
+            self.dcolors[i] = [int(c[0] * 255), int(c[1] * 255), int(c[2] * 255), int(c[3] * 255)]
+        self.comp.elements3d.colormap.set_colormap(self.dcolors)
+        self.comp.elements3d.set_needs_update()
         self.comp.wgpu.scene.render()
 
 

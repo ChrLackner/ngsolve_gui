@@ -82,7 +82,7 @@ class NGSolveGui(App):
         upload_file.on_click(self._load_file)
         self.tabs = QTabs(ui_dense=True)
         close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
-        close_btn.on_click(self.__quit)
+        close_btn.on_click(self.quit)
         ngs_logo = Div(
             QImg(
                 ui_src=self.load_asset("logo_withname_retina.png"),
@@ -109,12 +109,7 @@ class NGSolveGui(App):
         self.component.on_load(self.__on_load)
         self.component.on_before_save(self.__on_before_save)
         load_file(filename, self.app_data)
-
-    def __quit(self):
-        from webgpu import platform as pl
-
-        pl.js.close()
-        os._exit(0)
+        # self.component.add_keybinding("q", self.quit)
 
     def _load_file(self):
         from tkinter import Tk, filedialog
