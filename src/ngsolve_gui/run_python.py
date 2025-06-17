@@ -33,8 +33,9 @@ ngs.Draw = DrawImpl
 def run_python(filename, app_data):
     global _appdata
     _appdata = app_data
+    script_globals = {"__name__": "__main__"}
     t = threading.Thread(
-        target=exec, args=(open(filename).read(),), name="PythonRunner"
+        target=exec, args=(open(filename).read(), script_globals), name="PythonRunner"
     )
     t.daemon = True
     t.start()
