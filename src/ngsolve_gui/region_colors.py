@@ -108,7 +108,7 @@ class RegionColors(Div):
         color = (c[0], c[1], c[2], 1.0 if visible else 0.0)
         self.name_color_map[name] = {color}
         for func in self._on_change_callbacks:
-            func([name], [(color[0]/255, color[1]/255, color[2]/255, color[3])])
+            func([name], [(color[0] / 255, color[1] / 255, color[2] / 255, color[3])])
 
     def randomize_colors(self):
         import random, math, itertools
@@ -123,16 +123,19 @@ class RegionColors(Div):
             for colr, colg, colb in itertools.product(range(n), range(n), range(n))
         ][:-1]
         random.shuffle(colors)
-        colors = [[c[0], c[1], c[2], list(self.name_color_map[name])[0][3]] for c, name in zip(colors, self.name_color_map.keys())]
+        colors = [
+            [c[0], c[1], c[2], list(self.name_color_map[name])[0][3]]
+            for c, name in zip(colors, self.name_color_map.keys())
+        ]
         for name, color in zip(self.name_color_map.keys(), colors):
             self.name_color_map[name] = {tuple(color)}
         for p, c in zip(self.pickers, colors):
             p.set_color(c)
         for func in self._on_change_callbacks:
-                func(
-                    list(self.name_color_map.keys()),
-                    [(c[0]/255, c[1]/255, c[2]/255, c[3]) for c in colors],
-                )
+            func(
+                list(self.name_color_map.keys()),
+                [(c[0] / 255, c[1] / 255, c[2] / 255, c[3]) for c in colors],
+            )
 
     def change_color(self, name, color):
         c = tuple(vi for vi in color[5:-1].split(","))

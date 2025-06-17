@@ -49,20 +49,20 @@ class ColorOptions(QCard):
         names = [fd.bcname for fd in comp.mesh.ngmesh.FaceDescriptors()]
         face_colors = RegionColors("Face Colors", colors, names)
         face_colors_card = QCard(
-            QCardSection(face_colors),
-            ui_flat=True,
-            ui_bordered=True)
+            QCardSection(face_colors), ui_flat=True, ui_bordered=True
+        )
         dnames = list(set(comp.mesh.GetMaterials()))
-        dcolors = [(1.,0.,0.,1.) for _ in range(len(dnames))]
+        dcolors = [(1.0, 0.0, 0.0, 1.0) for _ in range(len(dnames))]
         domain_colors = RegionColors("Domain Colors", dcolors, dnames)
-        self.dcolors = [[int(c[0] * 255), int(c[1] * 255), int(c[2] * 255), int(c[3] * 255)] for c in dcolors]
+        self.dcolors = {
+            name: [int(255 * ci) for ci in dcol] for name, dcol in zip(dnames, dcolors)
+        }
         domain_colors_card = QCard(
-            QCardSection(
-                domain_colors),
-                ui_flat=True,
-                ui_bordered=True)
-        super().__init__(QCardSection(Heading("Colors", 4), face_colors_card,
-                                      domain_colors_card))
+            QCardSection(domain_colors), ui_flat=True, ui_bordered=True
+        )
+        super().__init__(
+            QCardSection(Heading("Colors", 4), face_colors_card, domain_colors_card)
+        )
         face_colors.on_change_color(self.change_color)
         domain_colors.on_change_color(self.change_d_color)
 
@@ -89,14 +89,19 @@ class ColorOptions(QCard):
 
     def change_d_color(self, name, color):
         colors = []
-        for i,d in enumerate(self.comp.mesh.GetMaterials()):
+        for i, d in enumerate(set(self.comp.mesh.GetMaterials())):
             try:
                 index = name.index(d)
             except ValueError:
                 index = -1
             c = color[index]
-            self.dcolors[i] = [int(c[0] * 255), int(c[1] * 255), int(c[2] * 255), int(c[3] * 255)]
-        self.comp.elements3d.colormap.set_colormap(self.dcolors)
+            self.dcolors[name[index]] = [
+                int(c[0] * 255),
+                int(c[1] * 255),
+                int(c[2] * 255),
+                int(c[3] * 255),
+            ]
+        self.comp.elements3d.colormap.set_colormap(list(self.dcolors.values()))
         self.comp.elements3d.set_needs_update()
         self.comp.wgpu.scene.render()
 
