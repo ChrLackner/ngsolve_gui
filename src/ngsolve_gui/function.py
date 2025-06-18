@@ -37,12 +37,6 @@ class ColorbarSettings(QCard):
             self.comp.wgpu.scene.redraw(blocking=True)
             self.minval.ui_model_value = self.comp.colormap.minval
             self.maxval.ui_model_value = self.comp.colormap.maxval
-            print(
-                "minval:",
-                self.comp.colormap.minval,
-                "maxval:",
-                self.comp.colormap.maxval,
-            )
         else:
             self.comp.colormap.autoscale = False
 

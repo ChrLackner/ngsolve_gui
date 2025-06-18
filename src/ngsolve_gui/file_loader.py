@@ -1,5 +1,32 @@
+import netgen.occ as ngocc
 import ngsolve as ngs
-from .run_python import run_python
+import threading
+from .app_data import AppData
+
+_appdata: AppData
+
+def DrawImpl(obj, mesh=None, name=None, **kwargs):
+    if isinstance(obj, ngocc.TopoDS_Shape):
+        obj = ngocc.OCCGeometry(obj)
+    if isinstance(obj, ngocc.OCCGeometry):
+        if name is None:
+            name = "Geometry"
+        _appdata.add_geometry(name, obj)
+    if isinstance(obj, ngs.Mesh):
+        if name is None:
+            name = "Mesh"
+        _appdata.add_mesh(name, obj)
+    if isinstance(obj, ngs.CoefficientFunction):
+        if mesh is None:
+            assert isinstance(
+                obj, ngs.GridFunction
+            ), "Mesh must be provided for CoefficientFunction"
+            mesh = obj.space.mesh
+        assert name is not None, "Name must be provided for CoefficientFunction"
+        _appdata.add_function(name, obj, mesh)
+
+
+ngs.Draw = DrawImpl
 
 
 def load_file(filename, appdata):
@@ -9,18 +36,38 @@ def load_file(filename, appdata):
     :param filename: The path to the file to be loaded.
     :param appdata: An instance of AppData to store the loaded data.
     """
+    global _appdata
+    _appdata = appdata
     if filename is None:
         return
     filename = str(filename)
     file_ending = filename.split(".")[-1].lower()
     name = filename.split("/")[-1].split(".")[0]
     if filename.endswith(".vol") or filename.endswith(".vol.gz"):
-        mesh = ngs.Mesh(filename)
-        appdata.add_mesh(name, mesh)
+        code = f"""import ngsolve
+mesh = ngsolve.Mesh({filename})
+ngsolve.Draw(mesh, '{name}')"""
     elif file_ending in ["step", "iges", "stp"]:
-        from netgen.occ import OCCGeometry
-
-        geometry = OCCGeometry(filename)
-        appdata.add_geometry(name, geometry)
+        code = f"""import netgen.occ
+import ngsolve
+geometry = netgen.occ.OCCGeometry("{filename}")
+ngsolve.Draw(geometry, '{name}')"""
     elif file_ending == "py":
-        run_python(filename, appdata)
+        with open(filename, "r") as f:
+            code = f.read()
+    script_globals = {"__name__": "__main__"}
+    t = threading.Thread(
+        target=exec, args=(code, script_globals), name="PythonRunner"
+    )
+    t.daemon = True
+    t.start()
+    try:
+        import IPython
+        t2 = threading.Thread(
+            target=IPython.embed, kwargs={ "user_ns": script_globals },
+            name="IPythonEmbedder"
+        )
+        t2.daemon = True
+        t2.start()
+    except ImportError:
+        print("IPython is not installed, skipping interactive shell.")
