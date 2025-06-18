@@ -2,6 +2,7 @@ import netgen.occ as ngocc
 import ngsolve as ngs
 import threading
 from .app_data import AppData
+import asyncio
 
 _appdata: AppData
 
@@ -29,7 +30,7 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
 ngs.Draw = DrawImpl
 
 
-def load_file(filename, appdata):
+def load_file(filename, app):
     """
     Load a file and store its content in the provided AppData instance.
 
@@ -37,7 +38,7 @@ def load_file(filename, appdata):
     :param appdata: An instance of AppData to store the loaded data.
     """
     global _appdata
-    _appdata = appdata
+    _appdata = app.app_data
     if filename is None:
         return
     filename = str(filename)
@@ -56,18 +57,36 @@ ngsolve.Draw(geometry, '{name}')"""
         with open(filename, "r") as f:
             code = f.read()
     script_globals = {"__name__": "__main__"}
-    t = threading.Thread(
-        target=exec, args=(code, script_globals), name="PythonRunner"
-    )
-    t.daemon = True
-    t.start()
     try:
-        import IPython
-        t2 = threading.Thread(
-            target=IPython.embed, kwargs={ "user_ns": script_globals },
+        import termios
+        import sys
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        from IPython.terminal.embed import InteractiveShellEmbed
+        ipshell = [None]
+        def launch_shell():
+            ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
+            asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
+            ipshell[0].mainloop()
+        t = threading.Thread(
+            target=launch_shell,
             name="IPythonEmbedder"
         )
-        t2.daemon = True
-        t2.start()
+        t.daemon = True
+        t.start()
+        def exit_shell():
+            if ipshell[0] is not None:
+                # Restore terminal settings
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                sys.stdout.flush()
+                sys.stderr.flush()
+                ipshell[0].ask_exit()
+                ipshell[0].run_cell("import os; os._exit(0)")
+        app.on_exit(exit_shell)
     except ImportError:
         print("IPython is not installed, skipping interactive shell.")
+        t = threading.Thread(
+            target=exec, args=(code, script_globals), name="PythonRunner"
+        )
+        t.daemon = True
+        t.start()

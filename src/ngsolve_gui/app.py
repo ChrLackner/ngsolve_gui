@@ -107,7 +107,7 @@ class NGSolveGui(App):
         self.component = Div(bar, self.tab_panel, id="main_component")
         self.component.on_load(self.__on_load)
         self.component.on_before_save(self.__on_before_save)
-        load_file(filename, self.app_data)
+        load_file(filename, self)
         # self.component.add_keybinding("q", self.quit)
 
     def _load_file(self):
@@ -127,7 +127,7 @@ class NGSolveGui(App):
         root.destroy()
         if file_path:
             self._local_path = os.path.dirname(file_path)
-        load_file(file_path, self.app_data)
+        load_file(file_path, self)
 
     def __on_before_save(self):
         self.component.storage.set("app_data", self.app_data._data, use_pickle=True)
