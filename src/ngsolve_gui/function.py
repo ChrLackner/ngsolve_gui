@@ -63,6 +63,22 @@ class ColorbarSettings(QCard):
         self.minval.ui_model_value = self.comp.colormap.minval
         self.maxval.ui_model_value = self.comp.colormap.maxval
 
+class VectorSettings(QCard):
+    def __init__(self, comp):
+        self.comp = comp
+        options = ["Norm"] + [str(i) for i in range(1, comp.cf.dim + 1)]
+        self.color_component = QSelect(
+            ui_options=options, ui_model_value=options[0], ui_label="Color Component")
+        self.color_component.on_update_model_value(self.update_color_component)
+        super().__init__(QCardSection(Heading("Vector Settings", 5), self.color_component))
+
+    def update_color_component(self, event):
+        index = self.color_component.ui_options.index(
+            self.color_component.ui_model_value
+        )
+        self.comp.elements2d.change_cf_dim(index-1)
+        self.comp.colorbar.set_needs_update()
+        self.comp.wgpu.scene.render()
 
 class Sidebar(QDrawer):
     def __init__(self, comp):
@@ -83,6 +99,15 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
             ),
         ]
+        if comp.cf.dim > 1:
+            vector_menu = QMenu(VectorSettings(comp), ui_anchor="top right")
+            items.append(
+                QItem(
+                        QItemSection(QIcon(ui_name="mdi-arrow-top-right-thin"), ui_avatar=True),
+                        QItemSection("Vector Settings"),
+                        vector_menu,
+                        ui_clickable=True,
+                        ))
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
 
