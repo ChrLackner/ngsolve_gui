@@ -127,6 +127,46 @@ class DeformationSettings(QCard):
         except ValueError:
             pass
 
+class Options(QCard):
+    def __init__(self, comp):
+        self.comp = comp
+        self.wireframe_visible = QCheckbox(
+            ui_label="Wireframe Visible",
+            ui_model_value=comp.settings.get("wireframe_visible", True),
+        )
+        reset_camera = QBtn(
+                ui_icon="mdi-refresh",
+                ui_label="Reset Camera",
+                ui_flat=True,
+                ui_color="primary",
+                )
+        reset_camera.on_click(self.reset_camera)
+        self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
+        super().__init__(
+            QCardSection(
+                Heading("Options", 5),
+                reset_camera,
+                self.wireframe_visible,
+            )
+        )
+
+    def toggle_wireframe(self, event):
+        self.comp.wireframe.active = self.wireframe_visible.ui_model_value
+        self.comp.wgpu.scene.render()
+
+    def reset_camera(self, event):
+        pmin, pmax = self.comp.wgpu.scene.bounding_box
+        camera = self.comp.wgpu.scene.options.camera
+        camera.transform._mat = np.identity(4)
+        camera.transform._rot_mat = np.identity(4)
+        camera.transform._center = 0.5 * (pmin + pmax)
+        camera.transform._scale = 2 / np.linalg.norm(pmax - pmin)
+        if not (pmin[2] == 0 and pmax[2] == 0):
+            camera.transform.rotate(270, 0)
+            camera.transform.rotate(0, -20)
+            camera.transform.rotate(20, 0)
+        camera._update_uniforms()
+        self.comp.wgpu.scene.render()
 
 class VectorSettings(QCard):
     def __init__(self, comp):
@@ -192,6 +232,15 @@ class Sidebar(QDrawer):
                     ui_clickable=True,
                 )
             )
+        option_menu = QMenu(Options(comp), ui_anchor="top right")
+        items.append(
+            QItem(
+                QItemSection(QIcon(ui_name="mdi-cog-outline"), ui_avatar=True),
+                QItemSection("Options"),
+                option_menu,
+                ui_clickable=True,
+            )
+        )
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
 
