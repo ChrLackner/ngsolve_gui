@@ -1,6 +1,8 @@
 from ngapp.components import *
 from ngsolve_webgpu import *
 from .clipping import ClippingSettings
+import ngsolve as ngs
+from webgpu.canvas import debounce
 
 
 class ColorbarSettings(QCard):
@@ -63,22 +65,89 @@ class ColorbarSettings(QCard):
         self.minval.ui_model_value = self.comp.colormap.minval
         self.maxval.ui_model_value = self.comp.colormap.maxval
 
+
+class DeformationSettings(QCard):
+    def __init__(self, comp):
+        self.comp = comp
+        self._enable = QCheckbox(
+            ui_label="Enable Deformation",
+            ui_model_value=comp.settings.get("deformation_enabled", False),
+        )
+        self._enable.on_update_model_value(self.enable)
+        self._deform_scale = QInput(
+            ui_label="Deformation Scale",
+            ui_type="number",
+            ui_model_value=comp.settings.get("deformation_scale", 1.0),
+        )
+        self._deform_scale2 = QSlider(
+            ui_model_value=comp.settings.get("deformation_scale2", 1.0),
+            ui_min=0.0,
+            ui_max=1.0,
+            ui_step=0.01,
+        )
+        self._deform_scale.on_change(self.change_scale)
+        self._deform_scale2.on_update_model_value(self.change_scale)
+        super().__init__(
+            QCardSection(
+                Heading("Deformation Settings", 5),
+                self._enable,
+                self._deform_scale2,
+                self._deform_scale,
+            )
+        )
+
+    def enable(self, event):
+        self.comp.settings.set("deformation_enabled", self._enable.ui_model_value)
+        if hasattr(self.comp, "mdata"):
+            scale = 0.0
+            if self._enable.ui_model_value:
+                try:
+                    scale = float(self._deform_scale.ui_model_value) * float(
+                        self._deform_scale2.ui_model_value
+                    )
+                except ValueError:
+                    scale = 1.0
+            self.comp.mdata.deformation_scale = scale
+        self.comp.wgpu.scene.render()
+
+    @debounce
+    def change_scale(self, event):
+        try:
+            self.comp.settings.set(
+                "deformation_scale", float(self._deform_scale.ui_model_value)
+            )
+            self.comp.settings.set(
+                "deformation_scale2", float(self._deform_scale2.ui_model_value)
+            )
+            scale = float(self._deform_scale.ui_model_value) * float(
+                self._deform_scale2.ui_model_value
+            )
+            self.comp.mdata.deformation_scale = scale
+            self.comp.wgpu.scene.render()
+        except ValueError:
+            pass
+
+
 class VectorSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
         options = ["Norm"] + [str(i) for i in range(1, comp.cf.dim + 1)]
         self.color_component = QSelect(
-            ui_options=options, ui_model_value=options[0], ui_label="Color Component")
+            ui_options=options, ui_model_value=options[0], ui_label="Color Component"
+        )
         self.color_component.on_update_model_value(self.update_color_component)
-        super().__init__(QCardSection(Heading("Vector Settings", 5), self.color_component))
+        super().__init__(
+            QCardSection(Heading("Vector Settings", 5), self.color_component)
+        )
 
     def update_color_component(self, event):
         index = self.color_component.ui_options.index(
             self.color_component.ui_model_value
         )
-        self.comp.elements2d.change_cf_dim(index-1)
+        self.comp.elements2d.change_cf_dim(index - 1)
         self.comp.colorbar.set_needs_update()
         self.comp.wgpu.scene.render()
+
 
 class Sidebar(QDrawer):
     def __init__(self, comp):
@@ -99,15 +168,30 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
             ),
         ]
+        if self.comp.deformation is not None or (
+            self.comp.cf.dim == 1 and self.comp.mesh.dim < 3
+        ):
+            deformation_menu = QMenu(DeformationSettings(comp), ui_anchor="top right")
+            items.append(
+                QItem(
+                    QItemSection(QIcon(ui_name="mdi-arrow-expand-all"), ui_avatar=True),
+                    QItemSection("Deformation"),
+                    deformation_menu,
+                    ui_clickable=True,
+                )
+            )
         if comp.cf.dim > 1:
             vector_menu = QMenu(VectorSettings(comp), ui_anchor="top right")
             items.append(
                 QItem(
-                        QItemSection(QIcon(ui_name="mdi-arrow-top-right-thin"), ui_avatar=True),
-                        QItemSection("Vector Settings"),
-                        vector_menu,
-                        ui_clickable=True,
-                        ))
+                    QItemSection(
+                        QIcon(ui_name="mdi-arrow-top-right-thin"), ui_avatar=True
+                    ),
+                    QItemSection("Vector Settings"),
+                    vector_menu,
+                    ui_clickable=True,
+                )
+            )
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
 
@@ -118,6 +202,9 @@ class FunctionComponent(QLayout):
         self.global_camera = global_camera
         self.cf = data["function"]
         self.mesh = data["mesh"]
+        self.deformation = data.get("deformation", None)
+        if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
+            self.deformation = ngs.CF((0, 0, self.cf))
         self.global_clipping = global_clipping
         self.app_data = app_data
         self.func_data = None
@@ -149,6 +236,14 @@ class FunctionComponent(QLayout):
 
     def draw(self):
         self.mdata = MeshData(self.mesh)
+        if self.deformation is not None:
+            self.deform_data = FunctionData(self.mdata, self.deformation, order=3)
+            self.mdata.deformation_data = self.deform_data
+            self.mdata.deformation_scale = self.settings.get(
+                "deformation_scale", 1.0
+            ) * self.settings.get("deformation_scale2", 1.0)
+            if not self.settings.get("deformation_enabled", False):
+                self.mdata.deformation_scale = 0.0
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
         self.func_data = FunctionData(

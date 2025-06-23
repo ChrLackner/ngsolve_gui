@@ -6,6 +6,7 @@ import asyncio
 
 _appdata: AppData
 
+
 def DrawImpl(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, ngocc.TopoDS_Shape):
         obj = ngocc.OCCGeometry(obj)
@@ -23,8 +24,10 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
                 obj, ngs.GridFunction
             ), "Mesh must be provided for CoefficientFunction"
             mesh = obj.space.mesh
+            if name is None:
+                name = obj.name
         assert name is not None, "Name must be provided for CoefficientFunction"
-        _appdata.add_function(name, obj, mesh)
+        _appdata.add_function(name, obj, mesh, **kwargs)
 
 
 ngs.Draw = DrawImpl
@@ -60,20 +63,22 @@ ngsolve.Draw(geometry, '{name}')"""
     try:
         import termios
         import sys
+
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         from IPython.terminal.embed import InteractiveShellEmbed
+
         ipshell = [None]
+
         def launch_shell():
             ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
             asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
             ipshell[0].mainloop()
-        t = threading.Thread(
-            target=launch_shell,
-            name="IPythonEmbedder"
-        )
+
+        t = threading.Thread(target=launch_shell, name="IPythonEmbedder")
         t.daemon = True
         t.start()
+
         def exit_shell():
             if ipshell[0] is not None:
                 # Restore terminal settings
@@ -82,6 +87,7 @@ ngsolve.Draw(geometry, '{name}')"""
                 sys.stderr.flush()
                 ipshell[0].ask_exit()
                 ipshell[0].run_cell("import os; os._exit(0)")
+
         app.on_exit(exit_shell)
     except ImportError:
         print("IPython is not installed, skipping interactive shell.")

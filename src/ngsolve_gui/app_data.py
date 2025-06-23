@@ -54,14 +54,14 @@ class AppData:
             self._update()
 
     def add_function(
-        self, title: str, function: ngs.CoefficientFunction, mesh: ngs.Mesh
+        self, title: str, function: ngs.CoefficientFunction, mesh: ngs.Mesh, **kwargs
     ):
         _type = "function"
         name = _type + "_" + title.lower().replace(" ", "_")
         self._data["tabs"][name] = {
             "type": _type,
             "icon": "mdi-function-variant",
-            "data": {"function": function, "mesh": mesh},
+            "data": {"function": function, "mesh": mesh, **kwargs},
             "name": name,
             "title": title,
             "settings": {},
