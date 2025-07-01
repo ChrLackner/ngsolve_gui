@@ -121,7 +121,7 @@ class RegionColors(Div):
         colors = [
             (vals[colr], vals[colg], vals[colb])
             for colr, colg, colb in itertools.product(range(n), range(n), range(n))
-        ][:-1]
+        ][1:-1]
         random.shuffle(colors)
         colors = [
             [c[0], c[1], c[2], list(self.name_color_map[name])[0][3]]
