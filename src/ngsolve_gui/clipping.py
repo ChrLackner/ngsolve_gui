@@ -1,7 +1,17 @@
 from ngapp.components import *
 
 
-class ClippingSettings(QCard):
+class ClippingSettings(QItem):
+    def __init__(self, comp):
+        self.comp = comp
+        super().__init__(
+            QItemSection(QIcon(ui_name="mdi-cube-off-outline"), ui_avatar=True),
+            QItemSection("Clipping"),
+            QMenu(ClippingSettingsCard(comp), ui_anchor="top right"),
+            ui_clickable=True,
+        )
+
+class ClippingSettingsCard(QCard):
     def __init__(self, comp):
         self.comp = comp
         use_global = QCheckbox(
@@ -34,29 +44,38 @@ class ClippingSettings(QCard):
             ui_label="z",
             ui_model_value=clip.center[2],
             ui_debounce=debounce_time,
-            ui_style="width: 100px; padding: 0px 10px;",
+            ui_style="width: 100px; padding: 5px 10px;",
         )
         self.cz.on_update_model_value(self.set_cz)
-        self.dx = QInput(
-            ui_label="x",
+        self.dx = QSlider(
             ui_model_value=clip.normal[0],
-            ui_debounce=debounce_time,
-            ui_style="width: 100px; padding: 0px 10px;",
+            ui_min=-1,
+            ui_max=1,
+            ui_step=0.1,
+            ui_vertical=True,
+            ui_style="width: 100px; height: 50px;padding: 0px 10px;",
         )
+        self.dx.on("dblclick", lambda e: (setattr(self.dx, "ui_model_value", 0), self.set_nx(0)))
         self.dx.on_update_model_value(self.set_nx)
-        self.dy = QInput(
-            ui_label="y",
+        self.dy = QSlider(
             ui_model_value=clip.normal[1],
-            ui_debounce=debounce_time,
-            ui_style="width: 100px; padding: 0px 10px;",
+            ui_min=-1,
+            ui_max=1,
+            ui_step=0.1,
+            ui_vertical=True,
+            ui_style="width: 100px; height: 50px; padding: 0px 10px;",
         )
+        self.dy.on("dblclick", lambda e: (setattr(self.dy, "ui_model_value", 0), self.set_ny(0)))
         self.dy.on_update_model_value(self.set_ny)
-        self.dz = QInput(
-            ui_label="z",
+        self.dz = QSlider(
             ui_model_value=clip.normal[2],
-            ui_debounce=debounce_time,
-            ui_style="width: 100px; padding: 0px 10px;",
+            ui_min=-1,
+            ui_max=1,
+            ui_step=0.1,
+            ui_vertical=True,
+            ui_style="width: 100px; height: 50px; padding: 0px 10px;",
         )
+        self.dz.on("dblclick", lambda e: (setattr(self.dz, "ui_model_value", 0), self.set_nz(0)))
         self.dz.on_update_model_value(self.set_nz)
 
         self.offset = QSlider(ui_min=-1, ui_max=1, ui_step=0.01, ui_model_value=0.0)
@@ -97,11 +116,9 @@ class ClippingSettings(QCard):
     def get_offset_factor(self):
         try:
             bounding_box = self.comp.wgpu.scene.bounding_box
-            print("found bounding box = ", bounding_box)
         except Exception as e:
             print(e)
             bounding_box = ((0, 0, 0), (1, 1, 1))
-            print("default bounding_box")
         bb_diag = np.array(bounding_box[1]) - np.array(bounding_box[0])
         return np.linalg.norm(bb_diag) / 2.0
 
@@ -138,12 +155,10 @@ class ClippingSettings(QCard):
         self.slider_badge.ui_children = [
             f"Offset value: {int(value*100)}% of Bounding Box"
         ]
-        print("offset factor = ", self.get_offset_factor())
         self.comp.clipping.set_offset(value * self.get_offset_factor())
         self.comp.wgpu.scene.render()
 
     def set_cx(self, event):
-        print("set cx")
         try:
             value = float(event.value)
         except:
@@ -168,26 +183,34 @@ class ClippingSettings(QCard):
         self.comp.wgpu.scene.render()
 
     def set_nx(self, event):
-        try:
-            value = float(event.value)
-        except:
-            return
-        print("set nx = ", value)
+        if isinstance(event, int):
+            value = event
+        else:
+            try:
+                value = float(event.value)
+            except:
+                return
         self.comp.clipping.set_nx_value(value)
         self.comp.wgpu.scene.render()
 
     def set_ny(self, event):
-        try:
-            value = float(event.value)
-        except:
-            return
+        if isinstance(event, int):
+            value = event
+        else:
+            try:
+                value = float(event.value)
+            except:
+                return
         self.comp.clipping.set_ny_value(value)
         self.comp.wgpu.scene.render()
 
     def set_nz(self, event):
-        try:
-            value = float(event.value)
-        except:
-            return
+        if isinstance(event, int):
+            value = event
+        else:
+            try:
+                value = float(event.value)
+            except:
+                return
         self.comp.clipping.set_nz_value(value)
         self.comp.wgpu.scene.render()

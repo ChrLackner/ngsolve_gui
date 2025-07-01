@@ -192,15 +192,9 @@ class VectorSettings(QCard):
 class Sidebar(QDrawer):
     def __init__(self, comp):
         self.comp = comp
-        clipping_menu = QMenu(ClippingSettings(comp), ui_anchor="top right")
         colorbar_menu = QMenu(ColorbarSettings(comp), ui_anchor="top right")
         items = [
-            QItem(
-                QItemSection(QIcon(ui_name="mdi-cube-off-outline"), ui_avatar=True),
-                QItemSection("Clipping"),
-                clipping_menu,
-                ui_clickable=True,
-            ),
+            ClippingSettings(comp),
             QItem(
                 QItemSection(QIcon(ui_name="mdi-palette-outline"), ui_avatar=True),
                 QItemSection("Colorbar"),

@@ -111,7 +111,6 @@ class Sidebar(QDrawer):
         self.geo_comp = comp
 
         self.view_menu = QMenu(ViewOptions(comp), ui_anchor="top right")
-        clipping_menu = QMenu(ClippingSettings(comp), ui_anchor="top right")
         color_menu = QMenu(ColorOptions(comp), ui_anchor="top right")
         items = [
             QItem(
@@ -120,12 +119,7 @@ class Sidebar(QDrawer):
                 self.view_menu,
                 ui_clickable=True,
             ),
-            QItem(
-                QItemSection(QIcon(ui_name="mdi-cube-off-outline"), ui_avatar=True),
-                QItemSection("Clipping"),
-                clipping_menu,
-                ui_clickable=True,
-            ),
+            ClippingSettings(comp),
             QItem(
                 QItemSection(QIcon(ui_name="mdi-palette"), ui_avatar=True),
                 QItemSection("Colors"),
@@ -222,4 +216,5 @@ class MeshComponent(QLayout):
             ]
             if obj is not None
         ]
-        self.wgpu.draw(render_objects, camera=self.global_camera)
+        scene = self.wgpu.draw(render_objects, camera=self.global_camera)
+        self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
