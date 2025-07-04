@@ -49,7 +49,7 @@ def load_file(filename, app):
     name = filename.split("/")[-1].split(".")[0]
     if filename.endswith(".vol") or filename.endswith(".vol.gz"):
         code = f"""import ngsolve
-mesh = ngsolve.Mesh({filename})
+mesh = ngsolve.Mesh('{filename}')
 ngsolve.Draw(mesh, '{name}')"""
     elif file_ending in ["step", "iges", "stp"]:
         code = f"""import netgen.occ
