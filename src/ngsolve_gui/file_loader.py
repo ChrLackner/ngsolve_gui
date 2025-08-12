@@ -1,3 +1,4 @@
+from typing import Callable
 import netgen.occ as ngocc
 import ngsolve as ngs
 import threading
@@ -5,7 +6,7 @@ from .app_data import AppData
 import asyncio
 
 _appdata: AppData
-
+_redraw_func: Callable | None = None
 
 def DrawImpl(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, ngocc.TopoDS_Shape):
@@ -29,9 +30,12 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
         assert name is not None, "Name must be provided for CoefficientFunction"
         _appdata.add_function(name, obj, mesh, **kwargs)
 
+def RedrawImpl(*args, **kwargs):
+    if _redraw_func is not None:
+        _redraw_func(*args, **kwargs)
 
 ngs.Draw = DrawImpl
-
+ngs.Redraw = RedrawImpl
 
 def load_file(filename, app):
     """
@@ -40,8 +44,9 @@ def load_file(filename, app):
     :param filename: The path to the file to be loaded.
     :param appdata: An instance of AppData to store the loaded data.
     """
-    global _appdata
+    global _appdata, _redraw_func
     _appdata = app.app_data
+    _redraw_func = app.redraw
     if filename is None:
         return
     filename = str(filename)
@@ -59,6 +64,8 @@ ngsolve.Draw(geometry, '{name}')"""
     elif file_ending == "py":
         with open(filename, "r") as f:
             code = f.read()
+    else:
+        raise ValueError(f"Unsupported file type: {file_ending}")
     script_globals = {"__name__": "__main__"}
     try:
         import termios

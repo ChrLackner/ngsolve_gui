@@ -103,11 +103,25 @@ class GeometryComponent(QLayout):
                                  ui_debounce=500)
         self.name_input.on_update_model_value(self.change_name)
 
-        hide_btn = QBtn("Hide", ui_color="secondary")
+        hide_btn = QBtn("Hide", ui_color="secondary",
+                        ui_style="margin-right: 10px")
         hide_btn.on_click(self._hide_selected_shape)
+        showall_btn = QBtn("Show All", ui_color="secondary")
+        def show_all(event):
+            colors = self.geo_renderer.faces.colors
+            for i in range(len(colors) // 4):
+                colors[i * 4 + 3] = 1.0
+            self.geo_renderer.faces.set_colors(colors)
+            colors = self.geo_renderer.edges.colors
+            for i in range(len(colors) // 4):
+                colors[i * 4 + 3] = 1.0
+            self.geo_renderer.edges.set_colors(colors)
+            self.wgpu.scene.render()
+        showall_btn.on_click(show_all)
         self.selection_text = Div(Row(self.meshsize_input),
                                   Row(self.name_input),
-                                  Row(hide_btn, ui_style="margin-top: 10px;"))
+                                  Row(hide_btn, showall_btn,
+                                      ui_style="margin-top: 10px;"))
         self.selection_menu = QMenu(
             QCard(QCardSection(self.heading_selection_menu,
                                self.selection_text)),
@@ -116,6 +130,30 @@ class GeometryComponent(QLayout):
             ui_anchor="top left",
             ui_no_parent_event=True,
         )
+        reset_camera_btn = QBtn(
+            QTooltip("Reset Camera"),
+            ui_icon="mdi-refresh",
+            ui_color="secondary",
+            ui_style="position: absolute; top: 10px; right: 10px;",
+            ui_fab=True, ui_flat=True)
+        def reset_camera(event):
+            if self.wgpu.scene is not None:
+                pmin, pmax = self.geo.shape.bounding_box
+                npmin = np.array([pmin[0], pmin[1], pmin[2]])
+                npmax = np.array([pmax[0], pmax[1], pmax[2]])
+                camera = self.wgpu.scene.options.camera
+                camera.transform._mat = np.identity(4)
+                camera.transform._rot_mat = np.identity(4)
+                camera.transform._center = 0.5 * (npmin + npmax)
+                camera.transform._scale = 2 / np.linalg.norm(npmax - npmin)
+                if not (pmin[2] == 0 and pmax[2] == 0):
+                    camera.transform.rotate(270, 0)
+                    camera.transform.rotate(0, -20)
+                    camera.transform.rotate(20, 0)
+                camera._update_uniforms()
+                self.wgpu.scene.render()
+        reset_camera_btn.on_click(reset_camera)
+
         self.global_camera = global_camera
         self.sidebar = Sidebar(self)
         self.draw()
@@ -124,7 +162,8 @@ class GeometryComponent(QLayout):
             self.sidebar,
             QPageContainer(QPage(self.wgpu,
                                  self.selection_menu,
-                                 self.error_dialog)),
+                                 self.error_dialog,
+                                 reset_camera_btn)),
             ui_container=True,
             ui_view="lhh LpR lff",
             ui_style="height: calc(100vh - 140px); width: 100%;",
@@ -142,7 +181,19 @@ class GeometryComponent(QLayout):
     def create_mesh(self, *args):
         print("Generate mesh...")
         geo = self._create_meshing_geo()
-        mesh = ngs.Mesh(geo.GenerateMesh(**self._meshing_options()))
+        import netgen.meshing as ngm
+        mesh = ngm.Mesh()
+        try:
+            geo.GenerateMesh(mesh=mesh, **self._meshing_options())
+        except Exception as e:
+            btn_close = QBtn("Close")
+            btn_close.on_click(self.error_dialog.ui_hide)
+            self.error_dialog.ui_children = [
+                QCard(QCardSection(Heading("Error generating mesh", 5)),
+                      QCardSection(str(e)),
+                      QCardActions(btn_close))]
+            self.error_dialog.ui_show()
+        mesh = ngs.Mesh(mesh)
         self.app_data.add_mesh("Mesh " + self.title, mesh)
 
     @property
@@ -185,6 +236,17 @@ class GeometryComponent(QLayout):
             self.name_input.ui_error_message = str(e)
             self.name_input.ui_error = True
 
+    def _hide_selected_shape(self, event):
+        if self.selected[0] == "face":
+            colors = self.geo_renderer.faces.colors
+            colors[self.selected[1] * 4 + 3] = 0.0  # Set alpha to 0
+            self.geo_renderer.faces.set_colors(colors)
+        elif self.selected[0] == "edge":
+            colors = self.geo_renderer.edges.colors
+            colors[self.selected[1] * 4 + 3] = 0.0
+            self.geo_renderer.edges.set_colors(colors)
+        self.scene.render()
+
     def select_face(self, event):
         self.selected = ("face", event.uint32[0])
         self.selection_menu.ui_offset = [-event.x, -event.y]
@@ -206,8 +268,11 @@ class GeometryComponent(QLayout):
         self.geo_renderer.faces.on_select(self.select_face)
         self.geo_renderer.edges.on_select(self.selected_edge)
         scene = self.wgpu.draw([self.geo_renderer], camera=self.global_camera)
+        self.scene = scene
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
         def on_click(event):
-            if event["button"] == 0:
+            if self.selection_menu.ui_model_value:
+                self.selection_menu.ui_hide()
+            if event["button"] == 2:
                 scene.select(event["canvasX"], event["canvasY"])
         scene.input_handler.on_click(on_click)

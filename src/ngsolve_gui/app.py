@@ -34,6 +34,7 @@ class Panel(Div):
         self.app_data = app_data
         self.global_clipping = Clipping()
         self.global_camera = None
+        self.comp = None
         super().__init__()
         self.set_tab()
 
@@ -48,7 +49,7 @@ class Panel(Div):
         if self.global_camera is None:
             self.global_camera = Camera()
             new_camera = True
-        comp = _tab_type[tab["type"]](
+        self.comp = comp = _tab_type[tab["type"]](
             tab["title"],
             tab["data"],
             global_clipping=self.global_clipping,
@@ -153,6 +154,15 @@ class NGSolveGui(App):
     def _ctab(self, e, tabname):
         if e.value["button"] == 1:
             self.app_data.delete_tab(tabname)
+
+    def redraw(self, *args, **kwargs):
+        comp = self.tab_panel.comp
+        if comp is not None:
+            if hasattr(comp, "wgpu"):
+                if hasattr(comp.wgpu, "scene"):
+                    if hasattr(comp.wgpu.scene, "render_mutex"):
+                        if comp.wgpu.scene.render_mutex is not None:
+                            comp.wgpu.scene.redraw(*args, **kwargs)
 
     def _update(self):
         tabs = []
