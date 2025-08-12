@@ -51,7 +51,7 @@ def load_file(filename, app):
         code = f"""import ngsolve
 mesh = ngsolve.Mesh('{filename}')
 ngsolve.Draw(mesh, '{name}')"""
-    elif file_ending in ["step", "iges", "stp"]:
+    elif file_ending in ["step", "iges", "stp", "brep"]:
         code = f"""import netgen.occ
 import ngsolve
 geometry = netgen.occ.OCCGeometry("{filename}")

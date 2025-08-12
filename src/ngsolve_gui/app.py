@@ -63,7 +63,7 @@ class Panel(Div):
                 self.global_camera.transform._center = 0.5 * (pmin + pmax)
                 self.global_camera.transform._scale = 2 / np.linalg.norm(pmax - pmin)
 
-                if not (pmin[2] == 0 and pmax[2] == 0):
+                if not (abs(pmin[2]) < 1e-6 and abs(pmax[2]) < 1e-6):
                     self.global_camera.transform.rotate(270, 0)
                     self.global_camera.transform.rotate(0, -20)
                     self.global_camera.transform.rotate(20, 0)
@@ -106,9 +106,16 @@ class NGSolveGui(App):
         self.tab_components = {}
         self.component = Div(bar, self.tab_panel, id="main_component")
         self.component.on_load(self.__on_load)
+        self.component.on_mounted(self._disable_contextmenu)
         self.component.on_before_save(self.__on_before_save)
         load_file(filename, self)
         # self.component.add_keybinding("q", self.quit)
+
+    def _disable_contextmenu(self):
+        import webgpu.platform as pl
+        pl.js.document.addEventListener(
+            "contextmenu",
+            pl.create_event_handler(lambda e: None, prevent_default=True))
 
     def _load_file(self):
         from tkinter import Tk, filedialog

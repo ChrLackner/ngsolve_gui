@@ -103,20 +103,28 @@ class GeometryComponent(QLayout):
                                  ui_debounce=500)
         self.name_input.on_update_model_value(self.change_name)
 
-        self.selection_text = Div(Row(self.meshsize_input), Row(self.name_input))
+        hide_btn = QBtn("Hide", ui_color="secondary")
+        hide_btn.on_click(self._hide_selected_shape)
+        self.selection_text = Div(Row(self.meshsize_input),
+                                  Row(self.name_input),
+                                  Row(hide_btn, ui_style="margin-top: 10px;"))
         self.selection_menu = QMenu(
             QCard(QCardSection(self.heading_selection_menu,
                                self.selection_text)),
             # ui_touch_position=True,
             # ui_target=self.wgpu._js_component,
             ui_anchor="top left",
+            ui_no_parent_event=True,
         )
         self.global_camera = global_camera
         self.sidebar = Sidebar(self)
         self.draw()
+        self.error_dialog = QDialog()
         super().__init__(
             self.sidebar,
-            QPageContainer(QPage(self.wgpu, self.selection_menu)),
+            QPageContainer(QPage(self.wgpu,
+                                 self.selection_menu,
+                                 self.error_dialog)),
             ui_container=True,
             ui_view="lhh LpR lff",
             ui_style="height: calc(100vh - 140px); width: 100%;",
