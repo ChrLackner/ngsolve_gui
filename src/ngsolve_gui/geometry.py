@@ -142,15 +142,7 @@ class GeometryComponent(QLayout):
                 npmin = np.array([pmin[0], pmin[1], pmin[2]])
                 npmax = np.array([pmax[0], pmax[1], pmax[2]])
                 camera = self.wgpu.scene.options.camera
-                camera.transform._mat = np.identity(4)
-                camera.transform._rot_mat = np.identity(4)
-                camera.transform._center = 0.5 * (npmin + npmax)
-                camera.transform._scale = 2 / np.linalg.norm(npmax - npmin)
-                if not (pmin[2] == 0 and pmax[2] == 0):
-                    camera.transform.rotate(270, 0)
-                    camera.transform.rotate(0, -20)
-                    camera.transform.rotate(20, 0)
-                camera._update_uniforms()
+                camera.reset(npmin, npmax)
                 self.wgpu.scene.render()
         reset_camera_btn.on_click(reset_camera)
 

@@ -61,13 +61,7 @@ class Panel(Div):
         if new_camera:
             try:
                 pmin, pmax = comp.wgpu.scene.bounding_box
-                self.global_camera.transform._center = 0.5 * (pmin + pmax)
-                self.global_camera.transform._scale = 2 / np.linalg.norm(pmax - pmin)
-
-                if not (abs(pmin[2]) < 1e-6 and abs(pmax[2]) < 1e-6):
-                    self.global_camera.transform.rotate(270, 0)
-                    self.global_camera.transform.rotate(0, -20)
-                    self.global_camera.transform.rotate(20, 0)
+                self.global_camera.reset(pmin, pmax)
             except Exception as e:
                 self.global_camera = None
 

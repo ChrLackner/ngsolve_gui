@@ -157,15 +157,7 @@ class Options(QCard):
     def reset_camera(self, event):
         pmin, pmax = self.comp.wgpu.scene.bounding_box
         camera = self.comp.wgpu.scene.options.camera
-        camera.transform._mat = np.identity(4)
-        camera.transform._rot_mat = np.identity(4)
-        camera.transform._center = 0.5 * (pmin + pmax)
-        camera.transform._scale = 2 / np.linalg.norm(pmax - pmin)
-        if not (pmin[2] == 0 and pmax[2] == 0):
-            camera.transform.rotate(270, 0)
-            camera.transform.rotate(0, -20)
-            camera.transform.rotate(20, 0)
-        camera._update_uniforms()
+        camera.reset(pmin, pmax)
         self.comp.wgpu.scene.render()
 
 class VectorSettings(QCard):
