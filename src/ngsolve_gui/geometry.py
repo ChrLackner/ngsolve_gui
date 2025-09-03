@@ -248,17 +248,19 @@ class GeometryComponent(QLayout):
         self.scene.render()
 
     def select_face(self, event):
-        self.selected = ("face", event.uint32[0])
+        face_id = event.uint32[1]
+        self.selected = ("face", face_id)
         self.selection_menu.ui_offset = [-event.x, -event.y]
-        self.heading_selection_menu.ui_children = ["Face selected: " + str(event.uint32[0])]
-        face = self.geo.faces[event.uint32[0]]
+        self.heading_selection_menu.ui_children = ["Face selected: " + str(face_id)]
+        face = self.geo.faces[face_id]
         self.meshsize_input.ui_model_value = None if face.maxh==1e99 else face.maxh
         self.name_input.ui_model_value = face.name
         self.selection_menu.ui_show()
 
     def selected_edge(self, event):
-        self.heading_selection_menu.ui_children = ["Edge selected: " + str(event.uint32[0])]
-        edge = self.geo.edges[event.uint32[0]]
+        edge_id = event.uint32[1]
+        self.heading_selection_menu.ui_children = ["Edge selected: " + str(edge_id)]
+        edge = self.geo.edges[edge_id]
         self.meshsize_input.ui_model_value = None if edge.maxh==1e99 else edge.maxh
         self.name_input.ui_model_value = edge.name
         self.selection_menu.ui_show()
