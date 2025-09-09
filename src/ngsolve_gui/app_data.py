@@ -1,5 +1,6 @@
 import netgen.occ as ngocc
 import ngsolve as ngs
+from ngsolve_webgpu import *
 
 
 class Settings:
@@ -14,11 +15,26 @@ class Settings:
 
 
 class AppData:
-    data: dict
+    _data: dict
+    _gpu_cache: dict
 
     def __init__(self):
         self._data = {"tabs": {}, "active_tab": None}
         self._update = None
+        self._gpu_cache = {}
+
+    def get_mesh_gpu_data(self, mesh):
+        key = repr(mesh)
+        if key not in self._gpu_cache:
+            self._gpu_cache[key] = MeshData(mesh)
+        return self._gpu_cache[key]
+
+    def get_function_gpu_data(self, cf, mesh, **kwargs):
+        key = hash((repr(cf), repr(mesh), tuple(sorted(kwargs.items()))))
+        if key not in self._gpu_cache:
+            mdata = self.get_mesh_gpu_data(mesh)
+            self._gpu_cache[key] = FunctionData(mdata, cf, **kwargs)
+        return self._gpu_cache[key]
 
     def get_settings(self, name: str):
         return Settings(self._data["tabs"][name]["settings"])

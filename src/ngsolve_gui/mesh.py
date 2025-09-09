@@ -27,6 +27,7 @@ class ViewOptions(QCard):
             ui_min=0.0,
             ui_max=1.0,
             ui_step=0.01,
+            ui_style="width: 150px;",
         )
         shrink.on_update_model_value(comp.set_shrink)
         wireframe.on_update_model_value(comp.set_wireframe_visible)
@@ -190,7 +191,7 @@ class MeshComponent(QLayout):
         self.wgpu.scene.render()
 
     def draw(self):
-        self.mdata = MeshData(self.mesh)
+        self.mdata = self.app_data.get_mesh_gpu_data(self.mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)

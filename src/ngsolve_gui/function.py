@@ -233,6 +233,7 @@ class Sidebar(QDrawer):
 
 class FunctionComponent(QLayout):
     def __init__(self, title, data, global_clipping, app_data, settings, global_camera):
+        self.mdata= None
         self.title = title
         self.global_camera = global_camera
         self.cf = data["function"]
@@ -242,7 +243,6 @@ class FunctionComponent(QLayout):
             self.deformation = ngs.CF((0, 0, self.cf))
         self.global_clipping = global_clipping
         self.app_data = app_data
-        self.func_data = None
         self.settings = settings
         self.wgpu = WebgpuComponent()
         self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
@@ -260,33 +260,29 @@ class FunctionComponent(QLayout):
     def clipping(self):
         return self.global_clipping
 
-    def update(self, title, data, settings):
-        self.title = title
-        if self.cf == data["function"] and self.mesh == data["mesh"]:
-            return
-        self.cf = data["function"]
-        self.mesh = data["mesh"]
-        self.settings = settings
-        self.draw()
-
     def draw(self):
-        self.mdata = MeshData(self.mesh)
+        func_data = self.app_data.get_function_gpu_data(self.cf, self.mesh, order=self.settings.get("order", 3))
+        mdata = func_data.mesh_data
+
         if self.deformation is not None:
-            self.deform_data = FunctionData(self.mdata, self.deformation, order=3)
-            self.mdata.deformation_data = self.deform_data
-            self.mdata.deformation_scale = self.settings.get(
+            deform_data = self.app_data.get_function_gpu_data(self.deformation, self.mesh, order=3)
+            mdata = copy.copy(deform_data.mesh_data)
+            self.mdata = mdata
+            deform_data.mesh_data = mdata
+            mdata.deformation_data = deform_data
+            mdata.deformation_scale = self.settings.get(
                 "deformation_scale", 1.0
             ) * self.settings.get("deformation_scale2", 1.0)
             if not self.settings.get("deformation_enabled", False):
-                self.mdata.deformation_scale = 0.0
-        self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
+                mdata.deformation_scale = 0.0
+            func_data.mesh_data = mdata
+        self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
-        self.func_data = FunctionData(
-            self.mdata, self.cf, order=self.settings.get("order", 3)
-        )
+
         self.colormap = Colormap()
+        self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
         self.elements2d = CFRenderer(
-            self.func_data, clipping=self.clipping, colormap=self.colormap
+            func_data, clipping=self.clipping, colormap=self.colormap
         )
         self.elements2d.active = self.settings.get("elements2d_visible", True)
         self.colorbar = Colorbar(self.colormap)
