@@ -135,9 +135,11 @@ class Sidebar(QDrawer):
 
 
 class MeshComponent(WebgpuTab):
-    def __init__(self, name, mesh, app_data):
+    def __init__(self, name, mesh, app_data, el2d_bitarray=None, el3d_bitarray=None):
         self.mesh = mesh
         self.elements3d = None
+        self.el2d_bitarray = el2d_bitarray
+        self.el3d_bitarray = el3d_bitarray
         super().__init__(name, app_data)
 
     def create_sidebar(self):
@@ -176,10 +178,13 @@ class MeshComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     def draw(self):
-        kwargs = self.settings.get("kwargs", None)
-        if kwargs:
-            print("Creating new MeshData with kwargs:", kwargs)
-            self.mdata = MeshData(self.mesh, **kwargs)
+        if self.el2d_bitarray is not None or self.el3d_bitarray is not None:
+            print("Creating new MeshData with kwargs")
+            self.mdata = MeshData(
+                self.mesh,
+                el2d_bitarray=self.el2d_bitarray,
+                el3d_bitarray=self.el3d_bitarray,
+            )
         else:
             print("Using cached MeshData")
             self.mdata = self.app_data.get_mesh_gpu_data(self.mesh)

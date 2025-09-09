@@ -1,6 +1,7 @@
 from ngapp.components import *
 from ngsolve_webgpu import *
 from .clipping import ClippingSettings
+from .webgpu_tab import WebgpuTab
 import ngsolve as ngs
 from webgpu.canvas import debounce
 import copy
@@ -258,34 +259,18 @@ class Sidebar(QDrawer):
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
 
 
-class FunctionComponent(QLayout):
-    def __init__(self, title, data, global_clipping, app_data, settings, global_camera):
+class FunctionComponent(WebgpuTab):
+    def __init__(self, name, data, app_data):
         self.mdata = None
-        self.title = title
-        self.global_camera = global_camera
         self.cf = data["function"]
         self.mesh = data["mesh"]
         self.deformation = data.get("deformation", None)
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
-        self.global_clipping = global_clipping
-        self.app_data = app_data
-        self.settings = settings
-        self.wgpu = WebgpuComponent()
-        self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
-        self.draw()
-        self.sidebar = Sidebar(self)
-        super().__init__(
-            self.sidebar,
-            QPageContainer(QPage(self.wgpu)),
-            ui_container=True,
-            ui_view="lhh LpR lff",
-            ui_style="width: 100%; height: calc(100vh - 140px);",
-        )
+        super().__init__(name, app_data)
 
-    @property
-    def clipping(self):
-        return self.global_clipping
+    def create_sidebar(self):
+        return Sidebar(self)
 
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
@@ -330,7 +315,7 @@ class FunctionComponent(QLayout):
             ]
             if obj is not None
         ]
-        self.wgpu.draw(render_objects, camera=self.global_camera)
+        self.wgpu.draw(render_objects, camera=self.camera)
 
         def set_min_max():
             self.min_max = (self.colormap.minval, self.colormap.maxval)
