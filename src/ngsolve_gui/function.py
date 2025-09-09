@@ -3,28 +3,30 @@ from ngsolve_webgpu import *
 from .clipping import ClippingSettings
 import ngsolve as ngs
 from webgpu.canvas import debounce
+import copy
 
 
 class ColorbarSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
+        autoscale, minval, maxval = comp.settings.get("colormap", (True, 0.0, 1.0))
         self.minval = QInput(
             ui_label="Min Value",
             ui_type="number",
             ui_dense=True,
-            ui_model_value=0.0,
+            ui_model_value=minval,
             ui_style="width: 100px;",
         )
         self.maxval = QInput(
             ui_label="Max Value",
             ui_type="number",
             ui_dense=True,
-            ui_model_value=1.0,
+            ui_model_value=maxval,
             ui_style="padding-left: 20px; width: 100px;",
         )
         self.minval.on_change(self.update_min)
         self.maxval.on_change(self.update_max)
-        self.autoscale = QCheckbox(ui_label="Autoscale", ui_model_value=True)
+        self.autoscale = QCheckbox(ui_label="Autoscale", ui_model_value=autoscale)
         self.autoscale.on_update_model_value(self.update_autoscale)
         super().__init__(
             QCardSection(
@@ -41,6 +43,17 @@ class ColorbarSettings(QCard):
             self.maxval.ui_model_value = self.comp.colormap.maxval
         else:
             self.comp.colormap.autoscale = False
+        self.update_settings()
+
+    def update_settings(self):
+        self.comp.settings.set(
+            "colormap",
+            (
+                self.comp.colormap.autoscale,
+                self.comp.colormap.minval,
+                self.comp.colormap.maxval,
+            ),
+        )
 
     def update_min(self, event):
         try:
@@ -48,6 +61,7 @@ class ColorbarSettings(QCard):
             self.autoscale.ui_model_value = False
             self.comp.colorbar.set_needs_update()
             self.comp.wgpu.scene.render()
+            self.update_settings()
         except ValueError:
             pass
 
@@ -57,6 +71,7 @@ class ColorbarSettings(QCard):
             self.autoscale.ui_model_value = False
             self.comp.colorbar.set_needs_update()
             self.comp.wgpu.scene.render()
+            self.update_settings()
         except ValueError:
             pass
 
@@ -127,6 +142,7 @@ class DeformationSettings(QCard):
         except ValueError:
             pass
 
+
 class Options(QCard):
     def __init__(self, comp):
         self.comp = comp
@@ -134,19 +150,25 @@ class Options(QCard):
             ui_label="Wireframe Visible",
             ui_model_value=comp.settings.get("wireframe_visible", True),
         )
+        self.clipping_plane_visible = QCheckbox(
+            ui_label="Clipping Function",
+            ui_model_value=comp.settings.get("clipping_visible", True),
+        )
         reset_camera = QBtn(
-                ui_icon="mdi-refresh",
-                ui_label="Reset Camera",
-                ui_flat=True,
-                ui_color="primary",
-                )
+            ui_icon="mdi-refresh",
+            ui_label="Reset Camera",
+            ui_flat=True,
+            ui_color="primary",
+        )
         reset_camera.on_click(self.reset_camera)
         self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
+        self.clipping_plane_visible.on_update_model_value(self.toggle_clipping_function)
         super().__init__(
             QCardSection(
                 Heading("Options", 5),
                 reset_camera,
                 self.wireframe_visible,
+                self.clipping_plane_visible,
             )
         )
 
@@ -154,11 +176,16 @@ class Options(QCard):
         self.comp.wireframe.active = self.wireframe_visible.ui_model_value
         self.comp.wgpu.scene.render()
 
+    def toggle_clipping_function(self, event):
+        self.comp.clippingcf.active = self.clipping_plane_visible.ui_model_value
+        self.comp.wgpu.scene.render()
+
     def reset_camera(self, event):
         pmin, pmax = self.comp.wgpu.scene.bounding_box
         camera = self.comp.wgpu.scene.options.camera
         camera.reset(pmin, pmax)
         self.comp.wgpu.scene.render()
+
 
 class VectorSettings(QCard):
     def __init__(self, comp):
@@ -233,7 +260,7 @@ class Sidebar(QDrawer):
 
 class FunctionComponent(QLayout):
     def __init__(self, title, data, global_clipping, app_data, settings, global_camera):
-        self.mdata= None
+        self.mdata = None
         self.title = title
         self.global_camera = global_camera
         self.cf = data["function"]
@@ -261,11 +288,15 @@ class FunctionComponent(QLayout):
         return self.global_clipping
 
     def draw(self):
-        func_data = self.app_data.get_function_gpu_data(self.cf, self.mesh, order=self.settings.get("order", 3))
+        func_data = self.app_data.get_function_gpu_data(
+            self.cf, self.mesh, order=self.settings.get("order", 3)
+        )
         mdata = func_data.mesh_data
 
         if self.deformation is not None:
-            deform_data = self.app_data.get_function_gpu_data(self.deformation, self.mesh, order=3)
+            deform_data = self.app_data.get_function_gpu_data(
+                self.deformation, self.mesh, order=3
+            )
             mdata = copy.copy(deform_data.mesh_data)
             self.mdata = mdata
             deform_data.mesh_data = mdata
@@ -292,6 +323,7 @@ class FunctionComponent(QLayout):
         render_objects = [
             obj
             for obj in [
+                self.clippingcf,
                 self.elements2d,
                 self.wireframe,
                 self.colorbar,
@@ -302,5 +334,9 @@ class FunctionComponent(QLayout):
 
         def set_min_max():
             self.min_max = (self.colormap.minval, self.colormap.maxval)
+            self.settings.set(
+                "colormap",
+                (self.colormap.autoscale, self.colormap.minval, self.colormap.maxval),
+            )
 
         self.wgpu.on_mounted(set_min_max)

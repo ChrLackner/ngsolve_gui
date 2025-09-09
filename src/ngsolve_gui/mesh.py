@@ -6,6 +6,7 @@ from webgpu.labels import Labels
 from webgpu.canvas import debounce
 
 from .clipping import ClippingSettings
+from .webgpu_tab import WebgpuTab
 from .region_colors import RegionColors
 
 
@@ -133,26 +134,14 @@ class Sidebar(QDrawer):
         # self.add_keybinding("v", self.view_menu.ui_toggle)
 
 
-class MeshComponent(QLayout):
-    def __init__(self, title, mesh, global_clipping, app_data, settings, global_camera):
-        self.title = title
-        self.app_data = app_data
-        self.settings = settings
-        self.global_camera = global_camera
+class MeshComponent(WebgpuTab):
+    def __init__(self, name, mesh, app_data):
         self.mesh = mesh
-        self.wgpu = WebgpuComponent()
-        self.global_clipping = global_clipping
-        self.sidebar = Sidebar(self)
         self.elements3d = None
-        self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
-        self.draw()
-        super().__init__(
-            self.sidebar,
-            QPageContainer(QPage(self.wgpu)),
-            ui_container=True,
-            ui_view="lhh LpR lff",
-            ui_style="height: calc(100vh - 140px); width: 100%;",
-        )
+        super().__init__(name, app_data)
+
+    def create_sidebar(self):
+        return Sidebar(self)
 
     def update(self, title, mesh, settings):
         self.title = title
@@ -162,26 +151,22 @@ class MeshComponent(QLayout):
         self.settings = settings
         self.draw()
 
-    @property
-    def clipping(self):
-        return self.global_clipping
-
     def set_wireframe_visible(self, event):
         self.wireframe.active = event.value
         self.settings.set("wireframe_visible", event.value)
-        self.wgpu.scene.render()
+        self.scene.render()
 
     def set_elements2d_visible(self, event):
         self.elements2d.active = event.value
         self.settings.set("elements2d_visible", event.value)
-        self.wgpu.scene.render()
+        self.scene.render()
 
     def set_elements3d_visible(self, event):
         self.settings.set("elements3d_visible", event.value)
         if self.elements3d is None:
             self.draw()
         self.elements3d.active = event.value
-        self.wgpu.scene.render()
+        self.scene.render()
 
     def set_shrink(self, event):
         self.mdata.shrink = event.value
@@ -191,7 +176,13 @@ class MeshComponent(QLayout):
         self.wgpu.scene.render()
 
     def draw(self):
-        self.mdata = self.app_data.get_mesh_gpu_data(self.mesh)
+        kwargs = self.settings.get("kwargs", None)
+        if kwargs:
+            print("Creating new MeshData with kwargs:", kwargs)
+            self.mdata = MeshData(self.mesh, **kwargs)
+        else:
+            print("Using cached MeshData")
+            self.mdata = self.app_data.get_mesh_gpu_data(self.mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
@@ -217,5 +208,4 @@ class MeshComponent(QLayout):
             ]
             if obj is not None
         ]
-        scene = self.wgpu.draw(render_objects, camera=self.global_camera)
-        self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
+        self.wgpu.draw(render_objects, camera=self.camera)

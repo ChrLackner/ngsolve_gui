@@ -1,6 +1,9 @@
 import netgen.occ as ngocc
 import ngsolve as ngs
 from ngsolve_webgpu import *
+from webgpu.camera import Camera
+
+from ngapp.components import Component
 
 
 class Settings:
@@ -17,11 +20,23 @@ class Settings:
 class AppData:
     _data: dict
     _gpu_cache: dict
+    _clipping: Clipping
+    _camera: Camera
 
     def __init__(self):
         self._data = {"tabs": {}, "active_tab": None}
         self._update = None
         self._gpu_cache = {}
+        self._clipping = Clipping()
+        self._camera = Camera()
+
+    @property
+    def clipping(self):
+        return self._clipping
+
+    @property
+    def camera(self):
+        return self._camera
 
     def get_mesh_gpu_data(self, mesh):
         key = repr(mesh)
@@ -39,7 +54,22 @@ class AppData:
     def get_settings(self, name: str):
         return Settings(self._data["tabs"][name]["settings"])
 
-    def add_mesh(self, title: str, mesh: ngs.Mesh):
+    def add_tab(self, title: str, cls: type, *args, **kwargs):
+        name = title.lower().replace(" ", "_")
+        # name = title
+        self._data["tabs"][name] = {
+            "icon": "mdi-vector-triangle",
+            "data": {},
+            "name": name,
+            "title": title,
+            "settings": {},
+        }
+        self._data["tabs"][name]["component"] = cls(name, *args, **kwargs)
+        self.active_tab = name
+        if self._update is not None:
+            self._update()
+
+    def add_mesh(self, title: str, mesh: ngs.Mesh, **kwargs):
         _type = "mesh"
         name = _type + "_" + title.lower().replace(" ", "_")
         self._data["tabs"][name] = {
@@ -48,7 +78,9 @@ class AppData:
             "data": mesh,
             "name": name,
             "title": title,
-            "settings": {},
+            "settings": {
+                "kwargs": kwargs,
+            },
         }
         self.active_tab = name
         if self._update is not None:

@@ -11,6 +11,7 @@ class ClippingSettings(QItem):
             ui_clickable=True,
         )
 
+
 class ClippingSettingsCard(QCard):
     def __init__(self, comp):
         self.comp = comp
@@ -55,7 +56,10 @@ class ClippingSettingsCard(QCard):
             ui_vertical=True,
             ui_style="width: 100px; height: 50px;padding: 0px 10px;",
         )
-        self.dx.on("dblclick", lambda e: (setattr(self.dx, "ui_model_value", 0), self.set_nx(0)))
+        self.dx.on(
+            "dblclick",
+            lambda e: (setattr(self.dx, "ui_model_value", 0), self.set_nx(0)),
+        )
         self.dx.on_update_model_value(self.set_nx)
         self.dy = QSlider(
             ui_model_value=clip.normal[1],
@@ -65,7 +69,10 @@ class ClippingSettingsCard(QCard):
             ui_vertical=True,
             ui_style="width: 100px; height: 50px; padding: 0px 10px;",
         )
-        self.dy.on("dblclick", lambda e: (setattr(self.dy, "ui_model_value", 0), self.set_ny(0)))
+        self.dy.on(
+            "dblclick",
+            lambda e: (setattr(self.dy, "ui_model_value", 0), self.set_ny(0)),
+        )
         self.dy.on_update_model_value(self.set_ny)
         self.dz = QSlider(
             ui_model_value=clip.normal[2],
@@ -75,7 +82,10 @@ class ClippingSettingsCard(QCard):
             ui_vertical=True,
             ui_style="width: 100px; height: 50px; padding: 0px 10px;",
         )
-        self.dz.on("dblclick", lambda e: (setattr(self.dz, "ui_model_value", 0), self.set_nz(0)))
+        self.dz.on(
+            "dblclick",
+            lambda e: (setattr(self.dz, "ui_model_value", 0), self.set_nz(0)),
+        )
         self.dz.on_update_model_value(self.set_nz)
 
         self.offset = QSlider(ui_min=-1, ui_max=1, ui_step=0.01, ui_model_value=0.0)

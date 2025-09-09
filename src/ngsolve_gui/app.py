@@ -49,14 +49,17 @@ class Panel(Div):
         if self.global_camera is None:
             self.global_camera = Camera()
             new_camera = True
-        self.comp = comp = _tab_type[tab["type"]](
-            tab["title"],
-            tab["data"],
-            global_clipping=self.global_clipping,
-            app_data=self.app_data,
-            settings=settings,
-            global_camera=self.global_camera,
-        )
+        if "component" in tab:
+            self.comp = comp = tab["component"]
+        else:
+            self.comp = comp = _tab_type[tab["type"]](
+                tab["title"],
+                tab["data"],
+                global_clipping=self.global_clipping,
+                app_data=self.app_data,
+                settings=settings,
+                global_camera=self.global_camera,
+            )
         self.ui_children = [comp]
         if new_camera:
             try:
@@ -108,9 +111,10 @@ class NGSolveGui(App):
 
     def _disable_contextmenu(self):
         import webgpu.platform as pl
+
         pl.js.document.addEventListener(
-            "contextmenu",
-            pl.create_event_handler(lambda e: None, prevent_default=True))
+            "contextmenu", pl.create_event_handler(lambda e: None, prevent_default=True)
+        )
 
     def _load_file(self):
         from tkinter import Tk, filedialog

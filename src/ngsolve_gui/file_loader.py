@@ -3,10 +3,13 @@ import netgen.occ as ngocc
 import ngsolve as ngs
 import threading
 from .app_data import AppData
+from .geometry import GeometryComponent
+from .mesh import MeshComponent
 import asyncio
 
 _appdata: AppData
 _redraw_func: Callable | None = None
+
 
 def DrawImpl(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, ngocc.TopoDS_Shape):
@@ -14,11 +17,11 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, ngocc.OCCGeometry):
         if name is None:
             name = "Geometry"
-        _appdata.add_geometry(name, obj)
+        _appdata.add_tab(name, GeometryComponent, obj, _appdata)
     if isinstance(obj, ngs.Mesh):
         if name is None:
             name = "Mesh"
-        _appdata.add_mesh(name, obj)
+        _appdata.add_tab(name, MeshComponent, obj, _appdata, **kwargs)
     if isinstance(obj, ngs.CoefficientFunction):
         if mesh is None:
             assert isinstance(
@@ -30,12 +33,15 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
         assert name is not None, "Name must be provided for CoefficientFunction"
         _appdata.add_function(name, obj, mesh, **kwargs)
 
+
 def RedrawImpl(*args, **kwargs):
     if _redraw_func is not None:
         _redraw_func(*args, **kwargs)
 
+
 ngs.Draw = DrawImpl
 ngs.Redraw = RedrawImpl
+
 
 def load_file(filename, app):
     """
