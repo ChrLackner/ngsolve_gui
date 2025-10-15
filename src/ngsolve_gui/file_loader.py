@@ -75,6 +75,11 @@ ngsolve.Draw(mesh, '{name}')"""
 import ngsolve
 geometry = netgen.occ.OCCGeometry("{filename}")
 ngsolve.Draw(geometry, '{name}')"""
+    elif file_ending == "pkl":
+        code = f"""import netgen.occ
+import ngsolve, pickle
+obj = pickle.load(open("{filename}", "rb"))
+ngsolve.Draw(obj, '{name}')"""
     elif file_ending == "py":
         with open(filename, "r") as f:
             code = f.read()
