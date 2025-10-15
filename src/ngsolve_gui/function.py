@@ -151,10 +151,6 @@ class Options(QCard):
             ui_label="Wireframe Visible",
             ui_model_value=comp.settings.get("wireframe_visible", True),
         )
-        self.clipping_plane_visible = QCheckbox(
-            ui_label="Clipping Function",
-            ui_model_value=comp.settings.get("clipping_visible", True),
-        )
         reset_camera = QBtn(
             ui_icon="mdi-refresh",
             ui_label="Reset Camera",
@@ -163,15 +159,16 @@ class Options(QCard):
         )
         reset_camera.on_click(self.reset_camera)
         self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
-        self.clipping_plane_visible.on_update_model_value(self.toggle_clipping_function)
-        super().__init__(
-            QCardSection(
-                Heading("Options", 5),
-                reset_camera,
-                self.wireframe_visible,
-                self.clipping_plane_visible,
+        items = [Heading("Options", 5), reset_camera, self.wireframe_visible]
+        if comp.mesh.dim == 3:
+            self.clipping_plane_visible = QCheckbox(
+                ui_label="Clipping Function",
+                ui_model_value=comp.settings.get("clipping_visible", True),
             )
-        )
+            items.append(self.clipping_plane_visible)
+            self.clipping_plane_visible.on_update_model_value(
+                self.toggle_clipping_function)
+        super().__init__(QCardSection(*items))
 
     def toggle_wireframe(self, event):
         self.comp.wireframe.active = self.wireframe_visible.ui_model_value
@@ -214,7 +211,6 @@ class Sidebar(QDrawer):
         self.comp = comp
         colorbar_menu = QMenu(ColorbarSettings(comp), ui_anchor="top right")
         items = [
-            ClippingSettings(comp),
             QItem(
                 QItemSection(QIcon(ui_name="mdi-palette-outline"), ui_avatar=True),
                 QItemSection("Colorbar"),
@@ -222,6 +218,9 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
             ),
         ]
+        if self.comp.mesh.dim == 3:
+            items.append(ClippingSettings(comp))
+
         if self.comp.deformation is not None or (
             self.comp.cf.dim == 1 and self.comp.mesh.dim < 3
         ):
@@ -296,7 +295,10 @@ class FunctionComponent(WebgpuTab):
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
         self.colormap = Colormap()
-        self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
+        if self.mesh.dim == 3:
+            self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
+        else:
+            self.clippingcf = None
         self.elements2d = CFRenderer(
             func_data, clipping=self.clipping, colormap=self.colormap
         )
