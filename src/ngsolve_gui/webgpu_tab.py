@@ -36,6 +36,56 @@ class WebgpuTab(QLayout):
             self.scene.bounding_box[1] + self.scene.bounding_box[0]
         )
 
+        self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)
+        self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
+        self.scene.input_handler.on_wheel(self._on_wheel, ctrl=True)
+
+    def _on_dblclick(self, ev):
+        scene = self.scene
+        x = ev["canvasX"]
+        y = ev["canvasY"]
+
+        p = scene.get_position(x, y)
+        clipping = self.clipping
+        clipping.set_x_value(float(p[0]))
+        clipping.set_y_value(float(p[1]))
+        clipping.set_z_value(float(p[2]))
+        clipping.set_offset(0)
+        self.scene.render()
+
+    def _on_mousemove(self, ev):
+        clipping = self.clipping
+        if ev["button"] == 2:
+            offset = clipping.offset
+            offset += ev["movementY"] * 0.00002
+            clipping.set_offset(offset)
+            self.scene.render()
+        if ev["button"] == 0:
+            import numpy.linalg
+
+            transform = self.scene.options.camera.transform.copy()
+            inv_normal_mat = transform._mat.copy()[:3, :3].T
+            normal_mat = numpy.linalg.inv(inv_normal_mat)
+
+            transform._mat = numpy.identity(4)
+            transform._mat[:3, :3] = normal_mat
+            s = 0.3
+            transform.rotate(s * ev["movementY"], s * ev["movementX"])
+            n = inv_normal_mat @ (transform._mat[:3, :3] @ clipping.normal)
+
+            clipping.set_nx_value(float(n[0]))
+            clipping.set_ny_value(float(n[1]))
+            clipping.set_nz_value(float(n[2]))
+
+            self.scene.render()
+
+    def _on_wheel(self, ev):
+        clipping = self.clipping
+        offset = clipping.offset
+        offset += ev["deltaY"] * 0.0008
+        clipping.set_offset(offset)
+        self.scene.render()
+
     @property
     def scene(self) -> Scene:
         return self.wgpu.scene
