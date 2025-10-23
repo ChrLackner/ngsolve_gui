@@ -50,6 +50,16 @@ def RedrawImpl(*args, **kwargs):
 ngs.Draw = DrawImpl
 ngs.Redraw = RedrawImpl
 
+_custom_loaders = []
+
+def register_file_loader(loader: Callable):
+    """
+    Register a custom file loader function.
+
+    :param loader: A function that takes a filename and an NgApp instance,
+                   and returns True if it successfully loaded the file.
+    """
+    _custom_loaders.append(loader)
 
 def load_file(filename, app):
     """
@@ -64,6 +74,9 @@ def load_file(filename, app):
     if filename is None:
         return
     filename = str(filename)
+    for loader in _custom_loaders:
+        if loader(filename, app):
+            return
     file_ending = filename.split(".")[-1].lower()
     name = filename.split("/")[-1].split(".")[0]
     if filename.endswith(".vol") or filename.endswith(".vol.gz"):
