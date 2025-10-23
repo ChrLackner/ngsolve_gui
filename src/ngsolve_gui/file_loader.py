@@ -21,11 +21,11 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, ngocc.OCCGeometry):
         if name is None:
             name = "Geometry"
-        _appdata.add_tab(name, GeometryComponent, obj, _appdata)
+        return _appdata.add_tab(name, GeometryComponent, obj, _appdata)
     if isinstance(obj, ngs.Mesh):
         if name is None:
             name = "Mesh"
-        _appdata.add_tab(name, MeshComponent, obj, _appdata, **kwargs)
+        return _appdata.add_tab(name, MeshComponent, obj, _appdata, **kwargs)
     if isinstance(obj, ngs.CoefficientFunction):
         if mesh is None:
             assert isinstance(
@@ -39,7 +39,7 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
         data["function"] = obj
         data["mesh"] = mesh
         # _appdata.add_function(name, obj, mesh, **kwargs)
-        _appdata.add_tab(name, FunctionComponent, data, _appdata)
+        return _appdata.add_tab(name, FunctionComponent, data, _appdata)
 
 
 def RedrawImpl(*args, **kwargs):

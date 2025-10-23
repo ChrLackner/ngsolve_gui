@@ -64,10 +64,12 @@ class AppData:
             "title": title,
             "settings": {},
         }
-        self._data["tabs"][name]["component"] = cls(name, *args, **kwargs)
+        component = cls(name, *args, **kwargs)
+        self._data["tabs"][name]["component"] = component
         self.active_tab = name
         if self._update is not None:
             self._update()
+        return component
 
     def add_mesh(self, title: str, mesh: ngs.Mesh, **kwargs):
         _type = "mesh"

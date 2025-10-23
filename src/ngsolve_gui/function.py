@@ -201,9 +201,12 @@ class VectorSettings(QCard):
         index = self.color_component.ui_options.index(
             self.color_component.ui_model_value
         )
-        self.comp.elements2d.change_cf_dim(index - 1)
-        self.comp.colorbar.set_needs_update()
-        self.comp.wgpu.scene.render()
+        comp = self.comp
+        comp.elements2d.set_component(index - 1)
+        if comp.clippingcf is not None:
+            comp.clippingcf.set_component(index - 1)
+        comp.colorbar.set_needs_update()
+        comp.wgpu.scene.render()
 
 
 class Sidebar(QDrawer):
@@ -254,8 +257,13 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
             )
         )
-        qlist = QList(*items, ui_padding=True, ui_class="menu-list")
-        super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+        self.qlist = QList(*items, ui_padding=True, ui_class="menu-list")
+        super().__init__(self.qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+
+    def append_component(self, *args):
+        self.qlist.ui_children = self.qlist.ui_children + [QItem(*[QItemSection(a) for a in args])]
+
+
 
 
 class FunctionComponent(WebgpuTab):
@@ -263,6 +271,7 @@ class FunctionComponent(WebgpuTab):
         self.mdata = None
         self.cf = data["function"]
         self.mesh = data["mesh"]
+        self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
@@ -271,9 +280,16 @@ class FunctionComponent(WebgpuTab):
     def create_sidebar(self):
         return Sidebar(self)
 
+    def redraw(self):
+        self.func_data.set_needs_update()
+        self.elements2d.set_needs_update()
+        if self.clippingcf is not None:
+            self.clippingcf.set_needs_update()
+        # self.wgpu.scene.render()
+
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
-            self.cf, self.mesh, order=self.settings.get("order", 3)
+            self.cf, self.mesh, order=self.order
         )
         mdata = func_data.mesh_data
 
@@ -327,3 +343,6 @@ class FunctionComponent(WebgpuTab):
             )
 
         self.wgpu.on_mounted(set_min_max)
+
+        self.func_data = func_data
+
