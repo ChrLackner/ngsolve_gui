@@ -22,7 +22,7 @@ def DrawImpl(obj, mesh=None, name=None, **kwargs):
         if name is None:
             name = "Geometry"
         return _appdata.add_tab(name, GeometryComponent, obj, _appdata)
-    if isinstance(obj, ngs.Mesh):
+    if isinstance(obj, ngs.Mesh) or isinstance(obj, ngs.Region):
         if name is None:
             name = "Mesh"
         return _appdata.add_tab(name, MeshComponent, obj, _appdata, **kwargs)

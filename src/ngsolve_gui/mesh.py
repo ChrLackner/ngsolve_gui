@@ -136,7 +136,13 @@ class Sidebar(QDrawer):
 
 class MeshComponent(WebgpuTab):
     def __init__(self, name, mesh, app_data, el2d_bitarray=None, el3d_bitarray=None):
-        self.mesh = mesh
+        if isinstance(mesh, ngs.Region):
+            self.mesh = mesh.mesh
+            self.region_or_mesh = mesh
+        else:
+            self.mesh = mesh
+            self.region_or_mesh = mesh
+
         self.elements3d = None
         self.el2d_bitarray = el2d_bitarray
         self.el3d_bitarray = el3d_bitarray
@@ -181,13 +187,13 @@ class MeshComponent(WebgpuTab):
         if self.el2d_bitarray is not None or self.el3d_bitarray is not None:
             print("Creating new MeshData with kwargs")
             self.mdata = MeshData(
-                self.mesh,
+                self.region_or_mesh,
                 el2d_bitarray=self.el2d_bitarray,
                 el3d_bitarray=self.el3d_bitarray,
             )
         else:
             print("Using cached MeshData")
-            self.mdata = self.app_data.get_mesh_gpu_data(self.mesh)
+            self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
