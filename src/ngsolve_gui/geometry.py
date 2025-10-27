@@ -44,6 +44,10 @@ class MeshingInput(QInput):
 class Sidebar(QDrawer):
     def __init__(self, comp):
         self.geo_comp = comp
+        show_edge_cb = QCheckbox(ui_label="Show Edges",
+                                 ui_model_value=comp.settings.get("show_edges", True))
+        show_edge_cb.on_update_model_value(self.update_show_edges)
+        show_edges = QItem(QItemSection(show_edge_cb))
         create_mesh = QItem(QItemSection("Create Mesh"), ui_clickable=True)
 
         clipping_menu = ClippingSettings(comp)
@@ -87,9 +91,14 @@ class Sidebar(QDrawer):
             mparam_menu, QItemSection("Meshing Parameters"), ui_clickable=True
         )
         create_mesh.on_click(self.geo_comp.create_mesh)
-        items = [create_mesh, clipping_menu, meshing_parameters]
+        items = [show_edges, create_mesh, clipping_menu, meshing_parameters]
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+
+    def update_show_edges(self, event):
+        self.geo_comp.settings.set("show_edges", event.value)
+        self.geo_comp.geo_renderer.edges.active = event.value
+        self.geo_comp.scene.render()
 
 
 class GeometryComponent(WebgpuTab):
@@ -246,6 +255,7 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.faces.on_select(self.select_face)
         self.geo_renderer.edges.on_select(self.selected_edge)
+        self.geo_renderer.edges.active = self.settings.get("show_edges", True)
         scene = self.wgpu.draw([self.geo_renderer], camera=self.app_data.camera)
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
 
