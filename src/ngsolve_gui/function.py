@@ -298,7 +298,7 @@ class FunctionComponent(WebgpuTab):
 
         if self.deformation is not None:
             deform_data = self.app_data.get_function_gpu_data(
-                self.deformation, self.mesh, order=3
+                self.deformation, self.mesh, order=1
             )
             mdata = copy.copy(deform_data.mesh_data)
             self.mdata = mdata
@@ -314,8 +314,13 @@ class FunctionComponent(WebgpuTab):
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
         self.colormap = Colormap()
+        self.clipping_vectors = None
         if self.mesh.dim == 3:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
+            if self.cf.dim == 3:
+                self.clipping_vectors = ClippingVectors(
+                    func_data, clipping=self.clipping, colormap=self.colormap
+                )
         else:
             self.clippingcf = None
         self.elements2d = CFRenderer(
@@ -333,6 +338,7 @@ class FunctionComponent(WebgpuTab):
                 self.elements2d,
                 self.wireframe,
                 self.colorbar,
+                self.clipping_vectors,
             ]
             if obj is not None
         ]
@@ -348,4 +354,3 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.on_mounted(set_min_max)
 
         self.func_data = func_data
-
