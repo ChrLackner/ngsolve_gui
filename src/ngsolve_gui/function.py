@@ -11,6 +11,18 @@ class ColorbarSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
         autoscale, minval, maxval = comp.settings.get("colormap", (True, 0.0, 1.0))
+        self.colormap = QSelect(
+            ui_label="Colormap",
+            ui_options=[
+                "viridis",
+                "plasma",
+                "cet_l20",
+                "matlab:jet",
+                "matplotlib:coolwarm",
+            ],
+            ui_model_value="viridis",
+        )
+        self.colormap.on_update_model_value(self.update_colormap)
         self.minval = QInput(
             ui_label="Min Value",
             ui_type="number",
@@ -31,10 +43,19 @@ class ColorbarSettings(QCard):
         self.autoscale.on_update_model_value(self.update_autoscale)
         super().__init__(
             QCardSection(
-                Heading("Colorbar", 5), self.autoscale, Row(self.minval, self.maxval)
+                Heading("Colorbar", 5),
+                self.autoscale,
+                Row(self.minval, self.maxval),
+                self.colormap,
             )
         )
         self.on_mounted(self._update)
+
+    def update_colormap(self, event):
+        self.comp.colormap.set_colormap(self.colormap.ui_model_value)
+        self.comp.colorbar.set_needs_update()
+        self.comp.redraw()
+        self.comp.wgpu.scene.render()
 
     def update_autoscale(self, event):
         if self.autoscale.ui_model_value:
@@ -167,7 +188,8 @@ class Options(QCard):
             )
             items.append(self.clipping_plane_visible)
             self.clipping_plane_visible.on_update_model_value(
-                self.toggle_clipping_function)
+                self.toggle_clipping_function
+            )
         super().__init__(QCardSection(*items))
 
     def toggle_wireframe(self, event):
@@ -274,6 +296,9 @@ class FunctionComponent(WebgpuTab):
         self.cf = data["function"]
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
+        self.minval = data.get("minval", None)
+        self.maxval = data.get("maxval", None)
+        self.autoscale = data.get("autoscale", True)
         self.deformation = data.get("deformation", None)
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
@@ -315,7 +340,7 @@ class FunctionComponent(WebgpuTab):
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
-        self.colormap = Colormap()
+        self.colormap = Colormap(minval=self.minval, maxval=self.maxval)
         self.clipping_vectors = None
         if self.mesh.dim == 3:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
