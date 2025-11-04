@@ -258,12 +258,14 @@ class Sidebar(QDrawer):
             )
         )
         self.qlist = QList(*items, ui_padding=True, ui_class="menu-list")
-        super().__init__(self.qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+        super().__init__(
+            self.qlist, ui_width=200, ui_bordered=True, ui_model_value=True
+        )
 
     def append_component(self, *args):
-        self.qlist.ui_children = self.qlist.ui_children + [QItem(*[QItemSection(a) for a in args])]
-
-
+        self.qlist.ui_children = self.qlist.ui_children + [
+            QItem(*[QItemSection(a) for a in args])
+        ]
 
 
 class FunctionComponent(WebgpuTab):

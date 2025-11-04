@@ -52,6 +52,7 @@ ngs.Redraw = RedrawImpl
 
 _custom_loaders = []
 
+
 def register_file_loader(loader: Callable):
     """
     Register a custom file loader function.
@@ -60,6 +61,7 @@ def register_file_loader(loader: Callable):
                    and returns True if it successfully loaded the file.
     """
     _custom_loaders.append(loader)
+
 
 def load_file(filename, app):
     """
@@ -87,12 +89,12 @@ ngsolve.Draw(mesh, '{name}')"""
         code = f"""import netgen.occ
 import ngsolve
 geometry = netgen.occ.OCCGeometry("{filename}")
-ngsolve.Draw(geometry, '{name}')"""
+ngsolve.Draw(geometry, name='{name}')"""
     elif file_ending == "pkl":
         code = f"""import netgen.occ
 import ngsolve, pickle
 obj = pickle.load(open("{filename}", "rb"))
-ngsolve.Draw(obj, '{name}')"""
+ngsolve.Draw(obj, name='{name}')"""
     elif file_ending == "py":
         with open(filename, "r") as f:
             code = f.read()

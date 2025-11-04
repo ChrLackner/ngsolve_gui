@@ -106,7 +106,11 @@ class NGSolveGui(App):
         self.component.on_load(self.__on_load)
         self.component.on_mounted(self._disable_contextmenu)
         self.component.on_before_save(self.__on_before_save)
-        load_file(filename, self)
+        if isinstance(filename, str):
+            load_file(filename, self)
+        elif isinstance(filename, list):
+            for f in filename:
+                load_file(f, self)
         # self.component.add_keybinding("q", self.quit)
 
     def _disable_contextmenu(self):
