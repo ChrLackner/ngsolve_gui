@@ -1,4 +1,5 @@
 from ngapp.components import *
+import math
 
 
 class ClippingSettings(QItem):
@@ -129,8 +130,8 @@ class ClippingSettingsCard(QCard):
         except Exception as e:
             print(e)
             bounding_box = ((0, 0, 0), (1, 1, 1))
-        bb_diag = np.array(bounding_box[1]) - np.array(bounding_box[0])
-        return np.linalg.norm(bb_diag) / 2.0
+        bb_diag = [bounding_box[1][i] - bounding_box[0][i] for i in range(3)]
+        return math.sqrt(sum([d**2 for d in bb_diag])) / 2.0
 
     def update_fields(self):
         value = self.comp.clipping.offset / self.get_offset_factor()
