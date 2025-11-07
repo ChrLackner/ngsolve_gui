@@ -10,7 +10,7 @@ import copy
 class ColorbarSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
-        autoscale, minval, maxval = comp.settings.get("colormap", (True, 0.0, 1.0))
+        autoscale, discrete, minval, maxval = comp.settings.get("colormap", (True, False, 0.0, 1.0))
         self.colormap = QSelect(
             ui_label="Colormap",
             ui_options=[
@@ -21,6 +21,13 @@ class ColorbarSettings(QCard):
                 "matplotlib:coolwarm",
             ],
             ui_model_value="viridis",
+        )
+        self.discrete = QCheckbox(
+            ui_label="Discrete",
+            ui_model_value=discrete,
+        )
+        self.discrete.on_update_model_value(
+            self.update_discrete
         )
         self.colormap.on_update_model_value(self.update_colormap)
         self.minval = QInput(
@@ -45,6 +52,7 @@ class ColorbarSettings(QCard):
             QCardSection(
                 Heading("Colorbar", 5),
                 self.autoscale,
+                self.discrete,
                 Row(self.minval, self.maxval),
                 self.colormap,
             )
@@ -72,6 +80,7 @@ class ColorbarSettings(QCard):
             "colormap",
             (
                 self.comp.colormap.autoscale,
+                self.comp.colormap.discrete,
                 self.comp.colormap.minval,
                 self.comp.colormap.maxval,
             ),
@@ -97,10 +106,17 @@ class ColorbarSettings(QCard):
         except ValueError:
             pass
 
+    def update_discrete(self, event):
+        self.comp.colormap.set_discrete(self.discrete.ui_model_value)
+        self.comp.colorbar.set_needs_update()
+        self.comp.wgpu.scene.render()
+        self.update_settings()
+
     def _update(self):
         self.autoscale.ui_model_value = self.comp.colormap.autoscale
         self.minval.ui_model_value = self.comp.colormap.minval
         self.maxval.ui_model_value = self.comp.colormap.maxval
+        self.discrete.ui_model_value = bool(self.comp.colormap.discrete)
 
 
 class DeformationSettings(QCard):
