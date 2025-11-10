@@ -308,6 +308,8 @@ class Sidebar(QDrawer):
 
 class FunctionComponent(WebgpuTab):
     def __init__(self, name, data, app_data):
+        self.app_data = app_data
+        self.name = name
         self.mdata = None
         self.cf = data["function"]
         self.mesh = data["mesh"]
@@ -316,9 +318,13 @@ class FunctionComponent(WebgpuTab):
         self.maxval = data.get("maxval", None)
         self.autoscale = data.get("autoscale", True)
         self.deformation = data.get("deformation", None)
+        if "min" in data or "max" in data:
+            self.settings.set("colormap", (False, data.get("min", 0.0), data.get("max", 1.0)))
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
         super().__init__(name, app_data)
+        if data.get("deformation", None) is not None:
+            self.settings.set("deformation_enabled", True)
 
     def create_sidebar(self):
         return Sidebar(self)
@@ -356,7 +362,10 @@ class FunctionComponent(WebgpuTab):
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
-        self.colormap = Colormap(minval=self.minval, maxval=self.maxval)
+        autoscale, minval, maxval = self.settings.get(
+            "colormap", (True, 0.0, 1.0))
+        self.colormap = Colormap(minval=minval, maxval=maxval)
+        self.colormap.autoscale = autoscale
         self.clipping_vectors = None
         if self.mesh.dim == 3:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
