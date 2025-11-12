@@ -11,6 +11,8 @@ class ColorbarSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
         autoscale, discrete, minval, maxval = comp.settings.get("colormap", (True, False, 0.0, 1.0))
+        ncolors = comp.settings.get("ncolors_colormap", 8)
+        color_map_name = comp.settings.get("colormap_name", "matlab:jet")
         self.colormap = QSelect(
             ui_label="Colormap",
             ui_options=[
@@ -20,12 +22,19 @@ class ColorbarSettings(QCard):
                 "matlab:jet",
                 "matplotlib:coolwarm",
             ],
-            ui_model_value="viridis",
+            ui_model_value=color_map_name,
         )
         self.discrete = QCheckbox(
             ui_label="Discrete",
             ui_model_value=discrete,
         )
+        self.ncolors = QInput(
+                ui_label="Number of Colors",
+                ui_type="number",
+                ui_model_value=ncolors,
+                ui_style="width: 100px;",
+                )
+        self.ncolors.on_change(self.update_ncolors)
         self.discrete.on_update_model_value(
             self.update_discrete
         )
@@ -54,7 +63,7 @@ class ColorbarSettings(QCard):
                 self.autoscale,
                 self.discrete,
                 Row(self.minval, self.maxval),
-                self.colormap,
+                Row(self.colormap, self.ncolors),
             )
         )
         self.on_mounted(self._update)
@@ -64,6 +73,19 @@ class ColorbarSettings(QCard):
         self.comp.colorbar.set_needs_update()
         self.comp.redraw()
         self.comp.wgpu.scene.render()
+
+    def update_ncolors(self, event):
+        try:
+            ncolors = int(self.ncolors.ui_model_value)
+            if ncolors < 1:
+                ncolors = 1
+            if ncolors > 32:
+                ncolors = 32
+            self.comp.colormap.set_n_colors(ncolors)
+            self.comp.wgpu.scene.render()
+            self.comp.settings.set("ncolors_colormap", ncolors)
+        except ValueError:
+            pass
 
     def update_autoscale(self, event):
         if self.autoscale.ui_model_value:
@@ -314,17 +336,21 @@ class FunctionComponent(WebgpuTab):
         self.cf = data["function"]
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
-        self.minval = data.get("minval", None)
-        self.maxval = data.get("maxval", None)
-        self.autoscale = data.get("autoscale", True)
         self.deformation = data.get("deformation", None)
-        if "min" in data or "max" in data:
-            self.settings.set("colormap", (False, data.get("min", 0.0), data.get("max", 1.0)))
+        minval = data.get("minval", 0.)
+        maxval = data.get("maxval", 1.)
+        autoscale = data.get("autoscale", True)
+        discrete_colormap = data.get("discrete_colormap", False)
+        if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
+            self.settings.set("colormap", (autoscale,
+                                           discrete_colormap,
+                                           minval,
+                                           maxval))
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
-        super().__init__(name, app_data)
         if data.get("deformation", None) is not None:
             self.settings.set("deformation_enabled", True)
+        super().__init__(name, app_data)
 
     def create_sidebar(self):
         return Sidebar(self)
