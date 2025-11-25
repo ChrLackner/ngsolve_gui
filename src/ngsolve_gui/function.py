@@ -388,10 +388,11 @@ class FunctionComponent(WebgpuTab):
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
-        autoscale, minval, maxval = self.settings.get(
-            "colormap", (True, 0.0, 1.0))
+        autoscale, discrete, minval, maxval = self.settings.get(
+            "colormap", (True, False, 0.0, 1.0))
         self.colormap = Colormap(minval=minval, maxval=maxval)
         self.colormap.autoscale = autoscale
+        self.colormap.discrete = discrete
         self.clipping_vectors = None
         if self.mesh.dim == 3:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
