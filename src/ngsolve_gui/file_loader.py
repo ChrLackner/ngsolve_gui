@@ -1,7 +1,8 @@
 import asyncio
 import threading
+from pathlib import Path
 import numpy as np
-from typing import Callable
+from typing import Any, Callable, Iterable
 
 import netgen.occ as ngocc
 import ngsolve as ngs
@@ -10,37 +11,129 @@ from .app_data import AppData
 from .function import FunctionComponent
 from .geometry import GeometryComponent
 from .mesh import MeshComponent
+from ngapp.components import Component
 
 _appdata: AppData
 _redraw_func: Callable | None = None
 
 
-def DrawImpl(obj, mesh=None, name=None, **kwargs):
+def _file_extension_matches(path: Path, suffixes: Iterable[str]) -> bool:
+    """Helper to check file endings including multi-part like .vol.gz."""
+    lower_path = str(path).lower()
+    return any(lower_path.endswith(suffix) for suffix in suffixes)
+
+
+def _build_loader_snippet(filename: str, name: str) -> str:
+    """Return the Python snippet used to load a supported file."""
+    path = Path(filename)
+    ext = path.suffix.lower()
+
+    if _file_extension_matches(path, (".vol", ".vol.gz")):
+        return f"""import ngsolve
+mesh = ngsolve.Mesh('{filename}')
+ngsolve.Draw(mesh, '{name}')"""
+
+    if ext in {".step", ".iges", ".stp", ".brep"}:
+        return f"""import netgen.occ
+import ngsolve
+geometry = netgen.occ.OCCGeometry("{filename}")
+ngsolve.Draw(geometry, name='{name}')"""
+
+    if ext == ".pkl":
+        return f"""import netgen.occ
+import ngsolve, pickle
+obj = pickle.load(open("{filename}", "rb"))
+ngsolve.Draw(obj, name='{name}')"""
+
+    if ext == ".py":
+        with open(filename, "r") as f:
+            return f.read()
+
+    raise ValueError(f"Unsupported file type: {ext.lstrip('.')}")
+
+
+def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
+    """Start IPython in a background thread; clean up terminal on exit."""
+    import sys
+    import termios
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    from IPython.terminal.embed import InteractiveShellEmbed
+
+    ipshell = [None]
+
+    def launch_shell():
+        ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
+        asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
+        ipshell[0].mainloop()
+
+    t = threading.Thread(target=launch_shell, name="IPythonEmbedder", daemon=True)
+    t.start()
+
+    def exit_shell():
+        if ipshell[0] is None:
+            return
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        ipshell[0].ask_exit()
+        ipshell[0].run_cell("import os; os._exit(0)")
+
+    app.on_exit(exit_shell)
+
+
+def _run_script(code: str, script_globals: dict, app) -> None:
+    """Run user code with optional IPython; fall back to plain exec."""
+    try:
+        _launch_interactive_shell(code, script_globals, app)
+    except ImportError:
+        print("IPython is not installed, skipping interactive shell.")
+        t = threading.Thread(target=exec, args=(code, script_globals), name="PythonRunner", daemon=True)
+        t.start()
+
+# Dispatch table mapping types to default name + component
+_DRAW_DISPATCH: dict[type, tuple[str, type]] = {
+    ngocc.OCCGeometry: ("Geometry", GeometryComponent),
+    ngs.Mesh: ("Mesh", MeshComponent),
+    ngs.Region: ("Mesh", MeshComponent),
+    ngs.CoefficientFunction: ("Function", FunctionComponent),
+}
+
+
+def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
+             name: str | None = None, **kwargs):
+    """
+    Dispatch objects drawn by NGSolve into the GUI.
+
+    Supported targets:
+      - `TopoDS_Shape`/`OCCGeometry` → `GeometryComponent`
+      - `Mesh`/`Region` → `MeshComponent`
+      - `CoefficientFunction` (or `GridFunction`) → `FunctionComponent`
+
+    Provide `mesh` for general coefficient functions; grid functions use their space
+    mesh automatically. The function returns the created component instance.
+    """
     data = dict(**kwargs)
     if isinstance(obj, ngocc.TopoDS_Shape):
         obj = ngocc.OCCGeometry(obj)
-    if isinstance(obj, ngocc.OCCGeometry):
-        if name is None:
-            name = "Geometry"
-        return _appdata.add_tab(name, GeometryComponent, obj, data, _appdata)
-    if isinstance(obj, ngs.Mesh) or isinstance(obj, ngs.Region):
-        if name is None:
-            name = "Mesh"
-        return _appdata.add_tab(name, MeshComponent, obj, data, _appdata)
-    if isinstance(obj, ngs.CoefficientFunction):
+    if isinstance(obj, ngs.GridFunction):
         if mesh is None:
-            assert isinstance(
-                obj, ngs.GridFunction
-            ), "Mesh must be provided for CoefficientFunction"
             mesh = obj.space.mesh
-            if name is None:
-                name = obj.name
-        assert name is not None, "Name must be provided for CoefficientFunction"
-        data = dict(**kwargs)
-        data["function"] = obj
+    if mesh is not None:
         data["mesh"] = mesh
-        # _appdata.add_function(name, obj, mesh, **kwargs)
-        return _appdata.add_tab(name, FunctionComponent, data, _appdata)
+
+    if type(obj) not in _DRAW_DISPATCH:
+        try:
+            # try to convert to CoefficientFunction
+            obj = ngs.CF(obj)
+            default_name, comp = _DRAW_DISPATCH[ngs.CF]
+        except:
+            raise TypeError(f"Unsupported object type for Draw: {type(obj)}")
+    else:
+        default_name, comp = _DRAW_DISPATCH[type(obj)]
+    return _appdata.add_tab(name or default_name,
+                            comp, obj, data, _appdata)
 
 
 def RedrawImpl(*args, **kwargs):
@@ -51,10 +144,10 @@ def RedrawImpl(*args, **kwargs):
 ngs.Draw = DrawImpl
 ngs.Redraw = RedrawImpl
 
-_custom_loaders = []
+_custom_loaders: list[Callable[[str, Any], bool]] = []
 
 
-def register_file_loader(loader: Callable):
+def register_file_loader(loader: Callable[[str, Any], bool]):
     """
     Register a custom file loader function.
 
@@ -69,75 +162,24 @@ def load_file(filename, app):
     Load a file and store its content in the provided AppData instance.
 
     :param filename: The path to the file to be loaded.
-    :param appdata: An instance of AppData to store the loaded data.
+    :param app: The running application instance providing app data and redraw hooks.
     """
     global _appdata, _redraw_func
     _appdata = app.app_data
     _redraw_func = app.redraw
     if filename is None:
         return
+
     filename = str(filename)
     for loader in _custom_loaders:
         if loader(filename, app):
             return
-    file_ending = filename.split(".")[-1].lower()
-    name = filename.split("/")[-1].split(".")[0]
-    if filename.endswith(".vol") or filename.endswith(".vol.gz"):
-        code = f"""import ngsolve
-mesh = ngsolve.Mesh('{filename}')
-ngsolve.Draw(mesh, '{name}')"""
-    elif file_ending in ["step", "iges", "stp", "brep"]:
-        code = f"""import netgen.occ
-import ngsolve
-geometry = netgen.occ.OCCGeometry("{filename}")
-ngsolve.Draw(geometry, name='{name}')"""
-    elif file_ending == "pkl":
-        code = f"""import netgen.occ
-import ngsolve, pickle
-obj = pickle.load(open("{filename}", "rb"))
-ngsolve.Draw(obj, name='{name}')"""
-    elif file_ending == "py":
-        with open(filename, "r") as f:
-            code = f.read()
-    else:
-        raise ValueError(f"Unsupported file type: {file_ending}")
+
+    path = Path(filename)
+    name = path.stem
+    code = _build_loader_snippet(filename, name)
     script_globals = {"__name__": "__main__"}
-    try:
-        import sys
-        import termios
-
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        from IPython.terminal.embed import InteractiveShellEmbed
-
-        ipshell = [None]
-
-        def launch_shell():
-            ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
-            asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
-            ipshell[0].mainloop()
-
-        t = threading.Thread(target=launch_shell, name="IPythonEmbedder")
-        t.daemon = True
-        t.start()
-
-        def exit_shell():
-            if ipshell[0] is not None:
-                # Restore terminal settings
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                sys.stdout.flush()
-                sys.stderr.flush()
-                ipshell[0].ask_exit()
-                ipshell[0].run_cell("import os; os._exit(0)")
-
-        app.on_exit(exit_shell)
-    except ImportError:
-        print("IPython is not installed, skipping interactive shell.")
-        t = threading.Thread(
-            target=exec, args=(code, script_globals), name="PythonRunner"
-        )
-        t.daemon = True
-        t.start()
+    _run_script(code, script_globals, app)
 
 
 def DrawBadElements(mesh: ngs.Mesh, threshold_3d=100, threshold_2d=20, intorder=4):

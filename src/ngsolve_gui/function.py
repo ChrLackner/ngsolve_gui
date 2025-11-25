@@ -360,11 +360,11 @@ class Sidebar(QDrawer):
 
 
 class FunctionComponent(WebgpuTab):
-    def __init__(self, name, data, app_data):
+    def __init__(self, name, cf, data, app_data):
         self.app_data = app_data
         self.name = name
         self.mdata = None
-        self.cf = data["function"]
+        self.cf = cf
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
