@@ -44,8 +44,9 @@ class MeshingInput(QInput):
 class Sidebar(QDrawer):
     def __init__(self, comp):
         self.geo_comp = comp
-        show_edge_cb = QCheckbox(ui_label="Show Edges",
-                                 ui_model_value=comp.settings.get("show_edges", True))
+        show_edge_cb = QCheckbox(
+            ui_label="Show Edges", ui_model_value=comp.settings.get("show_edges", True)
+        )
         show_edge_cb.on_update_model_value(self.update_show_edges)
         show_edges = QItem(QItemSection(show_edge_cb))
         create_mesh = QItem(QItemSection("Create Mesh"), ui_clickable=True)

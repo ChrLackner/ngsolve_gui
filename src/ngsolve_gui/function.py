@@ -10,7 +10,9 @@ import copy
 class ColorbarSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
-        autoscale, discrete, minval, maxval = comp.settings.get("colormap", (True, False, 0.0, 1.0))
+        autoscale, discrete, minval, maxval = comp.settings.get(
+            "colormap", (True, False, 0.0, 1.0)
+        )
         ncolors = comp.settings.get("ncolors_colormap", 8)
         color_map_name = comp.settings.get("colormap_name", "matlab:jet")
         self.colormap = QSelect(
@@ -29,15 +31,13 @@ class ColorbarSettings(QCard):
             ui_model_value=discrete,
         )
         self.ncolors = QInput(
-                ui_label="Number of Colors",
-                ui_type="number",
-                ui_model_value=ncolors,
-                ui_style="width: 100px;",
-                )
-        self.ncolors.on_change(self.update_ncolors)
-        self.discrete.on_update_model_value(
-            self.update_discrete
+            ui_label="Number of Colors",
+            ui_type="number",
+            ui_model_value=ncolors,
+            ui_style="width: 100px;",
         )
+        self.ncolors.on_change(self.update_ncolors)
+        self.discrete.on_update_model_value(self.update_discrete)
         self.colormap.on_update_model_value(self.update_colormap)
         self.minval = QInput(
             ui_label="Min Value",
@@ -253,9 +253,40 @@ class VectorSettings(QCard):
             ui_options=options, ui_model_value=options[0], ui_label="Color Component"
         )
         self.color_component.on_update_model_value(self.update_color_component)
-        super().__init__(
-            QCardSection(Heading("Vector Settings", 5), self.color_component)
+        self.clipping_vectors = QCheckbox(
+            ui_label="Show Clipping Vectors",
+            ui_model_value=comp.settings.get("clipping_vectors", False),
         )
+        self.clipping_vectors.on_update_model_value(self.update_clipping_vectors)
+        self.grid_size = QInput(
+            ui_label="Grid Size",
+            ui_type="number",
+            ui_model_value=comp.settings.get("clipping_vector_grid_size", 20.0),
+        )
+        self.grid_size.on_change(self.update_grid_size)
+        super().__init__(
+            QCardSection(
+                Heading("Vector Settings", 5),
+                self.clipping_vectors,
+                self.grid_size,
+                self.color_component,
+            )
+        )
+
+    def update_clipping_vectors(self, event):
+        self.comp.clipping_vectors.active = self.clipping_vectors.ui_model_value
+        self.comp.settings.set("clipping_vectors", self.clipping_vectors.ui_model_value)
+        self.comp.wgpu.scene.render()
+
+    def update_grid_size(self, event):
+        try:
+            grid_size = float(self.grid_size.ui_model_value)
+            self.comp.clipping_vectors.set_grid_size(grid_size)
+            self.comp.settings.set("clipping_vector_grid_size", grid_size)
+            self.comp.clipping_vectors.set_needs_update()
+            self.comp.wgpu.scene.render()
+        except ValueError:
+            pass
 
     def update_color_component(self, event):
         index = self.color_component.ui_options.index(
@@ -337,15 +368,14 @@ class FunctionComponent(WebgpuTab):
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
-        minval = data.get("minval", 0.)
-        maxval = data.get("maxval", 1.)
+        minval = data.get("minval", 0.0)
+        maxval = data.get("maxval", 1.0)
         autoscale = data.get("autoscale", True)
         discrete_colormap = data.get("discrete_colormap", False)
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
-            self.settings.set("colormap", (autoscale,
-                                           discrete_colormap,
-                                           minval,
-                                           maxval))
+            self.settings.set(
+                "colormap", (autoscale, discrete_colormap, minval, maxval)
+            )
         if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
         if data.get("deformation", None) is not None:
@@ -389,7 +419,8 @@ class FunctionComponent(WebgpuTab):
         self.wireframe.active = self.settings.get("wireframe_visible", True)
 
         autoscale, discrete, minval, maxval = self.settings.get(
-            "colormap", (True, False, 0.0, 1.0))
+            "colormap", (True, False, 0.0, 1.0)
+        )
         self.colormap = Colormap(minval=minval, maxval=maxval)
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
@@ -398,7 +429,13 @@ class FunctionComponent(WebgpuTab):
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
             if self.cf.dim == 3:
                 self.clipping_vectors = ClippingVectors(
-                    func_data, clipping=self.clipping, colormap=self.colormap
+                    func_data,
+                    clipping=self.clipping,
+                    colormap=self.colormap,
+                    grid_size=self.settings.get("clipping_vector_grid_size", 20),
+                )
+                self.clipping_vectors.active = self.settings.get(
+                    "clipping_vectors", False
                 )
         else:
             self.clippingcf = None
