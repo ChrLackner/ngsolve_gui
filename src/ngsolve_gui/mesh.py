@@ -135,7 +135,7 @@ class Sidebar(QDrawer):
 
 
 class MeshComponent(WebgpuTab):
-    def __init__(self, name, mesh, app_data, el2d_bitarray=None, el3d_bitarray=None):
+    def __init__(self, name, mesh, data, app_data):
         if isinstance(mesh, ngs.Region):
             self.mesh = mesh.mesh
             self.region_or_mesh = mesh
@@ -144,9 +144,9 @@ class MeshComponent(WebgpuTab):
             self.region_or_mesh = mesh
 
         self.elements3d = None
-        self.el2d_bitarray = el2d_bitarray
-        self.el3d_bitarray = el3d_bitarray
-        super().__init__(name, app_data)
+        self.el2d_bitarray = data.get("el2d_bitarray", None)
+        self.el3d_bitarray = data.get("el3d_bitarray", None)
+        super().__init__(name, data, app_data)
 
     def create_sidebar(self):
         return Sidebar(self)

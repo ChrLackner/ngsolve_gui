@@ -16,16 +16,17 @@ _redraw_func: Callable | None = None
 
 
 def DrawImpl(obj, mesh=None, name=None, **kwargs):
+    data = dict(**kwargs)
     if isinstance(obj, ngocc.TopoDS_Shape):
         obj = ngocc.OCCGeometry(obj)
     if isinstance(obj, ngocc.OCCGeometry):
         if name is None:
             name = "Geometry"
-        return _appdata.add_tab(name, GeometryComponent, obj, _appdata)
+        return _appdata.add_tab(name, GeometryComponent, obj, data, _appdata)
     if isinstance(obj, ngs.Mesh) or isinstance(obj, ngs.Region):
         if name is None:
             name = "Mesh"
-        return _appdata.add_tab(name, MeshComponent, obj, _appdata, **kwargs)
+        return _appdata.add_tab(name, MeshComponent, obj, data, _appdata)
     if isinstance(obj, ngs.CoefficientFunction):
         if mesh is None:
             assert isinstance(

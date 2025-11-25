@@ -3,11 +3,11 @@ from webgpu import Scene
 
 
 class WebgpuTab(QLayout):
-    def __init__(self, name, app_data):
+    def __init__(self, name, data, app_data):
         self.name = name
+        self.app_data = app_data
         self.wgpu = WebgpuComponent()
         self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
-        self.app_data = app_data
         self.icon = "mdi-vector-triangle"
 
         self.reset_camera_btn = QBtn(
@@ -35,6 +35,8 @@ class WebgpuTab(QLayout):
         self.clipping.center = 0.5 * (
             self.scene.bounding_box[1] + self.scene.bounding_box[0]
         )
+        if "clipping" in data:
+            self.clipping.enable = bool(data["clipping"])
 
         self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)

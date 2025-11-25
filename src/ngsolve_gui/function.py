@@ -380,7 +380,14 @@ class FunctionComponent(WebgpuTab):
             self.deformation = ngs.CF((0, 0, self.cf))
         if data.get("deformation", None) is not None:
             self.settings.set("deformation_enabled", True)
-        super().__init__(name, app_data)
+        cv = data.get("clipping_vectors", False)
+        if cv:
+            if isinstance(cv, bool):
+                self.settings.set("clipping_vectors", cv)
+            else:
+                self.settings.set("clipping_vectors", True)
+                self.settings.set("clipping_vector_grid_size", cv)
+        super().__init__(name, data, app_data)
 
     def create_sidebar(self):
         return Sidebar(self)

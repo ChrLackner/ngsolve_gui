@@ -103,7 +103,7 @@ class Sidebar(QDrawer):
 
 
 class GeometryComponent(WebgpuTab):
-    def __init__(self, name, geometry, app_data):
+    def __init__(self, name, geometry, data, app_data):
         self.geo = geometry
         self.heading_selection_menu = Heading("Selection", 7)
         self.meshsize_input = QInput(
@@ -142,7 +142,7 @@ class GeometryComponent(WebgpuTab):
             ui_no_parent_event=True,
         )
 
-        super().__init__(name, app_data)
+        super().__init__(name, data, app_data)
 
         self.ui_children = self.ui_children + [self.selection_menu]
 
