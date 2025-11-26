@@ -387,6 +387,8 @@ class FunctionComponent(WebgpuTab):
             else:
                 self.settings.set("clipping_vectors", True)
                 self.settings.set("clipping_vector_grid_size", cv)
+        if "clipping_function" in data:
+            self.settings.set("clipping_visible", data["clipping_function"])
         super().__init__(name, data, app_data)
 
     def create_sidebar(self):
@@ -434,6 +436,7 @@ class FunctionComponent(WebgpuTab):
         self.clipping_vectors = None
         if self.mesh.dim == 3:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
+            self.clippingcf.active = self.settings.get("clipping_visible", True)
             if self.cf.dim == 3:
                 self.clipping_vectors = ClippingVectors(
                     func_data,
