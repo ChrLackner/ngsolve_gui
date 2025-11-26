@@ -36,7 +36,15 @@ class WebgpuTab(QLayout):
             self.scene.bounding_box[1] + self.scene.bounding_box[0]
         )
         if "clipping" in data:
-            self.clipping.enable = bool(data["clipping"])
+            clipping = data["clipping"]
+            if bool(clipping):
+                self.clipping.mode = self.clipping.Mode.PLANE
+            if isinstance(clipping, dict):
+                if "normal" in clipping:
+                    self.clipping.normal = clipping["normal"]
+                if "center" in clipping:
+                    self.clipping.center = clipping["center"]
+
 
         self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
