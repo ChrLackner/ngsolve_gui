@@ -267,9 +267,9 @@ class VectorSettings(QCard):
         super().__init__(
             QCardSection(
                 Heading("Vector Settings", 5),
+                self.color_component,
                 self.clipping_vectors,
                 self.grid_size,
-                self.color_component,
             )
         )
 
@@ -368,8 +368,8 @@ class FunctionComponent(WebgpuTab):
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
-        minval = data.get("minval", 0.0)
-        maxval = data.get("maxval", 1.0)
+        minval = data.get("min", 0.0)
+        maxval = data.get("max", 1.0)
         autoscale = data.get("autoscale", True)
         discrete_colormap = data.get("discrete_colormap", False)
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
