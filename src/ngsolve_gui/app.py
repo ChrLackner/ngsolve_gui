@@ -162,8 +162,8 @@ class NGSolveGui(App):
         if comp is not None:
             if hasattr(comp, "wgpu"):
                 if hasattr(comp.wgpu, "scene"):
-                    if hasattr(comp.wgpu.scene, "render_mutex"):
-                        if comp.wgpu.scene.render_mutex is not None:
+                    if hasattr(comp.wgpu.scene, "_render_mutex"):
+                        if comp.wgpu.scene._render_mutex is not None:
                             comp.wgpu.scene.redraw(*args, **kwargs)
 
     def _update(self):
