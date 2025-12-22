@@ -9,6 +9,7 @@ def main():
         "filename", help="Load the specified file", nargs="*", default=None
     )
     parser.add_argument("--dev", action="store_true", help="Run in development mode")
+    parser.add_argument("--dev-frontend", action="store_true", help="Run frontend in development mode")
     # get absolute path of file from command line
     args = parser.parse_args()
     app_args = {}
@@ -17,5 +18,6 @@ def main():
     host_local_app(
         "ngsolve_gui.appconfig",
         watch_code=args.dev,
+        dev_frontend=args.dev_frontend,
         app_args=app_args,
     )
