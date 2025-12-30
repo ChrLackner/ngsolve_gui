@@ -15,13 +15,19 @@ class ViewOptions(QCard):
         wireframe = QCheckbox(
             "Wireframe", ui_model_value=comp.settings.get("wireframe_visible", True)
         )
+        wireframe.on_update_model_value(comp.set_wireframe_visible)
+        options = [wireframe]
         element2d = QCheckbox(
             "Elements 2D", ui_model_value=comp.settings.get("elements2d_visible", True)
         )
-        elements3d = QCheckbox(
-            "Elements 3D", ui_model_value=comp.settings.get("elements3d_visible", False)
-        )
-        elements3d.on_update_model_value(comp.set_elements3d_visible)
+        element2d.on_update_model_value(comp.set_elements2d_visible)
+        options.append(element2d)
+        if comp.mesh.dim == 3:
+            elements3d = QCheckbox(
+                "Elements 3D", ui_model_value=comp.settings.get("elements3d_visible", False)
+            )
+            elements3d.on_update_model_value(comp.set_elements3d_visible)
+            options.append(elements3d)
         shrink = QSlider(
             "Shrink",
             ui_model_value=comp.settings.get("shrink", 1.0),
@@ -31,10 +37,8 @@ class ViewOptions(QCard):
             ui_style="width: 150px;",
         )
         shrink.on_update_model_value(comp.set_shrink)
-        wireframe.on_update_model_value(comp.set_wireframe_visible)
-        element2d.on_update_model_value(comp.set_elements2d_visible)
         view_options = Div(
-            wireframe, element2d, elements3d, Row(Col(Label("Shrink")), Col(shrink))
+            *options, Row(Col(Label("Shrink")), Col(shrink))
         )
         super().__init__(
             QCardSection(Heading("View Options", 5)),
@@ -117,24 +121,25 @@ class Sidebar(QDrawer):
 
         self.view_menu = QMenu(ViewOptions(comp), ui_anchor="top right")
         color_menu = QMenu(ColorOptions(comp), ui_anchor="top right")
+        dim = comp.mesh.dim
         items = [
             QItem(
                 QItemSection(QIcon(ui_name="mdi-eye"), ui_avatar=True),
                 QItemSection("View"),
                 self.view_menu,
                 ui_clickable=True,
-            ),
-            ClippingSettings(comp),
-            QItem(
+            )]
+        if dim == 3:
+            items.append(ClippingSettings(comp))
+        items.append(QItem(
                 QItemSection(QIcon(ui_name="mdi-palette"), ui_avatar=True),
                 QItemSection("Colors"),
                 color_menu,
                 ui_clickable=True,
-            ),
-        ]
+        ))
+        
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
-        # self.add_keybinding("v", self.view_menu.ui_toggle)
 
 
 class MeshComponent(WebgpuTab):
