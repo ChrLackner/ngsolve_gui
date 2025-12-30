@@ -28,6 +28,10 @@ class ViewOptions(QCard):
             )
             elements3d.on_update_model_value(comp.set_elements3d_visible)
             options.append(elements3d)
+        elements1d = QCheckbox(
+            "Elements 1D", ui_model_value=comp.settings.get("elements1d_visible", False))
+        elements1d.on_update_model_value(comp.set_elements1d_visible)
+        options.append(elements1d)
         shrink = QSlider(
             "Shrink",
             ui_model_value=comp.settings.get("shrink", 1.0),
@@ -173,6 +177,11 @@ class MeshComponent(WebgpuTab):
         self.settings.set("wireframe_visible", event.value)
         self.scene.render()
 
+    def set_elements1d_visible(self, event):
+        self.settings.set("elements1d_visible", event.value)
+        self.elements1d.active = event.value
+        self.scene.render()
+
     def set_elements2d_visible(self, event):
         self.elements2d.active = event.value
         self.settings.set("elements2d_visible", event.value)
@@ -205,6 +214,8 @@ class MeshComponent(WebgpuTab):
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
+        self.elements1d = MeshSegments(self.mdata, clipping=self.clipping)
+        self.elements1d.active = self.settings.get("elements1d_visible", False)
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
         self.elements2d.active = self.settings.get("elements2d_visible", True)
         if self.settings.get("elements3d_visible", False):
@@ -224,6 +235,7 @@ class MeshComponent(WebgpuTab):
                 self.elements2d,
                 self.wireframe,
                 self.elements3d,
+                self.elements1d,
                 self.mesh_info,
             ]
             if obj is not None
