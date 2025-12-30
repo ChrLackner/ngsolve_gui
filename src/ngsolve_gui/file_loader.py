@@ -132,8 +132,9 @@ def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
             raise TypeError(f"Unsupported object type for Draw: {type(obj)}")
     else:
         default_name, comp = _DRAW_DISPATCH[type(obj)]
+    data["obj"] = obj
     return _appdata.add_tab(name or default_name,
-                            comp, obj, data, _appdata)
+                            comp, data, _appdata)
 
 
 def RedrawImpl(*args, **kwargs):

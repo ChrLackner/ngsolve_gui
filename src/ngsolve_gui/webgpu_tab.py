@@ -5,6 +5,7 @@ from webgpu import Scene
 class WebgpuTab(QLayout):
     def __init__(self, name, data, app_data):
         self.name = name
+        self.data = data
         self.app_data = app_data
         self.wgpu = WebgpuComponent()
         self.wgpu.ui_style = "width: 100%;height: calc(100vh - 140px);"
