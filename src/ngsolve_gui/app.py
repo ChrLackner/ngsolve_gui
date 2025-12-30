@@ -54,7 +54,7 @@ class Panel(Div):
         else:
             cls = eval(tab["type"])
             self.comp = comp = cls(
-                tab["title"],
+                tab["name"],
                 tab["data"],
                 app_data=self.app_data,
             )
