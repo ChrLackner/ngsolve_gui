@@ -53,20 +53,23 @@ class ColorOptions(QCard):
         face_colors_card = QCard(
             QCardSection(face_colors), ui_flat=True, ui_bordered=True
         )
-        dnames = list(set(comp.mesh.GetMaterials()))
-        dcolors = [(1.0, 0.0, 0.0, 1.0) for _ in range(len(dnames))]
-        domain_colors = RegionColors("Domain Colors", dcolors, dnames)
-        self.dcolors = {
-            name: [int(255 * ci) for ci in dcol] for name, dcol in zip(dnames, dcolors)
-        }
-        domain_colors_card = QCard(
-            QCardSection(domain_colors), ui_flat=True, ui_bordered=True
-        )
-        super().__init__(
-            QCardSection(Heading("Colors", 4), face_colors_card, domain_colors_card)
-        )
         face_colors.on_change_color(self.change_color)
-        domain_colors.on_change_color(self.change_d_color)
+        color_cards = [face_colors_card]
+        if comp.mesh.dim == 3:
+            dnames = list(set(comp.mesh.GetMaterials()))
+            dcolors = [(1.0, 0.0, 0.0, 1.0) for _ in range(len(dnames))]
+            domain_colors = RegionColors("Domain Colors", dcolors, dnames)
+            self.dcolors = {
+                name: [int(255 * ci) for ci in dcol] for name, dcol in zip(dnames, dcolors)
+            }
+            domain_colors_card = QCard(
+                QCardSection(domain_colors), ui_flat=True, ui_bordered=True
+            )
+            domain_colors.on_change_color(self.change_d_color)
+            color_cards.append(domain_colors_card)
+        super().__init__(
+            QCardSection(Heading("Colors", 4), *color_cards)
+        )
 
     def change_color(self, name, color):
         colors = []
@@ -135,7 +138,8 @@ class Sidebar(QDrawer):
 
 
 class MeshComponent(WebgpuTab):
-    def __init__(self, name, mesh, data, app_data):
+    def __init__(self, name, data, app_data):
+        mesh = data["obj"]
         if isinstance(mesh, ngs.Region):
             self.mesh = mesh.mesh
             self.region_or_mesh = mesh

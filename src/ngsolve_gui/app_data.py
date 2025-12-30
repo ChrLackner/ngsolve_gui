@@ -54,6 +54,17 @@ class AppData:
     def get_settings(self, name: str):
         return Settings(self._data["tabs"][name]["settings"])
 
+    def get_save_data(self):
+        data_copy = {"tabs": {}, "active_tab": self._data["active_tab"]}
+        for name, tab in self._data["tabs"].items():
+            tab_copy = tab.copy()
+            if "component" in tab_copy:
+                tab_copy["type"] = tab_copy["component"].__class__.__name__
+                tab_copy["data"] = tab_copy["component"].data
+                del tab_copy["component"]
+            data_copy["tabs"][name] = tab_copy
+        return data_copy
+
     def add_tab(self, title: str, cls: type, *args, **kwargs):
         name = title.lower().replace(" ", "_")
         # name = title

@@ -52,13 +52,11 @@ class Panel(Div):
         if "component" in tab:
             self.comp = comp = tab["component"]
         else:
-            self.comp = comp = _tab_type[tab["type"]](
+            cls = eval(tab["type"])
+            self.comp = comp = cls(
                 tab["title"],
                 tab["data"],
-                global_clipping=self.global_clipping,
                 app_data=self.app_data,
-                settings=settings,
-                global_camera=self.global_camera,
             )
         self.ui_children = [comp]
         if new_camera:
@@ -140,7 +138,8 @@ class NGSolveGui(App):
         load_file(file_path, self)
 
     def __on_before_save(self):
-        self.component.storage.set("app_data", self.app_data._data, use_pickle=True)
+        self.component.storage.set("app_data", self.app_data.get_save_data(),
+                                   use_pickle=True)
 
     def __on_load(self):
         data = self.component.storage.get("app_data")
