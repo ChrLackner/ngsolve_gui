@@ -228,6 +228,13 @@ class Options(QCard):
             self.clipping_plane_visible.on_update_model_value(
                 self.toggle_clipping_function
             )
+        if self.comp.contact is not None:
+            self.contact_visible = QCheckbox(
+                ui_label="Contact Pairs",
+                ui_model_value=comp.settings.get("contact_enabled", True),
+            )
+            self.contact_visible.on_update_model_value(self.toggle_contact_pairs)
+            items.append(self.contact_visible)
         super().__init__(QCardSection(*items))
 
     def toggle_wireframe(self, event):
@@ -236,6 +243,14 @@ class Options(QCard):
 
     def toggle_clipping_function(self, event):
         self.comp.clippingcf.active = self.clipping_plane_visible.ui_model_value
+        self.comp.wgpu.scene.render()
+
+    def toggle_contact_pairs(self, event):
+        enabled = self.contact_visible.ui_model_value
+        # persist setting
+        self.comp.settings.set("contact_enabled", enabled)
+        # toggle visualization object if it exists
+        self.comp.contact_pairs.active = enabled
         self.comp.wgpu.scene.render()
 
     def reset_camera(self, event):
@@ -369,6 +384,8 @@ class FunctionComponent(WebgpuTab):
         self.mesh = data["mesh"]
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
+        self.contact = data.get("contact", None)
+        self.contact_pairs = None
         minval = data.get("min", 0.0)
         maxval = data.get("max", 1.0)
         autoscale = data.get("autoscale", True)
@@ -458,6 +475,17 @@ class FunctionComponent(WebgpuTab):
         self.colorbar.width = 0.8
         self.colorbar.position = (-0.5, 0.9)
 
+        if self.contact is not None:
+            from ngsolve_webgpu.contact import ContactPairs
+            self.contact_pairs = ContactPairs(
+                self.mesh,
+                self.contact,
+            )
+            print("contact pairs positions = ", self.contact_pairs.positions)
+            self.contact_pairs.active = self.settings.get(
+                "contact_enabled", True
+            )
+
         render_objects = [
             obj
             for obj in [
@@ -465,6 +493,7 @@ class FunctionComponent(WebgpuTab):
                 self.elements2d,
                 self.wireframe,
                 self.colorbar,
+                self.contact_pairs,
                 self.clipping_vectors,
             ]
             if obj is not None
@@ -475,7 +504,7 @@ class FunctionComponent(WebgpuTab):
             self.min_max = (self.colormap.minval, self.colormap.maxval)
             self.settings.set(
                 "colormap",
-                (self.colormap.autoscale, self.colormap.minval, self.colormap.maxval),
+                (self.colormap.autoscale, self.colormap.discrete, self.colormap.minval, self.colormap.maxval),
             )
 
         self.wgpu.on_mounted(set_min_max)
