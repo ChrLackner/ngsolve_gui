@@ -210,6 +210,13 @@ class Options(QCard):
             ui_label="Wireframe Visible",
             ui_model_value=comp.settings.get("wireframe_visible", True),
         )
+        self.surface_solution_visible = QCheckbox(
+            ui_label="Surface Solution Visible",
+            ui_model_value=comp.settings.get("elements2d_visible", True),
+        )
+        self.surface_solution_visible.on_update_model_value(
+            self.toggle_surface_solution
+        )
         reset_camera = QBtn(
             ui_icon="mdi-refresh",
             ui_label="Reset Camera",
@@ -218,7 +225,7 @@ class Options(QCard):
         )
         reset_camera.on_click(self.reset_camera)
         self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
-        items = [Heading("Options", 5), reset_camera, self.wireframe_visible]
+        items = [Heading("Options", 5), reset_camera, self.wireframe_visible, self.surface_solution_visible]
         if comp.mesh.dim == 3:
             self.clipping_plane_visible = QCheckbox(
                 ui_label="Clipping Function",
@@ -243,6 +250,13 @@ class Options(QCard):
 
     def toggle_clipping_function(self, event):
         self.comp.clippingcf.active = self.clipping_plane_visible.ui_model_value
+        self.comp.wgpu.scene.render()
+
+    def toggle_surface_solution(self, event):
+        self.comp.settings.set(
+            "elements2d_visible", self.surface_solution_visible.ui_model_value
+        )
+        self.comp.elements2d.active = self.surface_solution_visible.ui_model_value
         self.comp.wgpu.scene.render()
 
     def toggle_contact_pairs(self, event):
@@ -477,11 +491,16 @@ class FunctionComponent(WebgpuTab):
 
         if self.contact is not None:
             from ngsolve_webgpu.contact import ContactPairs
-            self.contact_pairs = ContactPairs(
-                self.mesh,
-                self.contact,
-            )
-            print("contact pairs positions = ", self.contact_pairs.positions)
+            from webgpu.renderer import MultipleRenderer
+            if isinstance(self.contact, list):
+                from .region_colors import get_random_colors
+                colors = get_random_colors(len(self.contact))
+                self.contact_pairs = MultipleRenderer([ContactPairs(self.mesh, cb, color=c) for cb,c in zip(self.contact, colors)])
+            else:
+                self.contact_pairs = ContactPairs(
+                    self.mesh,
+                    self.contact,
+                )
             self.contact_pairs.active = self.settings.get(
                 "contact_enabled", True
             )
