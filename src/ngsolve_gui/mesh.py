@@ -114,9 +114,10 @@ class ColorOptions(QCard):
                 int(c[2] * 255),
                 int(c[3] * 255),
             ]
-        self.comp.elements3d.colormap.set_colormap(list(self.dcolors.values()))
-        self.comp.elements3d.set_needs_update()
-        self.comp.wgpu.scene.render()
+        if self.comp.elements3d is not None:
+            self.comp.elements3d.colormap.set_colormap(colors)
+            self.comp.elements3d.set_needs_update()
+            self.comp.wgpu.scene.render()
 
 
 class Sidebar(QDrawer):
@@ -124,7 +125,8 @@ class Sidebar(QDrawer):
         self.geo_comp = comp
 
         self.view_menu = QMenu(ViewOptions(comp), ui_anchor="top right")
-        color_menu = QMenu(ColorOptions(comp), ui_anchor="top right")
+        self.coloroptions = ColorOptions(comp)
+        color_menu = QMenu(self.coloroptions, ui_anchor="top right")
         dim = comp.mesh.dim
         items = [
             QItem(
@@ -203,14 +205,12 @@ class MeshComponent(WebgpuTab):
 
     def draw(self):
         if self.el2d_bitarray is not None or self.el3d_bitarray is not None:
-            print("Creating new MeshData with kwargs")
             self.mdata = MeshData(
                 self.region_or_mesh,
                 el2d_bitarray=self.el2d_bitarray,
                 el3d_bitarray=self.el3d_bitarray,
             )
         else:
-            print("Using cached MeshData")
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
@@ -221,6 +221,8 @@ class MeshComponent(WebgpuTab):
         if self.settings.get("elements3d_visible", False):
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
             self.elements3d.shrink = self.settings.get("shrink", 1.0)
+            cols = [self.sidebar.coloroptions.dcolors.get(d, (255, 0, 0, 255)) for d in self.mesh.GetMaterials()]
+            self.elements3d.colormap.set_colormap(cols)
         self.mesh_info = Labels(
             [
                 f"VOL: {self.mesh.GetNE(ngs.VOL)} BND: {self.mesh.GetNE(ngs.BND)} CD2: {self.mesh.GetNE(ngs.BBND)} CD3: {self.mesh.GetNE(ngs.BBBND)}"

@@ -130,10 +130,8 @@ class RegionColors(Div):
 
     def randomize_colors(self):
         import random, math, itertools
-
-        n = max(math.floor((len(self.name_color_map) - 1) ** (1 / 3)), 2)
         n = 2
-        while n**3 + 1 < len(self.name_color_map):
+        while n**3 - 2 < len(self.name_color_map):
             n += 1
         vals = [int(255 * i / (n - 1)) for i in range(n)]
         colors = [
