@@ -402,7 +402,7 @@ class FunctionComponent(WebgpuTab):
         self.contact_pairs = None
         minval = data.get("min", 0.0)
         maxval = data.get("max", 1.0)
-        autoscale = data.get("autoscale", True)
+        autoscale = not ("min" in data or "max" in data) and not data.get("autoscale", False)
         discrete_colormap = data.get("discrete_colormap", False)
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
             self.settings.set(
