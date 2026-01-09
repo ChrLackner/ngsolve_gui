@@ -75,6 +75,10 @@ class NGSolveGui(App):
         self.set_colors(**_colors)
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
         upload_file.on_click(self._load_file)
+        savebtn = QBtn(QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save")
+        savebtn.on_click(self.save_local)
+        loadbtn = QBtn(QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open")
+        loadbtn.on_click(self.load_local)
         self.tabs = QTabs(ui_dense=True)
         close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
         close_btn.on_click(self.quit)
@@ -89,6 +93,8 @@ class NGSolveGui(App):
         bar = QBar(
             ngs_logo,
             upload_file,
+            savebtn,
+            loadbtn,
             QSpace(),
             self.tabs,
             QSpace(),
