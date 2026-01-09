@@ -68,7 +68,7 @@ class ColorOptions(QCard):
             dcolors = [(1.0, 0.0, 0.0, 1.0) for _ in range(len(dnames))]
             domain_colors = RegionColors("Domain Colors", dcolors, dnames)
             self.dcolors = {
-                name: [int(255 * ci) for ci in dcol] for name, dcol in zip(dnames, dcolors)
+                name: [int(255 * ci) for i, ci in enumerate(dcol)] for name, dcol in zip(dnames, dcolors)
             }
             domain_colors_card = QCard(
                 QCardSection(domain_colors), ui_flat=True, ui_bordered=True
@@ -81,13 +81,10 @@ class ColorOptions(QCard):
 
     def change_color(self, name, color):
         colors = []
+        colmap = dict(zip(name, color))
         for fd in self.comp.mesh.ngmesh.FaceDescriptors():
-            try:
-                index = name.index(fd.bcname)
-            except ValueError:
-                index = -1
-            if index >= 0:
-                fd.color = color[index]
+            if fd.bcname in colmap:
+                fd.color = colmap[fd.bcname]
             colors.append(
                 [
                     int(fd.color[0] * 255),
@@ -102,18 +99,19 @@ class ColorOptions(QCard):
 
     def change_d_color(self, name, color):
         colors = []
-        for i, d in enumerate(set(self.comp.mesh.GetMaterials())):
-            try:
-                index = name.index(d)
-            except ValueError:
-                index = -1
-            c = color[index]
-            self.dcolors[name[index]] = [
+        colmap = dict(zip(name, color))
+        for i, d in enumerate(self.comp.mesh.GetMaterials()):
+            if d in colmap:
+                c = list(colmap[d])
+            else:
+                c = [1.0, 0.0, 0.0, 1.0]
+            self.dcolors[d] = [
                 int(c[0] * 255),
                 int(c[1] * 255),
                 int(c[2] * 255),
                 int(c[3] * 255),
             ]
+            colors.append(self.dcolors[d])
         if self.comp.elements3d is not None:
             self.comp.elements3d.colormap.set_colormap(colors)
             self.comp.elements3d.set_needs_update()

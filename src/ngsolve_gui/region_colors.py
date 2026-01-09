@@ -53,7 +53,7 @@ class ColorpickerButton(QBtn):
             int(color[0]),
             int(color[1]),
             int(color[2]),
-            color[3] / 255.0 if len(color) == 4 else self.color[3],
+            color[3] if len(color) == 4 else self.color[3],
         )
         self.ui_style = "background-color: " + self.to_hex_string()
         self.picker.ui_model_value = self.to_rgba_string()
