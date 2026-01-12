@@ -45,6 +45,8 @@ class WebgpuTab(QLayout):
                     self.clipping.normal = clipping["normal"]
                 if "center" in clipping:
                     self.clipping.center = clipping["center"]
+                if "offset" in clipping:
+                    self.clipping.offset = clipping["offset"]
 
 
         self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)

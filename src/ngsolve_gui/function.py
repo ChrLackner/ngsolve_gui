@@ -392,6 +392,7 @@ class FunctionComponent(WebgpuTab):
         self.mdata = None
         self.cf = cf
         self.region_or_mesh = data["mesh"]
+        self.draw_vol = data.get("draw_vol", True)
         self.mesh = self.region_or_mesh.mesh if isinstance(self.region_or_mesh, ngs.Region) else self.region_or_mesh
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
@@ -463,7 +464,7 @@ class FunctionComponent(WebgpuTab):
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
         self.clipping_vectors = None
-        if self.mesh.dim == 3:
+        if self.mesh.dim == 3 and self.draw_vol:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
             self.clippingcf.active = self.settings.get("clipping_visible", True)
             if self.cf.dim == 3:
