@@ -70,7 +70,6 @@ class ColorbarSettings(QCard):
 
     def update_colormap(self, event):
         self.comp.colormap.set_colormap(self.colormap.ui_model_value)
-        self.comp.colorbar.set_needs_update()
         self.comp.redraw()
         self.comp.wgpu.scene.render()
 
@@ -112,7 +111,6 @@ class ColorbarSettings(QCard):
         try:
             self.comp.colormap.set_min(float(self.minval.ui_model_value))
             self.autoscale.ui_model_value = False
-            self.comp.colorbar.set_needs_update()
             self.comp.wgpu.scene.render()
             self.update_settings()
         except ValueError:
@@ -122,7 +120,6 @@ class ColorbarSettings(QCard):
         try:
             self.comp.colormap.set_max(float(self.maxval.ui_model_value))
             self.autoscale.ui_model_value = False
-            self.comp.colorbar.set_needs_update()
             self.comp.wgpu.scene.render()
             self.update_settings()
         except ValueError:
@@ -130,7 +127,6 @@ class ColorbarSettings(QCard):
 
     def update_discrete(self, event):
         self.comp.colormap.set_discrete(self.discrete.ui_model_value)
-        self.comp.colorbar.set_needs_update()
         self.comp.wgpu.scene.render()
         self.update_settings()
 
@@ -395,7 +391,8 @@ class FunctionComponent(WebgpuTab):
         self.name = name
         self.mdata = None
         self.cf = cf
-        self.mesh = data["mesh"]
+        self.region_or_mesh = data["mesh"]
+        self.mesh = self.region_or_mesh.mesh if isinstance(self.region_or_mesh, ngs.Region) else self.region_or_mesh
         self.order = data.get("order", 3)
         self.deformation = data.get("deformation", None)
         self.contact = data.get("contact", None)
@@ -438,13 +435,13 @@ class FunctionComponent(WebgpuTab):
 
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
-            self.cf, self.mesh, order=self.order
+            self.cf, self.region_or_mesh, order=self.order
         )
         mdata = func_data.mesh_data
 
         if self.deformation is not None:
             deform_data = self.app_data.get_function_gpu_data(
-                self.deformation, self.mesh, order=1
+                self.deformation, self.region_or_mesh, order=1
             )
             mdata = copy.copy(deform_data.mesh_data)
             self.mdata = mdata
@@ -495,10 +492,10 @@ class FunctionComponent(WebgpuTab):
             if isinstance(self.contact, list):
                 from .region_colors import get_random_colors
                 colors = get_random_colors(len(self.contact))
-                self.contact_pairs = MultipleRenderer([ContactPairs(self.mesh, cb, color=c) for cb,c in zip(self.contact, colors)])
+                self.contact_pairs = MultipleRenderer([ContactPairs(self.region_or_mesh, cb, color=c) for cb,c in zip(self.contact, colors)])
             else:
                 self.contact_pairs = ContactPairs(
-                    self.mesh,
+                    self.region_or_mesh,
                     self.contact,
                 )
             self.contact_pairs.active = self.settings.get(

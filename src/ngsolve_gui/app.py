@@ -66,12 +66,31 @@ class Panel(Div):
             except Exception as e:
                 self.global_camera = None
 
+class Settings(QMenu):
+    def __init__(self, app):
+        self.app = app
+        val = self.app.usersettings.get("nthreads", 0)
+        nthreads = QInput(QTooltip("Set number of threads used by NGSolve, 0 for all available cores. Only takes effect after restarting the application."),
+            ui_label="Number of Threads", ui_type="number", ui_model_value=val)
+        nthreads.on_update_model_value(self.app.usersettings.update("nthreads"))
+        super().__init__(QCard(
+            QCardSection("Settings"),
+            QCardSection(
+                nthreads)))
 
 class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
         self._local_path = local_path if local_path else os.path.expanduser("~")
         self.app_data = AppData()
         super().__init__()
+        try:
+            nthreads = int(self.usersettings.get("nthreads", 0))
+            if nthreads > 0:
+                import ngsolve as ngs
+                ngs.SetNumThreads(nthreads)
+                os.environ["MKL_NUM_THREADS"] = str(nthreads)
+        except:
+            pass
         self.set_colors(**_colors)
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
         upload_file.on_click(self._load_file)
@@ -80,6 +99,7 @@ class NGSolveGui(App):
         loadbtn = QBtn(QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open")
         loadbtn.on_click(self.load_local)
         self.tabs = QTabs(ui_dense=True)
+        settings_btn = QBtn(Settings(self), QTooltip("User Settings"), ui_flat=True, ui_icon="mdi-cog")
         close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
         close_btn.on_click(self.quit)
         ngs_logo = Div(
@@ -98,6 +118,7 @@ class NGSolveGui(App):
             QSpace(),
             self.tabs,
             QSpace(),
+            settings_btn,
             close_btn,
             ui_style="height: 60px",
             ui_class="bg-primary text-grey-4",
