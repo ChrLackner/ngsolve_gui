@@ -206,13 +206,6 @@ class Options(QCard):
             ui_label="Wireframe Visible",
             ui_model_value=comp.settings.get("wireframe_visible", True),
         )
-        self.surface_solution_visible = QCheckbox(
-            ui_label="Surface Solution Visible",
-            ui_model_value=comp.settings.get("elements2d_visible", True),
-        )
-        self.surface_solution_visible.on_update_model_value(
-            self.toggle_surface_solution
-        )
         reset_camera = QBtn(
             ui_icon="mdi-refresh",
             ui_label="Reset Camera",
@@ -221,7 +214,16 @@ class Options(QCard):
         )
         reset_camera.on_click(self.reset_camera)
         self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
-        items = [Heading("Options", 5), reset_camera, self.wireframe_visible, self.surface_solution_visible]
+        items = [Heading("Options", 5), reset_camera, self.wireframe_visible]
+        if comp.draw_surf:
+            self.surface_solution_visible = QCheckbox(
+                ui_label="Surface Solution Visible",
+                ui_model_value=comp.settings.get("elements2d_visible", True),
+            )
+            self.surface_solution_visible.on_update_model_value(
+                self.toggle_surface_solution
+            )
+            items.append(self.surface_solution_visible)
         if comp.mesh.dim == 3:
             self.clipping_plane_visible = QCheckbox(
                 ui_label="Clipping Function",
@@ -318,7 +320,8 @@ class VectorSettings(QCard):
             self.color_component.ui_model_value
         )
         comp = self.comp
-        comp.elements2d.set_component(index - 1)
+        if comp.elements2d is not None:
+            comp.elements2d.set_component(index - 1)
         if comp.clippingcf is not None:
             comp.clippingcf.set_component(index - 1)
         comp.colorbar.set_needs_update()
@@ -393,8 +396,13 @@ class FunctionComponent(WebgpuTab):
         self.cf = cf
         self.region_or_mesh = data["mesh"]
         self.draw_vol = data.get("draw_vol", True)
+        self.draw_surf = data.get("draw_surf", True)
         self.mesh = self.region_or_mesh.mesh if isinstance(self.region_or_mesh, ngs.Region) else self.region_or_mesh
-        self.order = data.get("order", 3)
+        self.order = data.get("order", None)
+        if self.order is None:
+            self.order = 2
+            if isinstance(cf, ngs.GridFunction):
+                self.order = min(2, cf.space.globalorder)
         self.deformation = data.get("deformation", None)
         self.contact = data.get("contact", None)
         self.contact_pairs = None
@@ -479,10 +487,13 @@ class FunctionComponent(WebgpuTab):
                 )
         else:
             self.clippingcf = None
-        self.elements2d = CFRenderer(
-            func_data, clipping=self.clipping, colormap=self.colormap
-        )
-        self.elements2d.active = self.settings.get("elements2d_visible", True)
+        if self.draw_surf:
+            self.elements2d = CFRenderer(
+                func_data, clipping=self.clipping, colormap=self.colormap
+            )
+            self.elements2d.active = self.settings.get("elements2d_visible", True)
+        else:
+            self.elements2d = None
         self.colorbar = Colorbar(self.colormap)
         self.colorbar.width = 0.8
         self.colorbar.position = (-0.5, 0.9)
