@@ -5,6 +5,7 @@ from webgpu import Scene
 class WebgpuTab(QLayout):
     def __init__(self, name, data, app_data):
         self.name = name
+        self._redraw_needed = False
         self.data = data
         self.app_data = app_data
         self.wgpu = WebgpuComponent()
@@ -52,6 +53,13 @@ class WebgpuTab(QLayout):
         self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
         self.scene.input_handler.on_wheel(self._on_wheel, ctrl=True)
+        def redraw_if_needed():
+            if self._redraw_needed:
+                self.redraw()
+        self.on_mounted(redraw_if_needed)
+
+    def redraw(self):
+        self._redraw_needed = False
 
     def _on_dblclick(self, ev):
         scene = self.scene

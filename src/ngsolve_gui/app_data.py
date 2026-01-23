@@ -51,6 +51,11 @@ class AppData:
             self._gpu_cache[key] = FunctionData(mdata, cf, **kwargs)
         return self._gpu_cache[key]
 
+    def set_needs_redraw(self):
+        for tab in self._data["tabs"].values():
+            if "component" in tab:
+                tab["component"]._redraw_needed = True
+
     def get_settings(self, name: str):
         return Settings(self._data["tabs"][name]["settings"])
 

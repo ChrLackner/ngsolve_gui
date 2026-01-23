@@ -433,6 +433,7 @@ class FunctionComponent(WebgpuTab):
         return Sidebar(self)
 
     def redraw(self):
+        super().redraw()
         self.func_data.set_needs_update()
         self.elements2d.set_needs_update()
         if self.clippingcf is not None:

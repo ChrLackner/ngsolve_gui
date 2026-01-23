@@ -184,13 +184,11 @@ class NGSolveGui(App):
             self.app_data.delete_tab(tabname)
 
     def redraw(self, *args, **kwargs):
+        self.app_data.set_needs_redraw()
         comp = self.tab_panel.comp
         if comp is not None:
-            if hasattr(comp, "wgpu"):
-                if hasattr(comp.wgpu, "scene"):
-                    if hasattr(comp.wgpu.scene, "_render_mutex"):
-                        if comp.wgpu.scene._render_mutex is not None:
-                            comp.wgpu.scene.redraw(*args, **kwargs)
+            if hasattr(comp, "redraw"):
+                comp.redraw()
 
     def _update(self):
         tabs = []
