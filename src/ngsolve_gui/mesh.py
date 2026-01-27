@@ -93,7 +93,7 @@ class ColorOptions(QCard):
                     int(fd.color[3] * 255),
                 ]
             )
-        self.comp.elements2d.colormap.set_colormap(colors)
+        self.comp.elements2d.gpu_objects.colormap.set_colormap(colors)
         self.comp.elements2d.set_needs_update()
         self.comp.wgpu.scene.render()
 
