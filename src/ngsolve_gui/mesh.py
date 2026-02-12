@@ -126,6 +126,27 @@ class Sidebar(QDrawer):
         self.coloroptions = ColorOptions(comp)
         color_menu = QMenu(self.coloroptions, ui_anchor="top right")
         dim = comp.mesh.dim
+        curve_enabled = QCheckbox(
+            "",
+            ui_model_value=comp.settings.get("mesh_curvature_enabled", False),
+            ui_style="transform: scale(0.85);",
+        )
+        curve_order = QInput(
+            ui_type="number",
+            ui_model_value=comp.settings.get("mesh_curvature_order", 2),
+            ui_style="width: 50px; padding: 0px 10px;",
+            ui_dense=True,
+        )
+        curve_order.ui_disable = not comp.settings.get("mesh_curvature_enabled", False)
+        curve_enabled.on_update_model_value(comp.set_mesh_curvature_enabled)
+        curve_order.on_update_model_value(comp.set_mesh_curvature_order)
+        curving_row = QItem(QItemSection(
+            Row(curve_enabled,
+            Div("Curve Order"),
+            Div(curve_order, ui_class="col-auto"),
+            ui_class="items-center",
+            ui_style="flex-wrap: nowrap; font-size: 0.95em; margin: -5px;"
+        )))
         items = [
             QItem(
                 QItemSection(QIcon(ui_name="mdi-eye"), ui_avatar=True),
@@ -141,6 +162,7 @@ class Sidebar(QDrawer):
                 color_menu,
                 ui_clickable=True,
         ))
+        items.append(curving_row)
         
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
@@ -201,7 +223,37 @@ class MeshComponent(WebgpuTab):
             self.elements3d.shrink = event.value
         self.wgpu.scene.render()
 
+    def set_mesh_curvature_enabled(self, event):
+        if event.value != self.settings.get("mesh_curvature_enabled", False):
+            order = self.settings.get("mesh_curvature_order", 2)
+            if order > 3:
+                subdiv = (order + 2) // 3 + 1
+            elif order > 1:
+                subdiv = 3
+            else:
+                subdiv = 1
+            self.mdata.subdivision = subdiv
+            self.mdata.set_needs_update()
+        self.settings.set("mesh_curvature_enabled", event.value)
+        self.draw()
+
+    def set_mesh_curvature_order(self, event):
+        try:
+            if event.value != self.settings.get("mesh_curvature_order", 2):
+                self.mdata.set_needs_update()
+            self.settings.set("mesh_curvature_order", int(event.value))
+        except (TypeError, ValueError):
+            pass
+        self.draw()
+
     def draw(self):
+        curve_enabled = self.settings.get("mesh_curvature_enabled", False)
+        curve_order = int(self.settings.get("mesh_curvature_order", 2))
+        if curve_enabled:
+            self.mesh.Curve(curve_order)
+        else:
+            self.mesh.Curve(1)
+
         if self.el2d_bitarray is not None or self.el3d_bitarray is not None:
             self.mdata = MeshData(
                 self.region_or_mesh,

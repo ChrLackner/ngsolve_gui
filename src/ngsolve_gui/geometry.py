@@ -181,7 +181,7 @@ class GeometryComponent(WebgpuTab):
                 }
             )
         mesh = ngs.Mesh(mesh)
-        self.app_data.add_tab("Mesh " + self.title, MeshComponent, mesh, self.app_data)
+        self.app_data.add_tab("Mesh_" + self.title, MeshComponent, { "obj" : mesh} , self.app_data)
 
     @property
     def clipping(self):
