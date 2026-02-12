@@ -435,12 +435,13 @@ class FunctionComponent(WebgpuTab):
     def redraw(self):
         super().redraw()
         self.func_data.set_needs_update()
-        self.elements2d.set_needs_update()
         if self.clippingcf is not None:
             self.clippingcf.set_needs_update()
-        if self.elements2d.data.mesh_data.deformation_data is not None:
-            self.elements2d.data.mesh_data.deformation_data.set_needs_update()
-            self.elements2d.data.mesh_data.set_needs_update()
+        if self.elements2d is not None:
+          self.elements2d.set_needs_update()
+          if self.elements2d.data.mesh_data.deformation_data is not None:
+              self.elements2d.data.mesh_data.deformation_data.set_needs_update()
+              self.elements2d.data.mesh_data.set_needs_update()
         # self.wgpu.scene.render()
 
     def draw(self):
