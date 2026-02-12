@@ -56,6 +56,8 @@ def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
     """Start IPython in a background thread; clean up terminal on exit."""
     import sys
     import termios
+    if not sys.stdin.isatty():
+        raise ImportError("No TTY available for IPython shell.")
 
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
