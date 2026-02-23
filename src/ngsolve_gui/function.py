@@ -442,7 +442,7 @@ class FunctionComponent(WebgpuTab):
           if self.elements2d.data.mesh_data.deformation_data is not None:
               self.elements2d.data.mesh_data.deformation_data.set_needs_update()
               self.elements2d.data.mesh_data.set_needs_update()
-        # self.wgpu.scene.render()
+        self.wgpu.scene.render()
 
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
