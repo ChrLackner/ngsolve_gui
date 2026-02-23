@@ -432,18 +432,6 @@ class FunctionComponent(WebgpuTab):
     def create_sidebar(self):
         return Sidebar(self)
 
-    def redraw(self):
-        super().redraw()
-        self.func_data.set_needs_update()
-        if self.clippingcf is not None:
-            self.clippingcf.set_needs_update()
-        if self.elements2d is not None:
-          self.elements2d.set_needs_update()
-          if self.elements2d.data.mesh_data.deformation_data is not None:
-              self.elements2d.data.mesh_data.deformation_data.set_needs_update()
-              self.elements2d.data.mesh_data.set_needs_update()
-        self.wgpu.scene.render()
-
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
             self.cf, self.region_or_mesh, order=self.order

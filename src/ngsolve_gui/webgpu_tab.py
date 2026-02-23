@@ -60,6 +60,8 @@ class WebgpuTab(QLayout):
 
     def redraw(self):
         self._redraw_needed = False
+        self.wgpu.scene.redraw()
+
 
     def _on_dblclick(self, ev):
         scene = self.scene
