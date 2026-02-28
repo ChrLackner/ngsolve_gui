@@ -11,6 +11,7 @@ from .app_data import AppData
 from .function import FunctionComponent
 from .geometry import GeometryComponent
 from .mesh import MeshComponent
+from .plot import PlotComponent
 from ngapp.components import Component
 
 _appdata: AppData
@@ -103,6 +104,15 @@ _DRAW_DISPATCH: dict[type, tuple[str, type]] = {
 }
 
 
+def _is_plot_candidate(obj: Any) -> bool:
+    if isinstance(obj, (list, tuple)):
+        return any(_is_plot_candidate(item) for item in obj)
+    if isinstance(obj, dict):
+        return any(key in obj for key in ("data", "layout", "frames"))
+    mod = type(obj).__module__
+    return mod.startswith("plotly.") or mod.startswith("matplotlib.")
+
+
 def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
              name: str | None = None, **kwargs):
     """
@@ -124,6 +134,11 @@ def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
             mesh = obj.space.mesh
     if mesh is not None:
         data["mesh"] = mesh
+
+    if _is_plot_candidate(obj):
+        from .plot import PlotComponent
+        data["obj"] = obj
+        return _appdata.add_tab(name or "Plot", PlotComponent, data, _appdata)
 
     if type(obj) not in _DRAW_DISPATCH:
         try:

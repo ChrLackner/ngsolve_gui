@@ -252,9 +252,9 @@ class Options(QCard):
 
     def toggle_surface_solution(self, event):
         self.comp.settings.set(
-            "elements2d_visible", self.surface_solution_visible.ui_model_value
+            "surface_vectors", self.surface_solution_visible.ui_model_value
         )
-        self.comp.elements2d.active = self.surface_solution_visible.ui_model_value
+        self.comp.surface_vectors.active = self.surface_solution_visible.ui_model_value
         self.comp.wgpu.scene.render()
 
     def toggle_contact_pairs(self, event):
@@ -276,27 +276,37 @@ class VectorSettings(QCard):
     def __init__(self, comp):
         self.comp = comp
         options = ["Norm"] + [str(i) for i in range(1, comp.cf.dim + 1)]
+        comps = []
         self.color_component = QSelect(
             ui_options=options, ui_model_value=options[0], ui_label="Color Component"
         )
+        comps.append(self.color_component)
         self.color_component.on_update_model_value(self.update_color_component)
-        self.clipping_vectors = QCheckbox(
-            ui_label="Show Clipping Vectors",
-            ui_model_value=comp.settings.get("clipping_vectors", False),
-        )
-        self.clipping_vectors.on_update_model_value(self.update_clipping_vectors)
+        if comp.mesh.dim == 3 and comp.cf.dim == 3:
+            self.clipping_vectors = QCheckbox(
+                ui_label="Show Clipping Vectors",
+                ui_model_value=comp.settings.get("clipping_vectors", False),
+            )
+            self.clipping_vectors.on_update_model_value(self.update_clipping_vectors)
+            comps.append(self.clipping_vectors)
+        if comp.mesh.dim == 2 and comp.cf.dim == 2:
+            self.surf_vectors = QCheckbox(
+                ui_label="Show Surface Vectors",
+                ui_model_value=comp.settings.get("surface_vectors", False),
+            )
+            self.surf_vectors.on_update_model_value(self.update_surface_vectors)
+            comps.append(self.surf_vectors)
         self.grid_size = QInput(
             ui_label="Grid Size",
             ui_type="number",
-            ui_model_value=comp.settings.get("clipping_vector_grid_size", 20.0),
+            ui_model_value=comp.settings.get("vector_grid_size", 20.0),
         )
         self.grid_size.on_change(self.update_grid_size)
+        comps.append(self.grid_size)
         super().__init__(
             QCardSection(
                 Heading("Vector Settings", 5),
-                self.color_component,
-                self.clipping_vectors,
-                self.grid_size,
+                *comps
             )
         )
 
@@ -305,12 +315,23 @@ class VectorSettings(QCard):
         self.comp.settings.set("clipping_vectors", self.clipping_vectors.ui_model_value)
         self.comp.wgpu.scene.render()
 
+    def update_surface_vectors(self, event):
+        self.comp.surface_vectors.active = self.surf_vectors.ui_model_value
+        self.comp.settings.set("surface_vectors", self.surf_vectors.ui_model_value)
+        self.comp.wgpu.scene.render()
+
     def update_grid_size(self, event):
         try:
             grid_size = float(self.grid_size.ui_model_value)
-            self.comp.clipping_vectors.set_grid_size(grid_size)
-            self.comp.settings.set("clipping_vector_grid_size", grid_size)
-            self.comp.clipping_vectors.set_needs_update()
+            self.comp.settings.set("vector_grid_size", grid_size)
+            if self.comp.clipping_vectors is not None:
+                self.comp.clipping_vectors.set_grid_size(grid_size)
+                self.comp.clipping_vectors.set_needs_update()
+            if self.comp.surface_vectors is not None:
+                self.comp.surface_vectors.set_grid_size(grid_size)
+                print("comp.surface_vectors grid size set to ", grid_size)
+                print("active = ", self.comp.surface_vectors.active)
+                self.comp.surface_vectors.set_needs_update()
             self.comp.wgpu.scene.render()
         except ValueError:
             pass
@@ -424,7 +445,13 @@ class FunctionComponent(WebgpuTab):
                 self.settings.set("clipping_vectors", cv)
             else:
                 self.settings.set("clipping_vectors", True)
-                self.settings.set("clipping_vector_grid_size", cv)
+                self.settings.set("vector_grid_size", cv)
+        sv = data.get("surface_vectors", False)
+        if sv:
+            if isinstance(sv, bool):
+                self.settings.set("surface_vectors", sv)
+            else:
+                self.settings.set("vectors_grid_size", True)
         if "clipping_function" in data:
             self.settings.set("clipping_visible", data["clipping_function"])
         super().__init__(name, data, app_data)
@@ -462,6 +489,17 @@ class FunctionComponent(WebgpuTab):
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
         self.clipping_vectors = None
+        if self.cf.dim == self.mesh.dim:
+            vec3 = self.cf
+            if self.cf.dim == 2:
+                vec3 = ngs.CF((self.cf[0], self.cf[1], 0))
+            vec_data = self.app_data.get_function_gpu_data(vec3,
+                                                           self.region_or_mesh, order=self.order)
+            self.surface_vectors = SurfaceVectors(vec_data, clipping=self.clipping, colormap=self.colormap,
+                                                  grid_size=self.settings.get("vector_grid_size", 20))
+            self.surface_vectors.active = self.settings.get("surface_vectors", False)
+        else:
+            self.surface_vectors = None
         if self.mesh.dim == 3 and self.draw_vol:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
             self.clippingcf.active = self.settings.get("clipping_visible", True)
@@ -470,7 +508,7 @@ class FunctionComponent(WebgpuTab):
                     func_data,
                     clipping=self.clipping,
                     colormap=self.colormap,
-                    grid_size=self.settings.get("clipping_vector_grid_size", 20),
+                    grid_size=self.settings.get("vector_grid_size", 20),
                 )
                 self.clipping_vectors.active = self.settings.get(
                     "clipping_vectors", False
@@ -513,6 +551,7 @@ class FunctionComponent(WebgpuTab):
                 self.colorbar,
                 self.contact_pairs,
                 self.clipping_vectors,
+                self.surface_vectors,
             ]
             if obj is not None
         ]

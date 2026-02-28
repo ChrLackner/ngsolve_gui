@@ -8,6 +8,7 @@ from .file_loader import load_file
 from .mesh import MeshComponent
 from .geometry import GeometryComponent
 from .function import FunctionComponent
+from .plot import PlotComponent
 from ngsolve_webgpu import Clipping
 from webgpu.camera import Camera
 
@@ -26,6 +27,7 @@ _tab_type = {
     "mesh": MeshComponent,
     "geometry": GeometryComponent,
     "function": FunctionComponent,
+    "plot": PlotComponent,
 }
 
 
