@@ -1,7 +1,7 @@
 from ngapp.cli.serve_standalone import host_local_app
 import argparse
 from pathlib import Path
-
+from ngsolve import TaskManager
 
 def main():
     parser = argparse.ArgumentParser()
@@ -15,9 +15,10 @@ def main():
     app_args = {}
     if args.filename:
         app_args["filename"] = [Path(f).resolve() for f in args.filename]
-    host_local_app(
-        "ngsolve_gui.appconfig",
-        watch_code=args.dev,
-        dev_frontend=args.dev_frontend,
-        app_args=app_args,
-    )
+    with TaskManager():
+        host_local_app(
+            "ngsolve_gui.appconfig",
+            watch_code=args.dev,
+            dev_frontend=args.dev_frontend,
+            app_args=app_args,
+        )
