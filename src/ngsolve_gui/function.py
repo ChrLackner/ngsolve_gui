@@ -329,8 +329,6 @@ class VectorSettings(QCard):
                 self.comp.clipping_vectors.set_needs_update()
             if self.comp.surface_vectors is not None:
                 self.comp.surface_vectors.set_grid_size(grid_size)
-                print("comp.surface_vectors grid size set to ", grid_size)
-                print("active = ", self.comp.surface_vectors.active)
                 self.comp.surface_vectors.set_needs_update()
             self.comp.wgpu.scene.render()
         except ValueError:
@@ -435,7 +433,7 @@ class FunctionComponent(WebgpuTab):
             self.settings.set(
                 "colormap", (autoscale, discrete_colormap, minval, maxval)
             )
-        if self.deformation is None and self.cf.dim == 1 and self.mesh.dim < 3:
+        if self.deformation is None and not "deformation" in data and self.cf.dim == 1 and self.mesh.dim < 3:
             self.deformation = ngs.CF((0, 0, self.cf))
         if data.get("deformation", None) is not None:
             self.settings.set("deformation_enabled", True)
@@ -451,7 +449,8 @@ class FunctionComponent(WebgpuTab):
             if isinstance(sv, bool):
                 self.settings.set("surface_vectors", sv)
             else:
-                self.settings.set("vectors_grid_size", True)
+                self.settings.set("surface_vectors", True)
+                self.settings.set("vector_grid_size", sv)
         if "clipping_function" in data:
             self.settings.set("clipping_visible", data["clipping_function"])
         super().__init__(name, data, app_data)
