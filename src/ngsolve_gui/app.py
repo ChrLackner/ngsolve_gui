@@ -84,7 +84,6 @@ class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
         self._local_path = local_path if local_path else os.path.expanduser("~")
         self.app_data = AppData()
-        super().__init__()
         try:
             nthreads = int(self.usersettings.get("nthreads", 0))
             if nthreads > 0:
@@ -93,7 +92,6 @@ class NGSolveGui(App):
                 os.environ["MKL_NUM_THREADS"] = str(nthreads)
         except:
             pass
-        self.set_colors(**_colors)
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
         upload_file.on_click(self._load_file)
         savebtn = QBtn(QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save")
@@ -129,10 +127,13 @@ class NGSolveGui(App):
         self.tab_panel = Panel(self.app_data)
         self.tabs.on_update_model_value(lambda e: self._click_tab(e.value))
         self.tab_components = {}
-        self.component = Div(bar, self.tab_panel, id="main_component")
-        self.component.on_load(self.__on_load)
-        self.component.on_mounted(self._disable_contextmenu)
-        self.component.on_before_save(self.__on_before_save)
+
+        super().__init__(bar, self.tab_panel)
+        
+        self.set_colors(**_colors)
+        self.on_load(self.__on_load)
+        self.on_mounted(self._disable_contextmenu)
+        self.on_before_save(self.__on_before_save)
         if isinstance(filename, str):
             load_file(filename, self)
         elif isinstance(filename, list):
@@ -167,11 +168,11 @@ class NGSolveGui(App):
         load_file(file_path, self)
 
     def __on_before_save(self):
-        self.component.storage.set("app_data", self.app_data.get_save_data(),
+        self.storage.set("app_data", self.app_data.get_save_data(),
                                    use_pickle=True)
 
     def __on_load(self):
-        data = self.component.storage.get("app_data")
+        data = self.storage.get("app_data")
         if data is not None:
             self.app_data._data.update(data)
         self._update()
