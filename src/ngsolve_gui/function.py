@@ -252,9 +252,9 @@ class Options(QCard):
 
     def toggle_surface_solution(self, event):
         self.comp.settings.set(
-            "surface_vectors", self.surface_solution_visible.ui_model_value
+            "elements2d_visible", self.surface_solution_visible.ui_model_value
         )
-        self.comp.surface_vectors.active = self.surface_solution_visible.ui_model_value
+        self.comp.elements2d.active = self.surface_solution_visible.ui_model_value
         self.comp.wgpu.scene.render()
 
     def toggle_contact_pairs(self, event):
@@ -289,7 +289,7 @@ class VectorSettings(QCard):
             )
             self.clipping_vectors.on_update_model_value(self.update_clipping_vectors)
             comps.append(self.clipping_vectors)
-        if comp.mesh.dim == 2 and comp.cf.dim == 2:
+        if comp.mesh.dim == 2 and comp.cf.dim == 2 or comp.mesh.dim == 3 and comp.cf.dim == 3:
             self.surf_vectors = QCheckbox(
                 ui_label="Show Surface Vectors",
                 ui_model_value=comp.settings.get("surface_vectors", False),
