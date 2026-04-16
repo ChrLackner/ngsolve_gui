@@ -347,6 +347,94 @@ class VectorSettings(QCard):
         comp.wgpu.scene.render()
 
 
+class FieldLinesSettings(QCard):
+    def __init__(self, comp):
+        self.comp = comp
+        self.show_fieldlines = QCheckbox(
+            ui_label="Show Field Lines",
+            ui_model_value=comp.settings.get("field_lines", False),
+        )
+        self.show_fieldlines.on_update_model_value(self.update_show)
+
+        self.num_lines = QInput(
+            ui_label="Num Lines",
+            ui_type="number",
+            ui_model_value=comp.settings.get("fieldlines_num_lines", 100),
+        )
+        self.num_lines.on_change(self.update_option)
+
+        self.length = QInput(
+            ui_label="Length",
+            ui_type="number",
+            ui_model_value=comp.settings.get("fieldlines_length", 0.5),
+        )
+        self.length.on_change(self.update_option)
+
+        self.thickness = QInput(
+            ui_label="Thickness",
+            ui_type="number",
+            ui_model_value=comp.settings.get("fieldlines_thickness", 0.0015),
+        )
+        self.thickness.on_change(self.update_option)
+
+        direction_options = ["Both", "Forward", "Backward"]
+        self.direction = QSelect(
+            ui_options=direction_options,
+            ui_model_value=direction_options[comp.settings.get("fieldlines_direction", 0)],
+            ui_label="Direction",
+        )
+        self.direction.on_update_model_value(self.update_option)
+
+        self.recalc_btn = QBtn(ui_label="Recalculate", ui_color="primary", ui_flat=True)
+        self.recalc_btn.on_click(self.recalculate)
+
+        super().__init__(
+            QCardSection(
+                Heading("Field Lines", 5),
+                self.show_fieldlines,
+                self.num_lines,
+                self.length,
+                self.thickness,
+                self.direction,
+                self.recalc_btn,
+            )
+        )
+
+    def update_show(self, event):
+        self.comp.settings.set("field_lines", self.show_fieldlines.ui_model_value)
+        if self.comp.fieldlines is not None:
+            self.comp.fieldlines.active = self.show_fieldlines.ui_model_value
+        self.comp.wgpu.scene.render()
+
+    def _get_options(self):
+        direction_map = {"Both": 0, "Forward": 1, "Backward": -1}
+        return {
+            "num_lines": int(float(self.num_lines.ui_model_value)),
+            "length": float(self.length.ui_model_value),
+            "thickness": float(self.thickness.ui_model_value),
+            "direction": direction_map[self.direction.ui_model_value],
+        }
+
+    def update_option(self, event):
+        try:
+            opts = self._get_options()
+        except (ValueError, KeyError):
+            return
+        self.comp.settings.set("fieldlines_num_lines", opts["num_lines"])
+        self.comp.settings.set("fieldlines_length", opts["length"])
+        self.comp.settings.set("fieldlines_thickness", opts["thickness"])
+        self.comp.settings.set("fieldlines_direction", opts["direction"])
+
+    def recalculate(self, event):
+        try:
+            opts = self._get_options()
+        except (ValueError, KeyError):
+            return
+        if self.comp.fieldlines is not None:
+            self.comp.fieldlines.fieldline_options.update(opts)
+            self.comp.fieldlines.set_needs_update()
+            self.comp.wgpu.scene.render()
+
 class Sidebar(QDrawer):
     def __init__(self, comp):
         self.comp = comp
@@ -383,6 +471,16 @@ class Sidebar(QDrawer):
                     ),
                     QItemSection("Vector Settings"),
                     vector_menu,
+                    ui_clickable=True,
+                )
+            )
+        if comp.cf.dim == comp.mesh.dim:
+            fieldlines_menu = QMenu(FieldLinesSettings(comp), ui_anchor="top right")
+            items.append(
+                QItem(
+                    QItemSection(QIcon(ui_name="mdi-chart-timeline-variant"), ui_avatar=True),
+                    QItemSection("Field Lines"),
+                    fieldlines_menu,
                     ui_clickable=True,
                 )
             )
@@ -451,6 +549,9 @@ class FunctionComponent(WebgpuTab):
             else:
                 self.settings.set("surface_vectors", True)
                 self.settings.set("vector_grid_size", sv)
+        fl = data.get("field_lines", False)
+        if fl:
+            self.settings.set("field_lines", True)
         if "clipping_function" in data:
             self.settings.set("clipping_visible", data["clipping_function"])
         super().__init__(name, data, app_data)
@@ -499,6 +600,19 @@ class FunctionComponent(WebgpuTab):
             self.surface_vectors.active = self.settings.get("surface_vectors", False)
         else:
             self.surface_vectors = None
+        self.fieldlines = None
+        if self.cf.dim == self.mesh.dim:
+            from ngsolve_webgpu.cf import FieldLines
+            vec3 = self.cf if self.cf.dim == 3 else ngs.CF((self.cf[0], self.cf[1], 0))
+            self.fieldlines = FieldLines(
+                vec3,
+                self.region_or_mesh,
+                num_lines=self.settings.get("fieldlines_num_lines", 100),
+                length=self.settings.get("fieldlines_length", 0.5),
+                thickness=self.settings.get("fieldlines_thickness", 0.0015),
+                direction=self.settings.get("fieldlines_direction", 0),
+            )
+            self.fieldlines.active = self.settings.get("field_lines", False)
         if self.mesh.dim == 3 and self.draw_vol:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
             self.clippingcf.active = self.settings.get("clipping_visible", True)
@@ -551,6 +665,7 @@ class FunctionComponent(WebgpuTab):
                 self.contact_pairs,
                 self.clipping_vectors,
                 self.surface_vectors,
+                self.fieldlines,
             ]
             if obj is not None
         ]
