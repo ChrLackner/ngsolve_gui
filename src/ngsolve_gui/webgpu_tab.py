@@ -78,12 +78,12 @@ class WebgpuTab(QLayout):
 
     def _on_mousemove(self, ev):
         clipping = self.clipping
-        if ev["button"] == 2:
+        if ev["buttons"] & 2:
             offset = clipping.offset
             offset += ev["movementY"] * 0.00002
             clipping.set_offset(offset)
             self.scene.render()
-        if ev["button"] == 0:
+        if ev["buttons"] & 1:
             import numpy.linalg
 
             transform = self.scene.options.camera.transform.copy()
