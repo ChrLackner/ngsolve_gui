@@ -611,6 +611,8 @@ class FunctionComponent(WebgpuTab):
                 length=self.settings.get("fieldlines_length", 0.5),
                 thickness=self.settings.get("fieldlines_thickness", 0.0015),
                 direction=self.settings.get("fieldlines_direction", 0),
+                colormap=self.colormap,
+                clipping=self.clipping,
             )
             self.fieldlines.active = self.settings.get("field_lines", False)
         if self.mesh.dim == 3 and self.draw_vol:
