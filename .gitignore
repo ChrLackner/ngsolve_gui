@@ -1,2 +1,4 @@
 src/ngsolve_gui.egg-info
 /src/ngsolve_gui/__pycache__/
+tests/output/
+**/__pycache__

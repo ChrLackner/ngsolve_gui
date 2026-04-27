@@ -493,9 +493,23 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
             )
         )
+        draw_mesh = QItem(
+            QItemSection(QIcon(ui_name="mdi-vector-triangle"), ui_avatar=True),
+            QItemSection("Draw Mesh"),
+            ui_clickable=True,
+        )
+        draw_mesh.on_click(self._draw_mesh)
+        items.append(draw_mesh)
         self.qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(
             self.qlist, ui_width=200, ui_bordered=True, ui_model_value=True
+        )
+
+    def _draw_mesh(self, *args):
+        from .mesh import MeshComponent
+        comp = self.comp
+        comp.app_data.add_tab(
+            "Mesh_" + comp.name, MeshComponent, {"obj": comp.mesh}, comp.app_data
         )
 
     def append_component(self, *args):

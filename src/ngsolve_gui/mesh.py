@@ -8,6 +8,7 @@ from webgpu.canvas import debounce
 from .clipping import ClippingSettings
 from .webgpu_tab import WebgpuTab
 from .region_colors import RegionColors
+import netgen.occ as ngocc
 
 
 class ViewOptions(QCard):
@@ -163,9 +164,27 @@ class Sidebar(QDrawer):
                 ui_clickable=True,
         ))
         items.append(curving_row)
+
+        draw_geo_btn = QItem(
+            QItemSection(QIcon(ui_name="mdi-cube-outline"), ui_avatar=True),
+            QItemSection("Draw Geometry"),
+            ui_clickable=True,
+        )
+        draw_geo_btn.on_click(self._draw_geometry)
+        items.append(draw_geo_btn)
         
         qlist = QList(*items, ui_padding=True, ui_class="menu-list")
         super().__init__(qlist, ui_width=200, ui_bordered=True, ui_model_value=True)
+
+
+    def _draw_geometry(self, *args):
+        comp = self.geo_comp
+        try:
+            geo = comp.mesh.ngmesh.GetGeometry()
+            from .geometry import GeometryComponent
+            comp.app_data.add_tab("Geo_" + comp.title, GeometryComponent, {"obj": geo}, comp.app_data)
+        except Exception as e:
+            print(f"Could not extract geometry from mesh: {e}")
 
 
 class MeshComponent(WebgpuTab):
