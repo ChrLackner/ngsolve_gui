@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import numpy as np
 import ngsolve as ngs
 
 from playwright.sync_api import Page
-
 from ngapp.e2e import app_test
+
 from ngapp.e2e_webgpu import assert_matches_baseline
 
 from .helpers import (
@@ -65,6 +66,7 @@ def test_function_fieldlines_2d(page: Page, app) -> None:
     _draw(app, cf, mesh=mesh, name="FieldLines2D")
     comp = app.tab_panel.comp
 
+    np.random.seed(42)
     expand_section(page, "Field Lines")
     click_checkbox(page, "Show Field Lines")
     assert_matches_baseline(page, comp.wgpu, "func_fieldlines_2d.png")

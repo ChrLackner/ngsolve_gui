@@ -13,8 +13,8 @@ from __future__ import annotations
 import ngsolve as ngs
 
 from playwright.sync_api import Page
-
 from ngapp.e2e import app_test
+
 from ngapp.e2e_webgpu import assert_matches_baseline
 
 from .helpers import (
@@ -39,12 +39,11 @@ def test_function_scalar_2d(page: Page, app) -> None:
     click_checkbox(page, "Wireframe Visible")
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_no_wireframe.png")
 
-    # 3. Turn wireframe back on, enable deformation via UI
+    # 3. Turn wireframe back on, disable deformation via UI
     click_checkbox(page, "Wireframe Visible")
-    # collapse_section(page, "Options")
-    # expand_section(page, "Deformation")
+    expand_section(page, "Deformation")
     click_checkbox(page, "Enable Deformation")
-    assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_deformed.png")
+    assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_flat.png")
 
 
 @app_test("ngsolve_gui.appconfig")
