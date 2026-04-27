@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build -t ngsolve-gui-tests .
+
+      - name: Run tests
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/tests/output:/app/tests/output" \
+            ngsolve-gui-tests
+
+      - name: Upload test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: tests/output/
