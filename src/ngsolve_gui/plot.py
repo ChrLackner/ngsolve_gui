@@ -4,7 +4,7 @@ from ngapp.components import *
 from ngapp.components.visualization import PlotlyComponent
 
 
-class PlotComponent(QLayout):
+class PlotComponent(Div):
     def __init__(self, name, data, app_data):
         self.name = name
         self.data = data
@@ -14,12 +14,11 @@ class PlotComponent(QLayout):
         self._plots = []
         self.debug = bool(data.get("debug", False)) if isinstance(data, dict) else False
         self.container = Div(
-            ui_style="width: 100%; height: calc(100vh - 140px); overflow: auto;"
+            ui_style="width: 100%; height: 100%; overflow: auto;"
         )
         super().__init__(
             self.container,
-            ui_container=True,
-            ui_style="height: calc(100vh - 140px); width: 100%;",
+            ui_style="width: 100%; height: 100%;",
         )
         self.on_mounted(self.draw)  # defer until mounted
 
@@ -79,7 +78,7 @@ class PlotComponent(QLayout):
 
         self._figures = []
         self._plots = []
-        plot_height = "calc(100vh - 200px)" if len(figures) == 1 else "480px"
+        plot_height = "100%" if len(figures) == 1 else "480px"
         if self.debug:
             print(f"[PlotComponent] figures={len(figures)}")
         for idx, fig in enumerate(figures):
@@ -108,3 +107,13 @@ class PlotComponent(QLayout):
 
     def set_component(self, comp):
         self.ui_children = [comp]
+
+
+# Register with the component registry
+from .registry import register_component
+
+register_component("plot",
+    icon="mdi-chart-line",
+    component_class=PlotComponent,
+    sections=[],
+)

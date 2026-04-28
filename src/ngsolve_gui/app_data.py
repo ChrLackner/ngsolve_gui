@@ -1,9 +1,5 @@
-import netgen.occ as ngocc
-import ngsolve as ngs
 from ngsolve_webgpu import *
 from webgpu.camera import Camera
-
-from ngapp.components import Component
 
 
 class Settings:
@@ -64,7 +60,14 @@ class AppData:
         for name, tab in self._data["tabs"].items():
             tab_copy = tab.copy()
             if "component" in tab_copy:
-                tab_copy["type"] = tab_copy["component"].__class__.__name__
+                # Resolve type key from registry if not already set
+                if "type" not in tab_copy or tab_copy["type"] == "unknown":
+                    from .registry import get_registry
+                    cls = type(tab_copy["component"])
+                    for key, info in get_registry().items():
+                        if info["cls"] is cls:
+                            tab_copy["type"] = key
+                            break
                 tab_copy["data"] = tab_copy["component"].data
                 del tab_copy["component"]
             data_copy["tabs"][name] = tab_copy
@@ -72,9 +75,18 @@ class AppData:
 
     def add_tab(self, title: str, cls: type, *args, **kwargs):
         name = title.lower().replace(" ", "_")
-        # name = title
+        # Resolve type key and icon from registry
+        from .registry import get_registry
+        type_key = "unknown"
+        icon = "mdi-vector-triangle"
+        for key, info in get_registry().items():
+            if info["cls"] is cls:
+                type_key = key
+                icon = info["icon"]
+                break
         self._data["tabs"][name] = {
-            "icon": "mdi-vector-triangle",
+            "type": type_key,
+            "icon": icon,
             "data": {},
             "name": name,
             "title": title,
@@ -86,55 +98,6 @@ class AppData:
         if self._update is not None:
             self._update()
         return component
-
-    def add_mesh(self, title: str, mesh: ngs.Mesh, **kwargs):
-        _type = "mesh"
-        name = _type + "_" + title.lower().replace(" ", "_")
-        self._data["tabs"][name] = {
-            "type": _type,
-            "icon": "mdi-vector-triangle",
-            "data": mesh,
-            "name": name,
-            "title": title,
-            "settings": {
-                "kwargs": kwargs,
-            },
-        }
-        self.active_tab = name
-        if self._update is not None:
-            self._update()
-
-    def add_geometry(self, title: str, geometry: ngocc.OCCGeometry):
-        _type = "geometry"
-        name = _type + "_" + title.lower().replace(" ", "_")
-        self._data["tabs"][name] = {
-            "type": _type,
-            "icon": "mdi-cube",
-            "data": geometry,
-            "name": name,
-            "title": title,
-            "settings": {},
-        }
-        self.active_tab = name
-        if self._update is not None:
-            self._update()
-
-    def add_function(
-        self, title: str, function: ngs.CoefficientFunction, mesh: ngs.Mesh, **kwargs
-    ):
-        _type = "function"
-        name = _type + "_" + title.lower().replace(" ", "_")
-        self._data["tabs"][name] = {
-            "type": _type,
-            "icon": "mdi-function-variant",
-            "data": {"function": function, "mesh": mesh, **kwargs},
-            "name": name,
-            "title": title,
-            "settings": {},
-        }
-        self.active_tab = name
-        if self._update is not None:
-            self._update()
 
     def get_tabs(self):
         """

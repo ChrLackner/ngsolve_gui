@@ -5,12 +5,11 @@ from ngapp.components import *
 
 from .app_data import AppData
 from .file_loader import load_file
-from .mesh import MeshComponent
-from .geometry import GeometryComponent
-from .function import FunctionComponent
-from .plot import PlotComponent
-from ngsolve_webgpu import Clipping
-from webgpu.camera import Camera
+from .keybindings import KeybindingManager
+from .navigator import Navigator
+from .property_panel import PropertyPanel
+from .styles import sidebar_style
+
 
 _colors = {
     "primary": "#164d7d",  # ngsolve blue
@@ -23,21 +22,12 @@ _colors = {
     "warning": "#F59E0B",  # amber
 }
 
-_tab_type = {
-    "mesh": MeshComponent,
-    "geometry": GeometryComponent,
-    "function": FunctionComponent,
-    "plot": PlotComponent,
-}
-
 
 class Panel(Div):
     def __init__(self, app_data):
         self.app_data = app_data
-        self.global_clipping = Clipping()
-        self.global_camera = None
         self.comp = None
-        super().__init__()
+        super().__init__(ui_style="width: 100%; height: 100%;")
         self.set_tab()
 
     def set_tab(self):
@@ -46,27 +36,28 @@ class Panel(Div):
             self.ui_children = []
             return
         tab = self.app_data.get_tab(name)
-        settings = self.app_data.get_settings(name)
-        new_camera = False
-        if self.global_camera is None:
-            self.global_camera = Camera()
-            new_camera = True
+        if tab is None:
+            self.ui_children = []
+            return
         if "component" in tab:
             self.comp = comp = tab["component"]
         else:
-            cls = eval(tab["type"])
+            cls = self._resolve_class(tab["type"])
             self.comp = comp = cls(
                 tab["name"],
                 tab["data"],
                 app_data=self.app_data,
             )
+            tab["component"] = comp
         self.ui_children = [comp]
-        if new_camera:
-            try:
-                pmin, pmax = comp.wgpu.scene.bounding_box
-                self.global_camera.reset(pmin, pmax)
-            except Exception as e:
-                self.global_camera = None
+
+    def _resolve_class(self, type_key):
+        from .registry import get_component_info
+        info = get_component_info(type_key)
+        if info is None:
+            raise ValueError(f"Unknown component type: {type_key}")
+        return info["cls"]
+
 
 class Settings(QMenu):
     def __init__(self, app):
@@ -80,6 +71,7 @@ class Settings(QMenu):
             QCardSection(
                 nthreads)))
 
+
 class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
         self._local_path = local_path if local_path else os.path.expanduser("~")
@@ -92,13 +84,21 @@ class NGSolveGui(App):
                 os.environ["MKL_NUM_THREADS"] = str(nthreads)
         except:
             pass
+
+        # Toolbar buttons
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
         upload_file.on_click(self._load_file)
         savebtn = QBtn(QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save")
         savebtn.on_click(self.save_local)
         loadbtn = QBtn(QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open")
         loadbtn.on_click(self.load_local)
-        self.tabs = QTabs(ui_dense=True)
+
+        # Panel toggle buttons
+        self._nav_btn = QBtn(QTooltip("Toggle Navigator"), ui_flat=True, ui_icon="mdi-page-layout-sidebar-left")
+        self._nav_btn.on_click(self._toggle_navigator)
+        self._prop_btn = QBtn(QTooltip("Toggle Properties"), ui_flat=True, ui_icon="mdi-page-layout-sidebar-right")
+        self._prop_btn.on_click(self._toggle_property_panel)
+
         settings_btn = QBtn(Settings(self), QTooltip("User Settings"), ui_flat=True, ui_icon="mdi-cog")
         close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
         close_btn.on_click(self.quit)
@@ -110,40 +110,63 @@ class NGSolveGui(App):
             ),
             ui_style="width: 200px;",
         )
+
         bar = QBar(
             ngs_logo,
             upload_file,
             savebtn,
             loadbtn,
             QSpace(),
-            self.tabs,
-            QSpace(),
+            self._nav_btn,
+            self._prop_btn,
             settings_btn,
             close_btn,
             ui_style="height: 60px",
             ui_class="bg-primary text-grey-4",
         )
 
+        # Three-column layout using flex
+        self.navigator = Navigator(self.app_data, self._click_tab)
+        self.property_panel = PropertyPanel()
         self.tab_panel = Panel(self.app_data)
-        self.tabs.on_update_model_value(lambda e: self._click_tab(e.value))
-        self.tab_components = {}
 
-        super().__init__(bar, self.tab_panel)
-        
+        self._nav_visible = self.usersettings.get("nav_visible", True)
+        self._prop_visible = self.usersettings.get("prop_visible", True)
+        self._apply_panel_visibility()
+
+        # Keybinding manager
+        self.kb = KeybindingManager(self, after_action=self._sync_property_panel)
+
+        page = Div(
+            self.navigator,
+            Div(self.tab_panel, ui_style="flex: 1; height: 100%; overflow: hidden;"),
+            self.property_panel,
+            ui_style="display: flex; flex-direction: row; height: calc(100vh - 60px); width: 100%;",
+        )
+
+        super().__init__(bar, page, self.kb.indicator, self.kb.help_overlay)
+
         self.set_colors(**_colors)
         self.on_load(self.__on_load)
         self.on_mounted(self._disable_contextmenu)
+
+        # -- Global keybindings (always active) --
+        kb = self.kb
+        kb.add("h", kb.toggle_help, "Show keyboard shortcuts", "General")
+        kb.add("ctrl+b", self._toggle_navigator, "Toggle navigator", "Panels")
+        kb.add("ctrl+alt+b", self._toggle_property_panel, "Toggle property panel", "Panels")
+        for i in range(1, 10):
+            kb.add(str(i), lambda n=i: self.navigator.select_by_index(n), f"Select item {i}", "Navigation")
+        self.add_keybinding("escape", lambda e: self.kb.on_escape())
         self.on_before_save(self.__on_before_save)
         if isinstance(filename, str):
             load_file(filename, self)
         elif isinstance(filename, list):
             for f in filename:
                 load_file(f, self)
-        # self.component.add_keybinding("q", self.quit)
 
     def _disable_contextmenu(self):
         import webgpu.platform as pl
-
         pl.js.document.addEventListener(
             "contextmenu", pl.create_event_handler(lambda e: None, prevent_default=True)
         )
@@ -168,8 +191,7 @@ class NGSolveGui(App):
         load_file(file_path, self)
 
     def __on_before_save(self):
-        self.storage.set("app_data", self.app_data.get_save_data(),
-                                   use_pickle=True)
+        self.storage.set("app_data", self.app_data.get_save_data(), use_pickle=True)
 
     def __on_load(self):
         data = self.storage.get("app_data")
@@ -181,10 +203,37 @@ class NGSolveGui(App):
     def _click_tab(self, tabname):
         self.app_data.active_tab = tabname
         self.tab_panel.set_tab()
+        self.navigator.update()
+        comp = self.tab_panel.comp
+        tab = self.app_data.get_tab(tabname)
+        type_key = tab.get("type", "") if tab else ""
+        self.property_panel.set_component(comp, type_key)
+        self.kb.set_component(comp)
 
-    def _ctab(self, e, tabname):
-        if e.value["button"] == 1:
-            self.app_data.delete_tab(tabname)
+    def _toggle_navigator(self):
+        self._nav_visible = not self._nav_visible
+        self.usersettings.set("nav_visible", self._nav_visible)
+        self._apply_panel_visibility()
+
+    def _toggle_property_panel(self):
+        self._prop_visible = not self._prop_visible
+        self.usersettings.set("prop_visible", self._prop_visible)
+        self._apply_panel_visibility()
+
+    def _apply_panel_visibility(self):
+        nav_extra = "width: 200px; min-width: 200px;" + ("" if self._nav_visible else " display: none;")
+        prop_extra = "width: 280px; min-width: 280px;" + ("" if self._prop_visible else " display: none;")
+        self.navigator.ui_style = sidebar_style(border_side="right", extra=nav_extra)
+        self.property_panel.ui_style = sidebar_style(border_side="left", extra=prop_extra)
+
+    def _sync_property_panel(self):
+        """Rebuild property panel to sync checkbox states after keyboard toggling."""
+        active = self.app_data.active_tab
+        if active:
+            comp = self.tab_panel.comp
+            tab = self.app_data.get_tab(active)
+            type_key = tab.get("type", "") if tab else ""
+            self.property_panel.set_component(comp, type_key)
 
     def redraw(self, *args, **kwargs):
         self.app_data.set_needs_redraw()
@@ -194,13 +243,15 @@ class NGSolveGui(App):
                 comp.redraw()
 
     def _update(self):
-        tabs = []
-        for name, tab in self.app_data.get_tabs().items():
-            title = tab["title"]
-            t = QTab(ui_name=name, ui_icon=tab["icon"], ui_label=title)
-            t.on("mousedown", lambda e, t=t: self._ctab(e, t.ui_name))
-            tabs.append(t)
-
-        self.tabs.ui_children = tabs
-        self.tabs.ui_model_value = self.app_data.active_tab
+        self.navigator.update()
         self.tab_panel.set_tab()
+        active = self.app_data.active_tab
+        if active:
+            comp = self.tab_panel.comp
+            tab = self.app_data.get_tab(active)
+            type_key = tab.get("type", "") if tab else ""
+            self.property_panel.set_component(comp, type_key)
+            self.kb.set_component(comp)
+        else:
+            self.property_panel.set_component(None, "")
+            self.kb.set_component(None)
