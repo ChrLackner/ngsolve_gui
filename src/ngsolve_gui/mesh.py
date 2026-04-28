@@ -117,9 +117,11 @@ class MeshComponent(WebgpuTab):
 
     def toggle_elements_3d(self):
         if self.elements3d is None:
+            self.settings.set("elements3d_visible", True)
             self.draw()
-        self.elements3d.active = not self.elements3d.active
-        self.settings.set("elements3d_visible", self.elements3d.active)
+        else:
+            self.elements3d.active = not self.elements3d.active
+            self.settings.set("elements3d_visible", self.elements3d.active)
         self.wgpu.scene.render()
 
     def draw(self):
