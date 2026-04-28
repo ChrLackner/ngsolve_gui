@@ -10,7 +10,6 @@ from .navigator import Navigator
 from .property_panel import PropertyPanel
 from .styles import sidebar_style
 
-
 _colors = {
     "primary": "#164d7d",  # ngsolve blue
     "secondary": "#93B1D4",  # light slate blue
@@ -53,6 +52,7 @@ class Panel(Div):
 
     def _resolve_class(self, type_key):
         from .registry import get_component_info
+
         info = get_component_info(type_key)
         if info is None:
             raise ValueError(f"Unknown component type: {type_key}")
@@ -63,13 +63,16 @@ class Settings(QMenu):
     def __init__(self, app):
         self.app = app
         val = self.app.usersettings.get("nthreads", 0)
-        nthreads = QInput(QTooltip("Set number of threads used by NGSolve, 0 for all available cores. Only takes effect after restarting the application."),
-            ui_label="Number of Threads", ui_type="number", ui_model_value=val)
+        nthreads = QInput(
+            QTooltip(
+                "Set number of threads used by NGSolve, 0 for all available cores. Only takes effect after restarting the application."
+            ),
+            ui_label="Number of Threads",
+            ui_type="number",
+            ui_model_value=val,
+        )
         nthreads.on_update_model_value(self.app.usersettings.update("nthreads"))
-        super().__init__(QCard(
-            QCardSection("Settings"),
-            QCardSection(
-                nthreads)))
+        super().__init__(QCard(QCardSection("Settings"), QCardSection(nthreads)))
 
 
 class NGSolveGui(App):
@@ -80,6 +83,7 @@ class NGSolveGui(App):
             nthreads = int(self.usersettings.get("nthreads", 0))
             if nthreads > 0:
                 import ngsolve as ngs
+
                 ngs.SetNumThreads(nthreads)
                 os.environ["MKL_NUM_THREADS"] = str(nthreads)
         except:
@@ -88,18 +92,32 @@ class NGSolveGui(App):
         # Toolbar buttons
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
         upload_file.on_click(self._load_file)
-        savebtn = QBtn(QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save")
+        savebtn = QBtn(
+            QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save"
+        )
         savebtn.on_click(self.save_local)
-        loadbtn = QBtn(QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open")
+        loadbtn = QBtn(
+            QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open"
+        )
         loadbtn.on_click(self.load_local)
 
         # Panel toggle buttons
-        self._nav_btn = QBtn(QTooltip("Toggle Navigator"), ui_flat=True, ui_icon="mdi-page-layout-sidebar-left")
+        self._nav_btn = QBtn(
+            QTooltip("Toggle Navigator"),
+            ui_flat=True,
+            ui_icon="mdi-page-layout-sidebar-left",
+        )
         self._nav_btn.on_click(self._toggle_navigator)
-        self._prop_btn = QBtn(QTooltip("Toggle Properties"), ui_flat=True, ui_icon="mdi-page-layout-sidebar-right")
+        self._prop_btn = QBtn(
+            QTooltip("Toggle Properties"),
+            ui_flat=True,
+            ui_icon="mdi-page-layout-sidebar-right",
+        )
         self._prop_btn.on_click(self._toggle_property_panel)
 
-        settings_btn = QBtn(Settings(self), QTooltip("User Settings"), ui_flat=True, ui_icon="mdi-cog")
+        settings_btn = QBtn(
+            Settings(self), QTooltip("User Settings"), ui_flat=True, ui_icon="mdi-cog"
+        )
         close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
         close_btn.on_click(self.quit)
         ngs_logo = Div(
@@ -154,9 +172,16 @@ class NGSolveGui(App):
         kb = self.kb
         kb.add("h", kb.toggle_help, "Show keyboard shortcuts", "General")
         kb.add("ctrl+b", self._toggle_navigator, "Toggle navigator", "Panels")
-        kb.add("ctrl+alt+b", self._toggle_property_panel, "Toggle property panel", "Panels")
+        kb.add(
+            "ctrl+alt+b", self._toggle_property_panel, "Toggle property panel", "Panels"
+        )
         for i in range(1, 10):
-            kb.add(str(i), lambda n=i: self.navigator.select_by_index(n), f"Select item {i}", "Navigation")
+            kb.add(
+                str(i),
+                lambda n=i: self.navigator.select_by_index(n),
+                f"Select item {i}",
+                "Navigation",
+            )
         self.add_keybinding("escape", lambda e: self.kb.on_escape())
         self.on_before_save(self.__on_before_save)
         if isinstance(filename, str):
@@ -167,6 +192,7 @@ class NGSolveGui(App):
 
     def _disable_contextmenu(self):
         import webgpu.platform as pl
+
         pl.js.document.addEventListener(
             "contextmenu", pl.create_event_handler(lambda e: None, prevent_default=True)
         )
@@ -221,10 +247,16 @@ class NGSolveGui(App):
         self._apply_panel_visibility()
 
     def _apply_panel_visibility(self):
-        nav_extra = "width: 200px; min-width: 200px;" + ("" if self._nav_visible else " display: none;")
-        prop_extra = "width: 280px; min-width: 280px;" + ("" if self._prop_visible else " display: none;")
+        nav_extra = "width: 200px; min-width: 200px;" + (
+            "" if self._nav_visible else " display: none;"
+        )
+        prop_extra = "width: 280px; min-width: 280px;" + (
+            "" if self._prop_visible else " display: none;"
+        )
         self.navigator.ui_style = sidebar_style(border_side="right", extra=nav_extra)
-        self.property_panel.ui_style = sidebar_style(border_side="left", extra=prop_extra)
+        self.property_panel.ui_style = sidebar_style(
+            border_side="left", extra=prop_extra
+        )
 
     def _sync_property_panel(self):
         """Rebuild property panel to sync checkbox states after keyboard toggling."""

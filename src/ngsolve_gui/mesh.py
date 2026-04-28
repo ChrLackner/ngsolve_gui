@@ -173,7 +173,8 @@ class MeshComponent(WebgpuTab):
 from .registry import register_component
 from .sections import MeshViewSection, MeshColorSection, ClippingSection
 
-register_component("mesh",
+register_component(
+    "mesh",
     icon="mdi-vector-triangle",
     component_class=MeshComponent,
     sections=[MeshViewSection, MeshColorSection, ClippingSection],

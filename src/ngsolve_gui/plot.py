@@ -13,9 +13,7 @@ class PlotComponent(Div):
         self._figures = []
         self._plots = []
         self.debug = bool(data.get("debug", False)) if isinstance(data, dict) else False
-        self.container = Div(
-            ui_style="width: 100%; height: 100%; overflow: auto;"
-        )
+        self.container = Div(ui_style="width: 100%; height: 100%; overflow: auto;")
         super().__init__(
             self.container,
             ui_style="width: 100%; height: 100%;",
@@ -112,7 +110,8 @@ class PlotComponent(Div):
 # Register with the component registry
 from .registry import register_component
 
-register_component("plot",
+register_component(
+    "plot",
     icon="mdi-chart-line",
     component_class=PlotComponent,
     sections=[],

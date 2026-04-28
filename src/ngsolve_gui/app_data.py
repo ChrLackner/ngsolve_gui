@@ -63,6 +63,7 @@ class AppData:
                 # Resolve type key from registry if not already set
                 if "type" not in tab_copy or tab_copy["type"] == "unknown":
                     from .registry import get_registry
+
                     cls = type(tab_copy["component"])
                     for key, info in get_registry().items():
                         if info["cls"] is cls:
@@ -77,6 +78,7 @@ class AppData:
         name = title.lower().replace(" ", "_")
         # Resolve type key and icon from registry
         from .registry import get_registry
+
         type_key = "unknown"
         icon = "mdi-vector-triangle"
         for key, info in get_registry().items():

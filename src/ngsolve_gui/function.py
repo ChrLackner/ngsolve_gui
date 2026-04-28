@@ -15,7 +15,11 @@ class FunctionComponent(WebgpuTab):
         self.region_or_mesh = data["mesh"]
         self.draw_vol = data.get("draw_vol", True)
         self.draw_surf = data.get("draw_surf", True)
-        self.mesh = self.region_or_mesh.mesh if isinstance(self.region_or_mesh, ngs.Region) else self.region_or_mesh
+        self.mesh = (
+            self.region_or_mesh.mesh
+            if isinstance(self.region_or_mesh, ngs.Region)
+            else self.region_or_mesh
+        )
         self.order = data.get("order", None)
         if self.order is None:
             self.order = 2
@@ -26,13 +30,20 @@ class FunctionComponent(WebgpuTab):
         self.contact_pairs = None
         minval = data.get("min", 0.0)
         maxval = data.get("max", 1.0)
-        autoscale = not ("min" in data or "max" in data) and not data.get("autoscale", False)
+        autoscale = not ("min" in data or "max" in data) and not data.get(
+            "autoscale", False
+        )
         discrete_colormap = data.get("discrete_colormap", False)
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
             self.settings.set(
                 "colormap", (autoscale, discrete_colormap, minval, maxval)
             )
-        if self.deformation is None and not "deformation" in data and self.cf.dim == 1 and self.mesh.dim < 3:
+        if (
+            self.deformation is None
+            and not "deformation" in data
+            and self.cf.dim == 1
+            and self.mesh.dim < 3
+        ):
             self.deformation = ngs.CF((0, 0, self.cf))
         if data.get("deformation", None) is not None:
             self.settings.set("deformation_enabled", True)
@@ -84,25 +95,39 @@ class FunctionComponent(WebgpuTab):
         if self.mesh.dim == 3:
             clip = list(self._clipping_mode_bindings())
             if self.clippingcf is not None:
-                clip.append(("f", self.toggle_clipping_function, "Toggle clipping function"))
+                clip.append(
+                    ("f", self.toggle_clipping_function, "Toggle clipping function")
+                )
             kb["modes"].append(("c", "Clipping", clip))
 
         # d → Deformation
         if self.deformation is not None or (self.cf.dim == 1 and self.mesh.dim < 3):
-            kb["modes"].append(("d", "Deformation", [
-                ("d", self.toggle_deformation, "Toggle deformation"),
-                ("+", self.increase_deformation, "Increase scale"),
-                ("-", self.decrease_deformation, "Decrease scale"),
-                ("0", self.reset_deformation, "Reset scale to 1.0"),
-            ]))
+            kb["modes"].append(
+                (
+                    "d",
+                    "Deformation",
+                    [
+                        ("d", self.toggle_deformation, "Toggle deformation"),
+                        ("+", self.increase_deformation, "Increase scale"),
+                        ("-", self.decrease_deformation, "Decrease scale"),
+                        ("0", self.reset_deformation, "Reset scale to 1.0"),
+                    ],
+                )
+            )
 
         # m → Colormap
-        kb["modes"].append(("m", "Colormap", [
-            ("a", self.toggle_autoscale, "Toggle autoscale"),
-            ("d", self.toggle_discrete, "Toggle discrete"),
-            ("n", self.cycle_colormap_next, "Next colormap"),
-            ("p", self.cycle_colormap_prev, "Previous colormap"),
-        ]))
+        kb["modes"].append(
+            (
+                "m",
+                "Colormap",
+                [
+                    ("a", self.toggle_autoscale, "Toggle autoscale"),
+                    ("d", self.toggle_discrete, "Toggle discrete"),
+                    ("n", self.cycle_colormap_next, "Next colormap"),
+                    ("p", self.cycle_colormap_prev, "Previous colormap"),
+                ],
+            )
+        )
 
         return kb
 
@@ -160,7 +185,9 @@ class FunctionComponent(WebgpuTab):
         enabled = not self.settings.get("deformation_enabled", False)
         self.settings.set("deformation_enabled", enabled)
         if enabled:
-            scale = self.settings.get("deformation_scale", 1.0) * self.settings.get("deformation_scale2", 1.0)
+            scale = self.settings.get("deformation_scale", 1.0) * self.settings.get(
+                "deformation_scale2", 1.0
+            )
         else:
             scale = 0.0
         self.mdata.deformation_scale = scale
@@ -178,7 +205,9 @@ class FunctionComponent(WebgpuTab):
         scale = self.settings.get("deformation_scale", 1.0) * factor
         self.settings.set("deformation_scale", scale)
         if self.settings.get("deformation_enabled", False):
-            self.mdata.deformation_scale = scale * self.settings.get("deformation_scale2", 1.0)
+            self.mdata.deformation_scale = scale * self.settings.get(
+                "deformation_scale2", 1.0
+            )
             self.wgpu.scene.render()
 
     def reset_deformation(self):
@@ -196,18 +225,28 @@ class FunctionComponent(WebgpuTab):
             self.wgpu.scene.redraw(blocking=True)
         else:
             self.wgpu.scene.render()
-        self.settings.set("colormap", (
-            self.colormap.autoscale, self.colormap.discrete,
-            self.colormap.minval, self.colormap.maxval,
-        ))
+        self.settings.set(
+            "colormap",
+            (
+                self.colormap.autoscale,
+                self.colormap.discrete,
+                self.colormap.minval,
+                self.colormap.maxval,
+            ),
+        )
 
     def toggle_discrete(self):
         self.colormap.set_discrete(not self.colormap.discrete)
         self.wgpu.scene.render()
-        self.settings.set("colormap", (
-            self.colormap.autoscale, self.colormap.discrete,
-            self.colormap.minval, self.colormap.maxval,
-        ))
+        self.settings.set(
+            "colormap",
+            (
+                self.colormap.autoscale,
+                self.colormap.discrete,
+                self.colormap.minval,
+                self.colormap.maxval,
+            ),
+        )
 
     def _cycle_colormap(self, direction):
         current = self.settings.get("colormap_name", "matlab:jet")
@@ -262,16 +301,22 @@ class FunctionComponent(WebgpuTab):
             vec3 = self.cf
             if self.cf.dim == 2:
                 vec3 = ngs.CF((self.cf[0], self.cf[1], 0))
-            vec_data = self.app_data.get_function_gpu_data(vec3,
-                                                           self.region_or_mesh, order=self.order)
-            self.surface_vectors = SurfaceVectors(vec_data, clipping=self.clipping, colormap=self.colormap,
-                                                  grid_size=self.settings.get("vector_grid_size", 200))
+            vec_data = self.app_data.get_function_gpu_data(
+                vec3, self.region_or_mesh, order=self.order
+            )
+            self.surface_vectors = SurfaceVectors(
+                vec_data,
+                clipping=self.clipping,
+                colormap=self.colormap,
+                grid_size=self.settings.get("vector_grid_size", 200),
+            )
             self.surface_vectors.active = self.settings.get("surface_vectors", False)
         else:
             self.surface_vectors = None
         self.fieldlines = None
         if self.cf.dim == self.mesh.dim:
             from ngsolve_webgpu.cf import FieldLines
+
             vec3 = self.cf if self.cf.dim == 3 else ngs.CF((self.cf[0], self.cf[1], 0))
             self.fieldlines = FieldLines(
                 vec3,
@@ -313,18 +358,23 @@ class FunctionComponent(WebgpuTab):
         if self.contact is not None:
             from ngsolve_webgpu.contact import ContactPairs
             from webgpu.renderer import MultipleRenderer
+
             if isinstance(self.contact, list):
                 from .region_colors import get_random_colors
+
                 colors = get_random_colors(len(self.contact))
-                self.contact_pairs = MultipleRenderer([ContactPairs(self.region_or_mesh, cb, color=c) for cb, c in zip(self.contact, colors)])
+                self.contact_pairs = MultipleRenderer(
+                    [
+                        ContactPairs(self.region_or_mesh, cb, color=c)
+                        for cb, c in zip(self.contact, colors)
+                    ]
+                )
             else:
                 self.contact_pairs = ContactPairs(
                     self.region_or_mesh,
                     self.contact,
                 )
-            self.contact_pairs.active = self.settings.get(
-                "contact_enabled", True
-            )
+            self.contact_pairs.active = self.settings.get("contact_enabled", True)
 
         render_objects = [
             obj
@@ -346,7 +396,12 @@ class FunctionComponent(WebgpuTab):
             self.min_max = (self.colormap.minval, self.colormap.maxval)
             self.settings.set(
                 "colormap",
-                (self.colormap.autoscale, self.colormap.discrete, self.colormap.minval, self.colormap.maxval),
+                (
+                    self.colormap.autoscale,
+                    self.colormap.discrete,
+                    self.colormap.minval,
+                    self.colormap.maxval,
+                ),
             )
 
         self.wgpu.on_mounted(set_min_max)
@@ -357,13 +412,24 @@ class FunctionComponent(WebgpuTab):
 # Register with the component registry
 from .registry import register_component
 from .sections import (
-    ColorbarSection, ClippingSection, DeformationSection,
-    VectorSection, FieldLinesSection, FunctionOptionsSection,
+    ColorbarSection,
+    ClippingSection,
+    DeformationSection,
+    VectorSection,
+    FieldLinesSection,
+    FunctionOptionsSection,
 )
 
-register_component("function",
+register_component(
+    "function",
     icon="mdi-function-variant",
     component_class=FunctionComponent,
-    sections=[ColorbarSection, ClippingSection, DeformationSection,
-              VectorSection, FieldLinesSection, FunctionOptionsSection],
+    sections=[
+        ColorbarSection,
+        ClippingSection,
+        DeformationSection,
+        VectorSection,
+        FieldLinesSection,
+        FunctionOptionsSection,
+    ],
 )

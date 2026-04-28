@@ -3,19 +3,23 @@ import argparse
 from pathlib import Path
 from ngsolve import TaskManager
 
+
 def _apply_nthreads():
     """Read nthreads from user settings and apply before TaskManager starts."""
     try:
         import os
         from ngapp.utils import UserSettings
+
         settings = UserSettings(app_id="NGSolve GUI")
         nthreads = int(settings.get("nthreads", 0))
         if nthreads > 0:
             import ngsolve as ngs
+
             ngs.SetNumThreads(nthreads)
             os.environ["MKL_NUM_THREADS"] = str(nthreads)
     except Exception:
         pass
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -23,7 +27,9 @@ def main():
         "filename", help="Load the specified file", nargs="*", default=None
     )
     parser.add_argument("--dev", action="store_true", help="Run in development mode")
-    parser.add_argument("--dev-frontend", action="store_true", help="Run frontend in development mode")
+    parser.add_argument(
+        "--dev-frontend", action="store_true", help="Run frontend in development mode"
+    )
     # get absolute path of file from command line
     args = parser.parse_args()
     app_args = {}

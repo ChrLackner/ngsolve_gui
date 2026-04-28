@@ -1,5 +1,6 @@
 from ngapp.components import *
 
+
 def get_random_colors(n):
     import random, math, itertools
 
@@ -13,11 +14,9 @@ def get_random_colors(n):
         for colr, colg, colb in itertools.product(range(n), range(n), range(n))
     ][1:-1]
     random.shuffle(colors)
-    colors = [
-        [c[0]/255, c[1]/255, c[2]/255, 1]
-        for c in colors
-    ]
+    colors = [[c[0] / 255, c[1] / 255, c[2] / 255, 1] for c in colors]
     return colors[:n]
+
 
 class ColorpickerButton(QBtn):
     def __init__(self, default, **kwargs):
@@ -130,6 +129,7 @@ class RegionColors(Div):
 
     def randomize_colors(self):
         import random, math, itertools
+
         n = 2
         while n**3 - 2 < len(self.name_color_map):
             n += 1

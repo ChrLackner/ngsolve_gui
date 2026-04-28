@@ -80,6 +80,7 @@ def make_geometry():
 # Playwright UI interaction helpers
 # ---------------------------------------------------------------------------
 
+
 def expand_section(page: Page, name: str) -> None:
     """Expand a sidebar section by clicking its list item header."""
     page.get_by_role("listitem").filter(has_text=name).click()
@@ -115,7 +116,9 @@ def click_curving_checkbox(page: Page) -> None:
     page.wait_for_timeout(500)
 
 
-def set_slider(page: Page, value: float, *, min_val: float = 0.0, max_val: float = 1.0) -> None:
+def set_slider(
+    page: Page, value: float, *, min_val: float = 0.0, max_val: float = 1.0
+) -> None:
     """Set a Quasar slider by clicking at the proportional position.
 
     Finds the first visible slider on the page and clicks at the position

@@ -57,6 +57,7 @@ def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
     """Start IPython in a background thread; clean up terminal on exit."""
     import sys
     import termios
+
     if not sys.stdin.isatty():
         raise ImportError("No TTY available for IPython shell.")
 
@@ -92,8 +93,11 @@ def _run_script(code: str, script_globals: dict, app) -> None:
         _launch_interactive_shell(code, script_globals, app)
     except ImportError:
         print("IPython is not installed, skipping interactive shell.")
-        t = threading.Thread(target=exec, args=(code, script_globals), name="PythonRunner", daemon=True)
+        t = threading.Thread(
+            target=exec, args=(code, script_globals), name="PythonRunner", daemon=True
+        )
         t.start()
+
 
 # Dispatch table mapping types to default name + component
 _DRAW_DISPATCH: dict[type, tuple[str, type]] = {
@@ -113,8 +117,12 @@ def _is_plot_candidate(obj: Any) -> bool:
     return mod.startswith("plotly.") or mod.startswith("matplotlib.")
 
 
-def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
-             name: str | None = None, **kwargs):
+def DrawImpl(
+    obj: Any,
+    mesh: ngs.Mesh | ngs.Region | None = None,
+    name: str | None = None,
+    **kwargs,
+):
     """
     Dispatch objects drawn by NGSolve into the GUI.
 
@@ -137,6 +145,7 @@ def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
 
     if _is_plot_candidate(obj):
         from .plot import PlotComponent
+
         data["obj"] = obj
         return _appdata.add_tab(name or "Plot", PlotComponent, data, _appdata)
 
@@ -150,8 +159,7 @@ def DrawImpl(obj: Any, mesh: ngs.Mesh | ngs.Region | None = None,
     else:
         default_name, comp = _DRAW_DISPATCH[type(obj)]
     data["obj"] = obj
-    return _appdata.add_tab(name or default_name,
-                            comp, data, _appdata)
+    return _appdata.add_tab(name or default_name, comp, data, _appdata)
 
 
 def RedrawImpl(*args, **kwargs):

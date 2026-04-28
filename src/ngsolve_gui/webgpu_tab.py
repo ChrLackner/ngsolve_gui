@@ -23,7 +23,8 @@ class WebgpuTab(Div):
         self.reset_camera_btn.on_click(self.reset_camera)
 
         super().__init__(
-            self.wgpu, self.reset_camera_btn,
+            self.wgpu,
+            self.reset_camera_btn,
             ui_style="position: relative; width: 100%; height: 100%;",
         )
 
@@ -51,6 +52,7 @@ class WebgpuTab(Div):
         def redraw_if_needed():
             if self._redraw_needed:
                 self.redraw()
+
         self.on_mounted(redraw_if_needed)
 
     def redraw(self):
@@ -145,12 +147,16 @@ class WebgpuTab(Div):
             ("r", self.reset_camera, "Reset camera", "General"),
         ]
         modes = [
-            ("v", "View", [
-                ("x", lambda: self.set_view("yz"), "View from X (YZ plane)"),
-                ("y", lambda: self.set_view("xz"), "View from Y (XZ plane)"),
-                ("z", lambda: self.set_view("xy"), "View from Z (XY plane)"),
-                ("r", self.reset_camera, "Reset camera"),
-            ]),
+            (
+                "v",
+                "View",
+                [
+                    ("x", lambda: self.set_view("yz"), "View from X (YZ plane)"),
+                    ("y", lambda: self.set_view("xz"), "View from Y (XZ plane)"),
+                    ("z", lambda: self.set_view("xy"), "View from Z (XY plane)"),
+                    ("r", self.reset_camera, "Reset camera"),
+                ],
+            ),
         ]
         return {"flat": flat, "modes": modes}
 

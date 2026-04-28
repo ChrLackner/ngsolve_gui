@@ -21,9 +21,15 @@ class GeometryComponent(WebgpuTab):
 
     def get_keybindings(self):
         kb = super().get_keybindings()
-        kb["modes"].append(("s", "Show", [
-            ("e", self.toggle_edges, "Toggle edges"),
-        ]))
+        kb["modes"].append(
+            (
+                "s",
+                "Show",
+                [
+                    ("e", self.toggle_edges, "Toggle edges"),
+                ],
+            )
+        )
         kb["modes"].append(("c", "Clipping", self._clipping_mode_bindings()))
         return kb
 
@@ -62,7 +68,10 @@ class GeometryComponent(WebgpuTab):
             )
         mesh = ngs.Mesh(mesh)
         from .mesh import MeshComponent
-        self.app_data.add_tab("Mesh_" + self.title, MeshComponent, {"obj": mesh}, self.app_data)
+
+        self.app_data.add_tab(
+            "Mesh_" + self.title, MeshComponent, {"obj": mesh}, self.app_data
+        )
 
     @property
     def clipping(self):
@@ -161,7 +170,8 @@ class GeometryComponent(WebgpuTab):
 from .registry import register_component
 from .sections import GeometryOptionsSection, GeometrySelectionSection, ClippingSection
 
-register_component("geometry",
+register_component(
+    "geometry",
     icon="mdi-cube",
     component_class=GeometryComponent,
     sections=[GeometryOptionsSection, GeometrySelectionSection, ClippingSection],

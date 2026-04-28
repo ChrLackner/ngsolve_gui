@@ -13,8 +13,13 @@ from ngapp.e2e import app_test
 from ngapp.e2e_webgpu import assert_matches_baseline
 
 from .helpers import (
-    _draw, make_mesh_2d, make_mesh_3d,
-    expand_section, collapse_section, click_checkbox, set_slider,
+    _draw,
+    make_mesh_2d,
+    make_mesh_3d,
+    expand_section,
+    collapse_section,
+    click_checkbox,
+    set_slider,
 )
 
 
