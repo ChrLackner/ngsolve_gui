@@ -142,7 +142,13 @@ class MeshComponent(WebgpuTab):
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.settings.get("wireframe_visible", True)
-        self.elements1d = MeshSegments(self.mdata, clipping=self.clipping)
+        saved_edge_colors = self.settings.get("edge_colors", {})
+        if saved_edge_colors:
+            edge_descriptors = list(self.mesh.ngmesh.EdgeDescriptors())
+            edge_colors = [saved_edge_colors.get(ed.name, [0, 0, 0, 255]) for ed in edge_descriptors]
+        else:
+            edge_colors = None
+        self.elements1d = MeshSegments(self.mdata, clipping=self.clipping, colors=edge_colors)
         self.elements1d.active = self.settings.get("elements1d_visible", False)
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
         self.elements2d.active = self.settings.get("elements2d_visible", True)

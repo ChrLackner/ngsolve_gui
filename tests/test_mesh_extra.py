@@ -44,6 +44,7 @@ def test_mesh_curving_2d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "mesh_circle_curved_off.png")
 
+    expand_section(page, "View")
     click_curving_checkbox(page)
     assert_matches_baseline(page, comp.wgpu, "mesh_circle_curved_on.png")
 
@@ -57,6 +58,7 @@ def test_mesh_curving_3d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "mesh_sphere_curved_off.png")
 
+    expand_section(page, "View")
     click_curving_checkbox(page)
     assert_matches_baseline(page, comp.wgpu, "mesh_sphere_curved_on.png")
 

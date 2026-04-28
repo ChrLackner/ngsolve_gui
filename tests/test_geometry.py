@@ -29,6 +29,7 @@ def test_geometry_box(page: Page, app) -> None:
     assert_matches_baseline(page, comp.wgpu, "geometry_box_default.png")
 
     # 2. Hide edges via UI checkbox
+    expand_section(page, "Geometry Options")
     click_checkbox(page, "Show Edges")
     assert_matches_baseline(page, comp.wgpu, "geometry_box_no_edges.png")
 

@@ -82,8 +82,8 @@ def make_geometry():
 
 
 def expand_section(page: Page, name: str) -> None:
-    """Expand a sidebar section by clicking its list item header."""
-    page.get_by_role("listitem").filter(has_text=name).click()
+    """Expand a sidebar section by clicking its expansion item header."""
+    page.locator(".q-expansion-item").filter(has_text=name).get_by_role("button").first.click()
     page.wait_for_timeout(300)
 
 
@@ -109,9 +109,9 @@ def fill_input(page: Page, label: str, value: str) -> None:
 
 def click_curving_checkbox(page: Page) -> None:
     """Click the unlabeled curving checkbox next to the 'Curve Order' text."""
-    # The checkbox is inside a QItem row that also contains "Curve Order" text.
-    # Use the listitem role to scope, then find the checkbox within it.
-    row = page.get_by_role("listitem").filter(has_text="Curve Order")
+    # The checkbox and "Curve Order" label are siblings inside a flex row
+    # with flex-wrap: nowrap. Target that specific row.
+    row = page.locator("[style*='flex-wrap']").filter(has_text="Curve Order")
     row.get_by_role("checkbox").click()
     page.wait_for_timeout(500)
 

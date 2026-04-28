@@ -14,6 +14,23 @@ class MeshColorSection(QExpansionItem):
         )
         face_colors.on_change_color(self.change_color)
         color_cards = [face_colors_card]
+
+        edge_descriptors = list(comp.mesh.ngmesh.EdgeDescriptors())
+        if edge_descriptors:
+            enames = [ed.name for ed in edge_descriptors]
+            saved = comp.settings.get("edge_colors", {})
+            self.ecolors = {name: saved.get(name, [0, 0, 0, 255]) for name in set(enames)}
+            ecolors = [
+                (c[0] / 255, c[1] / 255, c[2] / 255, c[3] / 255 if c[3] > 1 else c[3])
+                for c in [self.ecolors[name] for name in enames]
+            ]
+            edge_colors = RegionColors("Edge Colors", ecolors, enames)
+            edge_colors_card = QCard(
+                QCardSection(edge_colors), ui_flat=True, ui_bordered=True
+            )
+            edge_colors.on_change_color(self.change_edge_color)
+            color_cards.append(edge_colors_card)
+
         if comp.mesh.dim == 3:
             dnames = list(set(comp.mesh.GetMaterials()))
             dcolors = [(1.0, 0.0, 0.0, 1.0) for _ in range(len(dnames))]
@@ -50,6 +67,22 @@ class MeshColorSection(QExpansionItem):
             )
         self.comp.elements2d.gpu_objects.colormap.set_colormap(colors)
         self.comp.elements2d.set_needs_update()
+        self.comp.wgpu.scene.render()
+
+    def change_edge_color(self, name, color):
+        colmap = dict(zip(name, color))
+        for n, c in colmap.items():
+            self.ecolors[n] = [
+                int(c[0] * 255),
+                int(c[1] * 255),
+                int(c[2] * 255),
+                int(c[3] * 255),
+            ]
+        self.comp.settings.set("edge_colors", self.ecolors)
+        edge_descriptors = list(self.comp.mesh.ngmesh.EdgeDescriptors())
+        colors = [self.ecolors[ed.name] for ed in edge_descriptors]
+        self.comp.elements1d._user_colors = colors
+        self.comp.elements1d.set_needs_update()
         self.comp.wgpu.scene.render()
 
     def change_d_color(self, name, color):
