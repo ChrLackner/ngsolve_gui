@@ -9,14 +9,14 @@ class ClippingSection(QExpansionItem):
             raise ValueError("Clipping not applicable for 2D")
         use_global = QCheckbox(
             "Use Global Clipping Plane",
-            ui_model_value=comp.settings.get("use_global_clipping", True),
+            ui_model_value=comp.use_global_clipping.value,
         )
-        use_global.on_update_model_value(self.set_global_clipping)
+        bind(comp.use_global_clipping, use_global)
         self.enable = enable = QCheckbox(
             "Enable Clipping",
             ui_model_value=comp.clipping.mode != comp.clipping.Mode.DISABLED,
         )
-        enable.on_update_model_value(self.enable_clipping)
+        bind(comp.clipping_enabled, enable)
         clip = comp.clipping
         debounce_time = 300
         self.cx = QInput(
@@ -144,12 +144,10 @@ class ClippingSection(QExpansionItem):
         self.dz.ui_model_value = self.comp.clipping.normal[2]
 
     def enable_clipping(self, event):
-        self.comp.settings.set("clipping_enabled", event.value)
-        self.comp.clipping.enable_clipping(event.value)
-        self.comp.wgpu.scene.render()
+        self.comp.clipping_enabled.value = event.value
 
     def set_global_clipping(self, event):
-        self.comp.settings.set("use_global_clipping", event.value)
+        self.comp.use_global_clipping.value = event.value
 
     def set_offset(self, event):
         if isinstance(event, int):

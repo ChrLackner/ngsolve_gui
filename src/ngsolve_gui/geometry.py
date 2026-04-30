@@ -11,11 +11,15 @@ class GeometryComponent(WebgpuTab):
         self.geo = data["obj"]
         self.selected = None
         self._selection_section = None
+        tab = app_data.get_tab(name)
+        s = tab.get("settings", {}) if tab else {}
+        self.show_edges = Observable(s.get("show_edges", True), "show_edges")
+        self.maxh = Observable(s.get("maxh", 1000), "maxh")
+        self.segments_per_edge = Observable(s.get("segments_per_edge", 0.2), "segments_per_edge")
+        self.curvaturesafety = Observable(s.get("curvaturesafety", 1.5), "curvaturesafety")
+        self.closeedgefac = Observable(s.get("closeedgefac", None), "closeedgefac")
         super().__init__(name, data, app_data)
-
-    @property
-    def settings(self):
-        return self.app_data.get_settings(self.name)
+        self.show_edges.on_change(self._apply_show_edges)
 
     # -- Keybinding support ---------------------------------------------
 
@@ -34,9 +38,10 @@ class GeometryComponent(WebgpuTab):
         return kb
 
     def toggle_edges(self):
-        edges = self.geo_renderer.edges
-        edges.active = not edges.active
-        self.settings.set("show_edges", edges.active)
+        self.show_edges.toggle()
+
+    def _apply_show_edges(self, val, _old):
+        self.geo_renderer.edges.active = val
         self.scene.render()
 
     def _create_meshing_geo(self):
@@ -44,10 +49,10 @@ class GeometryComponent(WebgpuTab):
 
     def _meshing_options(self):
         return {
-            "maxh": self.settings.get("maxh", 1000),
-            "segmentsperedge": self.settings.get("segments_per_edge", 0.2),
-            "curvaturesafety": self.settings.get("curvaturesafety", 1.5),
-            "closeedgefac": self.settings.get("closeedgefac", None),
+            "maxh": self.maxh.value,
+            "segmentsperedge": self.segments_per_edge.value,
+            "curvaturesafety": self.curvaturesafety.value,
+            "closeedgefac": self.closeedgefac.value,
         }
 
     def create_mesh(self):
@@ -155,7 +160,7 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.faces.on_select(self.select_face)
         self.geo_renderer.edges.on_select(self.selected_edge)
-        self.geo_renderer.edges.active = self.settings.get("show_edges", True)
+        self.geo_renderer.edges.active = self.show_edges.value
         scene = self.wgpu.draw([self.geo_renderer], camera=self.app_data.camera)
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
 

@@ -28,6 +28,10 @@ class FunctionComponent(WebgpuTab):
         self.deformation = data.get("deformation", None)
         self.contact = data.get("contact", None)
         self.contact_pairs = None
+
+        # -- Resolve initial values from data args + saved settings ---------
+        tab = app_data.get_tab(name)
+        saved = tab.get("settings", {}) if tab else {}
         minval = data.get("min", 0.0)
         maxval = data.get("max", 1.0)
         autoscale = not ("min" in data or "max" in data) and not data.get(
@@ -35,9 +39,8 @@ class FunctionComponent(WebgpuTab):
         )
         discrete_colormap = data.get("discrete_colormap", False)
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
-            self.settings.set(
-                "colormap", (autoscale, discrete_colormap, minval, maxval)
-            )
+            saved["colormap"] = (autoscale, discrete_colormap, minval, maxval)
+
         if (
             self.deformation is None
             and not "deformation" in data
@@ -45,30 +48,160 @@ class FunctionComponent(WebgpuTab):
             and self.mesh.dim < 3
         ):
             self.deformation = ngs.CF((0, 0, self.cf))
-        if data.get("deformation", None) is not None:
-            self.settings.set("deformation_enabled", True)
+
         cv = data.get("clipping_vectors", False)
-        if cv:
-            if isinstance(cv, bool):
-                self.settings.set("clipping_vectors", cv)
-            else:
-                self.settings.set("clipping_vectors", True)
-                self.settings.set("vector_grid_size", cv)
         sv = data.get("surface_vectors", False)
-        if sv:
-            if isinstance(sv, bool):
-                self.settings.set("surface_vectors", sv)
-            else:
-                self.settings.set("surface_vectors", True)
-                self.settings.set("vector_grid_size", sv)
         fl = data.get("field_lines", False)
-        if fl:
-            self.settings.set("field_lines", True)
-        if "clipping_function" in data:
-            self.settings.set("clipping_visible", data["clipping_function"])
+
+        # -- Observable properties ------------------------------------------
+        s = saved
+        self.wireframe_visible = Observable(
+            s.get("wireframe_visible", True), "wireframe_visible"
+        )
+        self.elements2d_visible = Observable(
+            s.get("elements2d_visible", True), "elements2d_visible"
+        )
+        self.clipping_vectors_visible = Observable(
+            bool(cv) if cv else s.get("clipping_vectors", False), "clipping_vectors"
+        )
+        self.surface_vectors_visible = Observable(
+            bool(sv) if sv else s.get("surface_vectors", False), "surface_vectors"
+        )
+        self.field_lines_visible = Observable(
+            bool(fl) if fl else s.get("field_lines", False), "field_lines"
+        )
+        self.clipping_visible = Observable(
+            data.get("clipping_function", s.get("clipping_visible", True)),
+            "clipping_visible",
+        )
+        self.vector_grid_size = Observable(
+            (cv if not isinstance(cv, bool) else None)
+            or (sv if not isinstance(sv, bool) else None)
+            or s.get("vector_grid_size", 200),
+            "vector_grid_size",
+        )
+        self.deformation_enabled = Observable(
+            data.get("deformation", None) is not None
+            or s.get("deformation_enabled", False),
+            "deformation_enabled",
+        )
+        self.deformation_scale = Observable(
+            s.get("deformation_scale", 1.0), "deformation_scale"
+        )
+        self.deformation_scale2 = Observable(
+            s.get("deformation_scale2", 1.0), "deformation_scale2"
+        )
+        cm = s.get("colormap", (autoscale, discrete_colormap, minval, maxval))
+        self.colormap_autoscale = Observable(cm[0], "colormap_autoscale")
+        self.colormap_discrete = Observable(cm[1], "colormap_discrete")
+        self.colormap_min = Observable(cm[2], "colormap_min")
+        self.colormap_max = Observable(cm[3], "colormap_max")
+        self.colormap_name = Observable(
+            s.get("colormap_name", "matlab:jet"), "colormap_name"
+        )
+        self.ncolors_colormap = Observable(
+            s.get("ncolors_colormap", 8), "ncolors_colormap"
+        )
+        self.contact_enabled = Observable(
+            s.get("contact_enabled", True), "contact_enabled"
+        )
+        self.fieldlines_num_lines = Observable(
+            s.get("fieldlines_num_lines", 100), "fieldlines_num_lines"
+        )
+        self.fieldlines_length = Observable(
+            s.get("fieldlines_length", 0.5), "fieldlines_length"
+        )
+        self.fieldlines_thickness = Observable(
+            s.get("fieldlines_thickness", 0.0015), "fieldlines_thickness"
+        )
+        self.fieldlines_direction = Observable(
+            s.get("fieldlines_direction", 0), "fieldlines_direction"
+        )
+
         super().__init__(name, data, app_data)
 
-    # -- Keybinding support ---------------------------------------------
+        # -- Wire GPU side-effects -----------------------------------------
+        self.wireframe_visible.on_change(self._apply_wireframe)
+        self.elements2d_visible.on_change(self._apply_elements2d)
+        self.clipping_vectors_visible.on_change(self._apply_clipping_vectors)
+        self.surface_vectors_visible.on_change(self._apply_surface_vectors)
+        self.field_lines_visible.on_change(self._apply_fieldlines)
+        self.clipping_visible.on_change(self._apply_clipping_function)
+        self.vector_grid_size.on_change(self._apply_vector_grid_size)
+        self.deformation_enabled.on_change(self._apply_deformation_toggle)
+        self.deformation_scale.on_change(self._apply_deformation_scale)
+        self.deformation_scale2.on_change(self._apply_deformation_scale)
+        self.contact_enabled.on_change(self._apply_contact)
+        self.colormap_autoscale.on_change(self._apply_autoscale)
+        self.colormap_discrete.on_change(self._apply_discrete)
+        self.colormap_name.on_change(self._apply_colormap_name)
+
+    # -- GPU side-effect handlers -------------------------------------------
+
+    def _apply_wireframe(self, val, _old):
+        self.wireframe.active = val
+        self.wgpu.scene.render()
+
+    def _apply_elements2d(self, val, _old):
+        if self.elements2d is not None:
+            self.elements2d.active = val
+        self.wgpu.scene.render()
+
+    def _apply_clipping_vectors(self, val, _old):
+        if self.clipping_vectors is not None:
+            self.clipping_vectors.active = val
+        self.wgpu.scene.render()
+
+    def _apply_surface_vectors(self, val, _old):
+        if self.surface_vectors is not None:
+            self.surface_vectors.active = val
+        self.wgpu.scene.render()
+
+    def _apply_fieldlines(self, val, _old):
+        if self.fieldlines is not None:
+            self.fieldlines.active = val
+        self.wgpu.scene.render()
+
+    def _apply_clipping_function(self, val, _old):
+        if self.clippingcf is not None:
+            self.clippingcf.active = val
+        self.wgpu.scene.render()
+
+    def _apply_vector_grid_size(self, val, _old):
+        if self.clipping_vectors is not None:
+            self.clipping_vectors.set_grid_size(val)
+            self.clipping_vectors.set_needs_update()
+        if self.surface_vectors is not None:
+            self.surface_vectors.set_grid_size(val)
+            self.surface_vectors.set_needs_update()
+        self.wgpu.scene.render()
+
+    def _apply_deformation_toggle(self, val, _old):
+        if self.mdata is None:
+            return
+        if val:
+            self.mdata.deformation_scale = (
+                self.deformation_scale.value * self.deformation_scale2.value
+            )
+        else:
+            self.mdata.deformation_scale = 0.0
+        self.wgpu.scene.render()
+
+    def _apply_deformation_scale(self, _val, _old):
+        if self.mdata is None:
+            return
+        if self.deformation_enabled.value:
+            self.mdata.deformation_scale = (
+                self.deformation_scale.value * self.deformation_scale2.value
+            )
+            self.wgpu.scene.render()
+
+    def _apply_contact(self, val, _old):
+        if self.contact_pairs is not None:
+            self.contact_pairs.active = val
+        self.wgpu.scene.render()
+
+    # -- Keybinding support -------------------------------------------------
 
     _COLORMAPS = ["viridis", "plasma", "cet_l20", "matlab:jet", "matplotlib:coolwarm"]
 
@@ -131,47 +264,29 @@ class FunctionComponent(WebgpuTab):
 
         return kb
 
+    # -- Toggle methods (now one-liners) ------------------------------------
+
     def toggle_wireframe(self):
-        self.wireframe.active = not self.wireframe.active
-        self.settings.set("wireframe_visible", self.wireframe.active)
-        self.wgpu.scene.render()
+        self.wireframe_visible.toggle()
 
     def toggle_surface_solution(self):
-        self.elements2d.active = not self.elements2d.active
-        self.settings.set("elements2d_visible", self.elements2d.active)
-        self.wgpu.scene.render()
+        self.elements2d_visible.toggle()
 
     def toggle_clipping_vectors(self):
-        self.clipping_vectors.active = not self.clipping_vectors.active
-        self.settings.set("clipping_vectors", self.clipping_vectors.active)
-        self.wgpu.scene.render()
+        self.clipping_vectors_visible.toggle()
 
     def toggle_surface_vectors(self):
-        self.surface_vectors.active = not self.surface_vectors.active
-        self.settings.set("surface_vectors", self.surface_vectors.active)
-        self.wgpu.scene.render()
+        self.surface_vectors_visible.toggle()
 
     def toggle_fieldlines(self):
-        self.fieldlines.active = not self.fieldlines.active
-        self.settings.set("field_lines", self.fieldlines.active)
-        self.wgpu.scene.render()
+        self.field_lines_visible.toggle()
 
     def toggle_clipping_function(self):
-        self.clippingcf.active = not self.clippingcf.active
-        self.settings.set("clipping_visible", self.clippingcf.active)
-        self.wgpu.scene.render()
+        self.clipping_visible.toggle()
 
     def _change_vector_density(self, factor):
-        grid_size = self.settings.get("vector_grid_size", 200)
-        grid_size = max(10, int(grid_size * factor))
-        self.settings.set("vector_grid_size", grid_size)
-        if self.clipping_vectors is not None:
-            self.clipping_vectors.set_grid_size(grid_size)
-            self.clipping_vectors.set_needs_update()
-        if self.surface_vectors is not None:
-            self.surface_vectors.set_grid_size(grid_size)
-            self.surface_vectors.set_needs_update()
-        self.wgpu.scene.render()
+        grid_size = max(10, int(self.vector_grid_size.value * factor))
+        self.vector_grid_size.value = grid_size
 
     def increase_vector_density(self):
         self._change_vector_density(1.25)
@@ -180,18 +295,7 @@ class FunctionComponent(WebgpuTab):
         self._change_vector_density(0.8)
 
     def toggle_deformation(self):
-        if self.mdata is None:
-            return
-        enabled = not self.settings.get("deformation_enabled", False)
-        self.settings.set("deformation_enabled", enabled)
-        if enabled:
-            scale = self.settings.get("deformation_scale", 1.0) * self.settings.get(
-                "deformation_scale2", 1.0
-            )
-        else:
-            scale = 0.0
-        self.mdata.deformation_scale = scale
-        self.wgpu.scene.render()
+        self.deformation_enabled.toggle()
 
     def increase_deformation(self):
         self._step_deformation(1.25)
@@ -202,64 +306,47 @@ class FunctionComponent(WebgpuTab):
     def _step_deformation(self, factor):
         if self.mdata is None:
             return
-        scale = self.settings.get("deformation_scale", 1.0) * factor
-        self.settings.set("deformation_scale", scale)
-        if self.settings.get("deformation_enabled", False):
-            self.mdata.deformation_scale = scale * self.settings.get(
-                "deformation_scale2", 1.0
-            )
-            self.wgpu.scene.render()
+        self.deformation_scale.value = self.deformation_scale.value * factor
 
     def reset_deformation(self):
         if self.mdata is None:
             return
-        self.settings.set("deformation_scale", 1.0)
-        self.settings.set("deformation_scale2", 1.0)
-        if self.settings.get("deformation_enabled", False):
-            self.mdata.deformation_scale = 1.0
-            self.wgpu.scene.render()
+        with observable_batch():
+            self.deformation_scale.value = 1.0
+            self.deformation_scale2.value = 1.0
 
-    def toggle_autoscale(self):
-        self.colormap.autoscale = not self.colormap.autoscale
-        if self.colormap.autoscale:
+    def _apply_autoscale(self, val, _old):
+        self.colormap.autoscale = val
+        if val:
             self.wgpu.scene.redraw(blocking=True)
+            self.colormap_min.value = float(self.colormap.minval)
+            self.colormap_max.value = float(self.colormap.maxval)
         else:
             self.wgpu.scene.render()
-        self.settings.set(
-            "colormap",
-            (
-                self.colormap.autoscale,
-                self.colormap.discrete,
-                self.colormap.minval,
-                self.colormap.maxval,
-            ),
-        )
+
+    def _apply_discrete(self, val, _old):
+        self.colormap.set_discrete(val)
+        self.wgpu.scene.render()
+
+    def _apply_colormap_name(self, val, _old):
+        self.colormap.set_colormap(val)
+        self.redraw()
+        self.wgpu.scene.render()
+
+    def toggle_autoscale(self):
+        self.colormap_autoscale.toggle()
 
     def toggle_discrete(self):
-        self.colormap.set_discrete(not self.colormap.discrete)
-        self.wgpu.scene.render()
-        self.settings.set(
-            "colormap",
-            (
-                self.colormap.autoscale,
-                self.colormap.discrete,
-                self.colormap.minval,
-                self.colormap.maxval,
-            ),
-        )
+        self.colormap_discrete.toggle()
 
     def _cycle_colormap(self, direction):
-        current = self.settings.get("colormap_name", "matlab:jet")
+        current = self.colormap_name.value
         try:
             idx = self._COLORMAPS.index(current)
         except ValueError:
             idx = 0
         idx = (idx + direction) % len(self._COLORMAPS)
-        name = self._COLORMAPS[idx]
-        self.colormap.set_colormap(name)
-        self.settings.set("colormap_name", name)
-        self.redraw()
-        self.wgpu.scene.render()
+        self.colormap_name.value = self._COLORMAPS[idx]
 
     def cycle_colormap_next(self):
         self._cycle_colormap(1)
@@ -281,18 +368,19 @@ class FunctionComponent(WebgpuTab):
             self.mdata = mdata
             deform_data.mesh_data = mdata
             mdata.deformation_data = deform_data
-            mdata.deformation_scale = self.settings.get(
-                "deformation_scale", 1.0
-            ) * self.settings.get("deformation_scale2", 1.0)
-            if not self.settings.get("deformation_enabled", False):
+            mdata.deformation_scale = (
+                self.deformation_scale.value * self.deformation_scale2.value
+            )
+            if not self.deformation_enabled.value:
                 mdata.deformation_scale = 0.0
             func_data.mesh_data = mdata
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
-        self.wireframe.active = self.settings.get("wireframe_visible", True)
+        self.wireframe.active = self.wireframe_visible.value
 
-        autoscale, discrete, minval, maxval = self.settings.get(
-            "colormap", (True, False, 0.0, 1.0)
-        )
+        autoscale = self.colormap_autoscale.value
+        discrete = self.colormap_discrete.value
+        minval = self.colormap_min.value
+        maxval = self.colormap_max.value
         self.colormap = Colormap(minval=minval, maxval=maxval)
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
@@ -308,9 +396,9 @@ class FunctionComponent(WebgpuTab):
                 vec_data,
                 clipping=self.clipping,
                 colormap=self.colormap,
-                grid_size=self.settings.get("vector_grid_size", 200),
+                grid_size=self.vector_grid_size.value,
             )
-            self.surface_vectors.active = self.settings.get("surface_vectors", False)
+            self.surface_vectors.active = self.surface_vectors_visible.value
         else:
             self.surface_vectors = None
         self.fieldlines = None
@@ -321,34 +409,32 @@ class FunctionComponent(WebgpuTab):
             self.fieldlines = FieldLines(
                 vec3,
                 self.region_or_mesh,
-                num_lines=self.settings.get("fieldlines_num_lines", 100),
-                length=self.settings.get("fieldlines_length", 0.5),
-                thickness=self.settings.get("fieldlines_thickness", 0.0015),
-                direction=self.settings.get("fieldlines_direction", 0),
+                num_lines=self.fieldlines_num_lines.value,
+                length=self.fieldlines_length.value,
+                thickness=self.fieldlines_thickness.value,
+                direction=self.fieldlines_direction.value,
                 colormap=self.colormap,
                 clipping=self.clipping,
             )
-            self.fieldlines.active = self.settings.get("field_lines", False)
+            self.fieldlines.active = self.field_lines_visible.value
         if self.mesh.dim == 3 and self.draw_vol:
             self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
-            self.clippingcf.active = self.settings.get("clipping_visible", True)
+            self.clippingcf.active = self.clipping_visible.value
             if self.cf.dim == 3:
                 self.clipping_vectors = ClippingVectors(
                     func_data,
                     clipping=self.clipping,
                     colormap=self.colormap,
-                    grid_size=self.settings.get("vector_grid_size", 200),
+                    grid_size=self.vector_grid_size.value,
                 )
-                self.clipping_vectors.active = self.settings.get(
-                    "clipping_vectors", False
-                )
+                self.clipping_vectors.active = self.clipping_vectors_visible.value
         else:
             self.clippingcf = None
         if self.draw_surf:
             self.elements2d = CFRenderer(
                 func_data, clipping=self.clipping, colormap=self.colormap
             )
-            self.elements2d.active = self.settings.get("elements2d_visible", True)
+            self.elements2d.active = self.elements2d_visible.value
         else:
             self.elements2d = None
         self.colorbar = Colorbar(self.colormap)
@@ -374,7 +460,7 @@ class FunctionComponent(WebgpuTab):
                     self.region_or_mesh,
                     self.contact,
                 )
-            self.contact_pairs.active = self.settings.get("contact_enabled", True)
+            self.contact_pairs.active = self.contact_enabled.value
 
         render_objects = [
             obj
@@ -393,16 +479,8 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.draw(render_objects, camera=self.camera)
 
         def set_min_max():
-            self.min_max = (self.colormap.minval, self.colormap.maxval)
-            self.settings.set(
-                "colormap",
-                (
-                    self.colormap.autoscale,
-                    self.colormap.discrete,
-                    self.colormap.minval,
-                    self.colormap.maxval,
-                ),
-            )
+            self.colormap_min.value = float(self.colormap.minval)
+            self.colormap_max.value = float(self.colormap.maxval)
 
         self.wgpu.on_mounted(set_min_max)
 

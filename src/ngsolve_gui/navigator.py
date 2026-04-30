@@ -1,6 +1,6 @@
 from ngapp.components import *
 
-from .styles import sidebar_style
+from .styles import sidebar_nav, nav_item, nav_number_hint, nav_group_header
 
 _TYPE_GROUPS = {
     "geometry": ("Geometries", "mdi-cube"),
@@ -17,9 +17,7 @@ class Navigator(Div):
         self._list = QList(ui_dense=True, ui_separator=True)
         super().__init__(
             self._list,
-            ui_style=sidebar_style(
-                border_side="right", extra="width: 200px; min-width: 200px;"
-            ),
+            ui_class=str(sidebar_nav),
         )
         self.update()
 
@@ -28,7 +26,7 @@ class Navigator(Div):
             return QItemSection(
                 Div(
                     str(idx),
-                    ui_style="font-size: 0.65rem; color: #aaa; min-width: 14px; text-align: center;",
+                    ui_class=str(nav_number_hint),
                 ),
                 ui_side=True,
                 ui_style="min-width: 14px; padding-right: 0;",
@@ -52,8 +50,7 @@ class Navigator(Div):
             header = QItemLabel(
                 group_label,
                 ui_header=True,
-                ui_class="text-weight-bold text-grey-7",
-                ui_style="font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; padding: 12px 16px 4px;",
+                ui_class="text-weight-bold text-grey-7 " + str(nav_group_header),
             )
             items.append(header)
             for tab_name, tab in tabs_in_group:
@@ -89,7 +86,7 @@ class Navigator(Div):
                     ui_active=is_active,
                     ui_active_class="bg-blue-1 text-primary",
                     ui_dense=True,
-                    ui_style="border-radius: 6px; margin: 1px 6px; padding: 4px 8px;",
+                    ui_class=str(nav_item),
                 )
                 item.on_click(lambda e=None, n=tab_name: self._on_select(n))
                 item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
@@ -122,7 +119,7 @@ class Navigator(Div):
                     ui_active=is_active,
                     ui_active_class="bg-blue-1 text-primary",
                     ui_dense=True,
-                    ui_style="border-radius: 6px; margin: 1px 6px; padding: 4px 8px;",
+                    ui_class=str(nav_item),
                 )
                 item.on_click(lambda e=None, n=tab_name: self._on_select(n))
                 item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))

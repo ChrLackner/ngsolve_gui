@@ -5,28 +5,17 @@ from ngapp.components import *
 
 from .app_data import AppData
 from .file_loader import load_file
-from .keybindings import KeybindingManager
+from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
 from .property_panel import PropertyPanel
-from .styles import sidebar_style
-
-_colors = {
-    "primary": "#164d7d",  # ngsolve blue
-    "secondary": "#93B1D4",  # light slate blue
-    "accent": "#14B8A6",  # teal
-    "dark": "#0F172A",  # dark slate gray
-    "positive": "#16A34A",  # green
-    "negative": "#DC2626",  # red
-    "info": "#0EA5E9",  # sky blue
-    "warning": "#F59E0B",  # amber
-}
+from .styles import css, theme, sidebar_nav, sidebar_props, hidden, page_layout, flex_fill, panel_full
 
 
 class Panel(Div):
     def __init__(self, app_data):
         self.app_data = app_data
         self.comp = None
-        super().__init__(ui_style="width: 100%; height: 100%;")
+        super().__init__(ui_class=str(panel_full))
         self.set_tab()
 
     def set_tab(self):
@@ -79,15 +68,6 @@ class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
         self._local_path = local_path if local_path else os.path.expanduser("~")
         self.app_data = AppData()
-        try:
-            nthreads = int(self.usersettings.get("nthreads", 0))
-            if nthreads > 0:
-                import ngsolve as ngs
-
-                ngs.SetNumThreads(nthreads)
-                os.environ["MKL_NUM_THREADS"] = str(nthreads)
-        except:
-            pass
 
         # Toolbar buttons
         upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
@@ -152,19 +132,21 @@ class NGSolveGui(App):
         self._prop_visible = self.usersettings.get("prop_visible", True)
         self._apply_panel_visibility()
 
-        # Keybinding manager
-        self.kb = KeybindingManager(self, after_action=self._sync_property_panel)
+        # Keybinding manager — no after_action needed: Observable handles UI sync
+        self.kb = KeybindingManager(self, theme=theme)
 
         page = Div(
             self.navigator,
-            Div(self.tab_panel, ui_style="flex: 1; height: 100%; overflow: hidden;"),
+            Div(self.tab_panel, ui_class=str(flex_fill)),
             self.property_panel,
-            ui_style="display: flex; flex-direction: row; height: calc(100vh - 60px); width: 100%;",
+            ui_class=str(page_layout),
         )
 
         super().__init__(bar, page, self.kb.indicator, self.kb.help_overlay)
 
-        self.set_colors(**_colors)
+        theme.apply(self)
+        css.inject(self)
+        keybinding_styles.inject(self)
         self.on_load(self.__on_load)
         self.on_mounted(self._disable_contextmenu)
 
@@ -247,25 +229,11 @@ class NGSolveGui(App):
         self._apply_panel_visibility()
 
     def _apply_panel_visibility(self):
-        nav_extra = "width: 200px; min-width: 200px;" + (
-            "" if self._nav_visible else " display: none;"
-        )
-        prop_extra = "width: 280px; min-width: 280px;" + (
-            "" if self._prop_visible else " display: none;"
-        )
-        self.navigator.ui_style = sidebar_style(border_side="right", extra=nav_extra)
-        self.property_panel.ui_style = sidebar_style(
-            border_side="left", extra=prop_extra
-        )
+        nav_cls = sidebar_nav if self._nav_visible else sidebar_nav + hidden
+        prop_cls = sidebar_props if self._prop_visible else sidebar_props + hidden
+        self.navigator.ui_class = str(nav_cls)
+        self.property_panel.ui_class = str(prop_cls)
 
-    def _sync_property_panel(self):
-        """Rebuild property panel to sync checkbox states after keyboard toggling."""
-        active = self.app_data.active_tab
-        if active:
-            comp = self.tab_panel.comp
-            tab = self.app_data.get_tab(active)
-            type_key = tab.get("type", "") if tab else ""
-            self.property_panel.set_component(comp, type_key)
 
     def redraw(self, *args, **kwargs):
         self.app_data.set_needs_redraw()

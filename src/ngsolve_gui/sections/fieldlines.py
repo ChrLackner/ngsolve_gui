@@ -8,44 +8,45 @@ class FieldLinesSection(QExpansionItem):
             raise ValueError("Field lines not applicable")
         self.show_fieldlines = QCheckbox(
             ui_label="Show Field Lines",
-            ui_model_value=comp.settings.get("field_lines", False),
+            ui_model_value=comp.field_lines_visible.value,
         )
-        self.show_fieldlines.on_update_model_value(self.update_show)
+        bind(comp.field_lines_visible, self.show_fieldlines)
 
         self.num_lines = QInput(
             ui_label="Num Lines",
             ui_type="number",
-            ui_model_value=comp.settings.get("fieldlines_num_lines", 100),
+            ui_model_value=comp.fieldlines_num_lines.value,
             ui_dense=True,
         )
-        self.num_lines.on_change(self.update_option)
+        self.num_lines.on_change(self._update_option)
 
         self.length = QInput(
             ui_label="Length",
             ui_type="number",
-            ui_model_value=comp.settings.get("fieldlines_length", 0.5),
+            ui_model_value=comp.fieldlines_length.value,
             ui_dense=True,
         )
-        self.length.on_change(self.update_option)
+        self.length.on_change(self._update_option)
 
         self.thickness = QInput(
             ui_label="Thickness",
             ui_type="number",
-            ui_model_value=comp.settings.get("fieldlines_thickness", 0.0015),
+            ui_model_value=comp.fieldlines_thickness.value,
             ui_dense=True,
         )
-        self.thickness.on_change(self.update_option)
+        self.thickness.on_change(self._update_option)
 
         direction_options = ["Both", "Forward", "Backward"]
+        direction_map_reverse = {0: "Both", 1: "Forward", -1: "Backward"}
         self.direction = QSelect(
             ui_options=direction_options,
-            ui_model_value=direction_options[
-                comp.settings.get("fieldlines_direction", 0)
-            ],
+            ui_model_value=direction_map_reverse.get(
+                comp.fieldlines_direction.value, "Both"
+            ),
             ui_label="Direction",
             ui_dense=True,
         )
-        self.direction.on_update_model_value(self.update_option)
+        self.direction.on_update_model_value(self._update_option)
 
         self.recalc_btn = QBtn(ui_label="Recalculate", ui_color="primary", ui_flat=True)
         self.recalc_btn.on_click(self.recalculate)
@@ -61,12 +62,6 @@ class FieldLinesSection(QExpansionItem):
             ui_label="Field Lines",
         )
 
-    def update_show(self, event):
-        self.comp.settings.set("field_lines", self.show_fieldlines.ui_model_value)
-        if self.comp.fieldlines is not None:
-            self.comp.fieldlines.active = self.show_fieldlines.ui_model_value
-        self.comp.wgpu.scene.render()
-
     def _get_options(self):
         direction_map = {"Both": 0, "Forward": 1, "Backward": -1}
         return {
@@ -76,15 +71,15 @@ class FieldLinesSection(QExpansionItem):
             "direction": direction_map[self.direction.ui_model_value],
         }
 
-    def update_option(self, event):
+    def _update_option(self, event):
         try:
             opts = self._get_options()
         except (ValueError, KeyError):
             return
-        self.comp.settings.set("fieldlines_num_lines", opts["num_lines"])
-        self.comp.settings.set("fieldlines_length", opts["length"])
-        self.comp.settings.set("fieldlines_thickness", opts["thickness"])
-        self.comp.settings.set("fieldlines_direction", opts["direction"])
+        self.comp.fieldlines_num_lines.value = opts["num_lines"]
+        self.comp.fieldlines_length.value = opts["length"]
+        self.comp.fieldlines_thickness.value = opts["thickness"]
+        self.comp.fieldlines_direction.value = opts["direction"]
 
     def recalculate(self, event):
         try:

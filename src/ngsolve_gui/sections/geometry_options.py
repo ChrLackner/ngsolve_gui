@@ -2,11 +2,11 @@ from ngapp.components import *
 
 
 class MeshingInput(QInput):
-    def __init__(self, comp, key, label, model_value, type="number", **kwargs):
+    def __init__(self, comp, observable, label, type="number", **kwargs):
         self.comp = comp
-        self.key = key
+        self.observable = observable
         super().__init__(
-            ui_label=label, ui_model_value=model_value, ui_type=type, **kwargs
+            ui_label=label, ui_model_value=observable.value, ui_type=type, **kwargs
         )
         self.on_update_model_value(self.update_value)
         self.ui_error = False
@@ -22,7 +22,7 @@ class MeshingInput(QInput):
                 if value <= 0:
                     raise ValueError("Value must be positive.")
             self.ui_error = False
-            self.comp.settings.set(self.key, value)
+            self.observable.value = value
         except ValueError as e:
             self.set_error(str(e))
 
@@ -41,9 +41,9 @@ class GeometryOptionsSection(QExpansionItem):
 
         self.show_edges = QCheckbox(
             ui_label="Show Edges",
-            ui_model_value=comp.settings.get("show_edges", True),
+            ui_model_value=comp.show_edges.value,
         )
-        self.show_edges.on_update_model_value(self.update_show_edges)
+        bind(comp.show_edges, self.show_edges)
 
         self.create_mesh_btn = QBtn(
             ui_label="Create Mesh",
@@ -54,29 +54,25 @@ class GeometryOptionsSection(QExpansionItem):
 
         self.maxh = MeshingInput(
             label="Max Mesh Size",
-            key="maxh",
-            model_value=comp.settings.get("maxh", 1000),
+            observable=comp.maxh,
             comp=comp,
             ui_dense=True,
         )
         self.segmentsperedge = MeshingInput(
             label="Segments per Edge",
-            key="segmentsperedge",
-            model_value=comp.settings.get("segments_per_edge", 0.2),
+            observable=comp.segments_per_edge,
             comp=comp,
             ui_dense=True,
         )
         self.curvaturefactor = MeshingInput(
             label="Curvature Factor",
-            key="curvaturesafety",
-            model_value=comp.settings.get("curvaturesafety", 1.5),
+            observable=comp.curvaturesafety,
             comp=comp,
             ui_dense=True,
         )
         self.closeedgefac = MeshingInput(
             label="Close Edge Factor",
-            key="closeedgefac",
-            model_value=comp.settings.get("closeedgefac", None),
+            observable=comp.closeedgefac,
             comp=comp,
             ui_dense=True,
         )
@@ -100,7 +96,3 @@ class GeometryOptionsSection(QExpansionItem):
         finally:
             self.create_mesh_btn.ui_loading = False
 
-    def update_show_edges(self, event):
-        self.comp.settings.set("show_edges", event.value)
-        self.comp.geo_renderer.edges.active = event.value
-        self.comp.scene.render()

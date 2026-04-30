@@ -2,17 +2,6 @@ from ngsolve_webgpu import *
 from webgpu.camera import Camera
 
 
-class Settings:
-    def __init__(self, data):
-        self._data = data
-
-    def get(self, key, default=None):
-        return self._data.get(key, default)
-
-    def set(self, key, value):
-        self._data[key] = value
-
-
 class AppData:
     _data: dict
     _gpu_cache: dict
@@ -52,24 +41,25 @@ class AppData:
             if "component" in tab:
                 tab["component"]._redraw_needed = True
 
-    def get_settings(self, name: str):
-        return Settings(self._data["tabs"][name]["settings"])
-
     def get_save_data(self):
+        from ngapp.observable import snapshot
+
         data_copy = {"tabs": {}, "active_tab": self._data["active_tab"]}
         for name, tab in self._data["tabs"].items():
             tab_copy = tab.copy()
             if "component" in tab_copy:
+                comp = tab_copy["component"]
                 # Resolve type key from registry if not already set
                 if "type" not in tab_copy or tab_copy["type"] == "unknown":
                     from .registry import get_registry
 
-                    cls = type(tab_copy["component"])
+                    cls = type(comp)
                     for key, info in get_registry().items():
                         if info["cls"] is cls:
                             tab_copy["type"] = key
                             break
-                tab_copy["data"] = tab_copy["component"].data
+                tab_copy["data"] = comp.data
+                tab_copy["settings"] = snapshot(comp)
                 del tab_copy["component"]
             data_copy["tabs"][name] = tab_copy
         return data_copy

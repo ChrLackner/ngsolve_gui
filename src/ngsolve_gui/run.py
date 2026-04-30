@@ -1,7 +1,6 @@
 from ngapp.cli.serve_standalone import host_local_app
 import argparse
 from pathlib import Path
-from ngsolve import TaskManager
 
 
 def _apply_nthreads():
@@ -36,6 +35,7 @@ def main():
     if args.filename:
         app_args["filename"] = [Path(f).resolve() for f in args.filename]
     _apply_nthreads()
+    from ngsolve import TaskManager
     with TaskManager():
         host_local_app(
             "ngsolve_gui.appconfig",

@@ -6,8 +6,10 @@ class FunctionOptionsSection(QExpansionItem):
         self.comp = comp
         self.wireframe_visible = QCheckbox(
             ui_label="Wireframe Visible",
-            ui_model_value=comp.settings.get("wireframe_visible", True),
+            ui_model_value=comp.wireframe_visible.value,
         )
+        bind(comp.wireframe_visible, self.wireframe_visible)
+
         reset_camera = QBtn(
             ui_icon="mdi-refresh",
             ui_label="Reset Camera",
@@ -15,32 +17,30 @@ class FunctionOptionsSection(QExpansionItem):
             ui_color="primary",
         )
         reset_camera.on_click(self.reset_camera)
-        self.wireframe_visible.on_update_model_value(self.toggle_wireframe)
         items = [reset_camera, self.wireframe_visible]
+
         if comp.draw_surf:
             self.surface_solution_visible = QCheckbox(
                 ui_label="Surface Solution Visible",
-                ui_model_value=comp.settings.get("elements2d_visible", True),
+                ui_model_value=comp.elements2d_visible.value,
             )
-            self.surface_solution_visible.on_update_model_value(
-                self.toggle_surface_solution
-            )
+            bind(comp.elements2d_visible, self.surface_solution_visible)
             items.append(self.surface_solution_visible)
+
         if comp.mesh.dim == 3:
             self.clipping_plane_visible = QCheckbox(
                 ui_label="Clipping Function",
-                ui_model_value=comp.settings.get("clipping_visible", True),
+                ui_model_value=comp.clipping_visible.value,
             )
+            bind(comp.clipping_visible, self.clipping_plane_visible)
             items.append(self.clipping_plane_visible)
-            self.clipping_plane_visible.on_update_model_value(
-                self.toggle_clipping_function
-            )
+
         if self.comp.contact is not None:
             self.contact_visible = QCheckbox(
                 ui_label="Contact Pairs",
-                ui_model_value=comp.settings.get("contact_enabled", True),
+                ui_model_value=comp.contact_enabled.value,
             )
-            self.contact_visible.on_update_model_value(self.toggle_contact_pairs)
+            bind(comp.contact_enabled, self.contact_visible)
             items.append(self.contact_visible)
 
         draw_mesh = QBtn(
@@ -57,27 +57,6 @@ class FunctionOptionsSection(QExpansionItem):
             ui_icon="mdi-cog-outline",
             ui_label="Options",
         )
-
-    def toggle_wireframe(self, event):
-        self.comp.wireframe.active = self.wireframe_visible.ui_model_value
-        self.comp.wgpu.scene.render()
-
-    def toggle_clipping_function(self, event):
-        self.comp.clippingcf.active = self.clipping_plane_visible.ui_model_value
-        self.comp.wgpu.scene.render()
-
-    def toggle_surface_solution(self, event):
-        self.comp.settings.set(
-            "elements2d_visible", self.surface_solution_visible.ui_model_value
-        )
-        self.comp.elements2d.active = self.surface_solution_visible.ui_model_value
-        self.comp.wgpu.scene.render()
-
-    def toggle_contact_pairs(self, event):
-        enabled = self.contact_visible.ui_model_value
-        self.comp.settings.set("contact_enabled", enabled)
-        self.comp.contact_pairs.active = enabled
-        self.comp.wgpu.scene.render()
 
     def reset_camera(self, event):
         pmin, pmax = self.comp.wgpu.scene.bounding_box

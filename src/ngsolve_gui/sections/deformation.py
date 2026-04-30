@@ -9,23 +9,34 @@ class DeformationSection(QExpansionItem):
             raise ValueError("Deformation not applicable")
         self._enable = QCheckbox(
             ui_label="Enable Deformation",
-            ui_model_value=comp.settings.get("deformation_enabled", False),
+            ui_model_value=comp.deformation_enabled.value,
         )
-        self._enable.on_update_model_value(self.enable)
+        bind(comp.deformation_enabled, self._enable)
+
         self._deform_scale = QInput(
             ui_label="Deformation Scale",
             ui_type="number",
-            ui_model_value=comp.settings.get("deformation_scale", 1.0),
+            ui_model_value=comp.deformation_scale.value,
             ui_dense=True,
         )
         self._deform_scale2 = QSlider(
-            ui_model_value=comp.settings.get("deformation_scale2", 1.0),
+            ui_model_value=comp.deformation_scale2.value,
             ui_min=0.0,
             ui_max=1.0,
             ui_step=0.01,
         )
-        self._deform_scale.on_change(self.change_scale)
-        self._deform_scale2.on_update_model_value(self.change_scale)
+
+        # Observable → widget sync
+        comp.deformation_scale.on_change(
+            lambda val, _old: setattr(self._deform_scale, "ui_model_value", val)
+        )
+        comp.deformation_scale2.on_change(
+            lambda val, _old: setattr(self._deform_scale2, "ui_model_value", val)
+        )
+
+        # Widget → observable (with debounce and float conversion)
+        self._deform_scale.on_change(self._on_scale_change)
+        self._deform_scale2.on_update_model_value(self._on_scale2_change)
 
         super().__init__(
             self._enable,
@@ -35,33 +46,15 @@ class DeformationSection(QExpansionItem):
             ui_label="Deformation",
         )
 
-    def enable(self, event):
-        self.comp.settings.set("deformation_enabled", self._enable.ui_model_value)
-        if hasattr(self.comp, "mdata"):
-            scale = 0.0
-            if self._enable.ui_model_value:
-                try:
-                    scale = float(self._deform_scale.ui_model_value) * float(
-                        self._deform_scale2.ui_model_value
-                    )
-                except ValueError:
-                    scale = 1.0
-            self.comp.mdata.deformation_scale = scale
-        self.comp.wgpu.scene.render()
-
     @debounce
-    def change_scale(self, event):
+    def _on_scale_change(self, event):
         try:
-            self.comp.settings.set(
-                "deformation_scale", float(self._deform_scale.ui_model_value)
-            )
-            self.comp.settings.set(
-                "deformation_scale2", float(self._deform_scale2.ui_model_value)
-            )
-            scale = float(self._deform_scale.ui_model_value) * float(
-                self._deform_scale2.ui_model_value
-            )
-            self.comp.mdata.deformation_scale = scale
-            self.comp.wgpu.scene.render()
+            self.comp.deformation_scale.value = float(self._deform_scale.ui_model_value)
+        except ValueError:
+            pass
+
+    def _on_scale2_change(self, event):
+        try:
+            self.comp.deformation_scale2.value = float(self._deform_scale2.ui_model_value)
         except ValueError:
             pass

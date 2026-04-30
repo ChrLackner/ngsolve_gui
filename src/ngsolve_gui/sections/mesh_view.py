@@ -4,51 +4,57 @@ from ngapp.components import *
 class MeshViewSection(QExpansionItem):
     def __init__(self, comp):
         self.comp = comp
-        wireframe = QCheckbox(
-            "Wireframe", ui_model_value=comp.settings.get("wireframe_visible", True)
-        )
-        wireframe.on_update_model_value(comp.set_wireframe_visible)
+        wireframe = QCheckbox("Wireframe", ui_model_value=comp.wireframe_visible.value)
+        bind(comp.wireframe_visible, wireframe)
+
         options = [wireframe]
-        element2d = QCheckbox(
-            "Elements 2D", ui_model_value=comp.settings.get("elements2d_visible", True)
-        )
-        element2d.on_update_model_value(comp.set_elements2d_visible)
+
+        element2d = QCheckbox("Elements 2D", ui_model_value=comp.elements2d_visible.value)
+        bind(comp.elements2d_visible, element2d)
         options.append(element2d)
+
         if comp.mesh.dim == 3:
             elements3d = QCheckbox(
-                "Elements 3D",
-                ui_model_value=comp.settings.get("elements3d_visible", False),
+                "Elements 3D", ui_model_value=comp.elements3d_visible.value
             )
-            elements3d.on_update_model_value(comp.set_elements3d_visible)
+            bind(comp.elements3d_visible, elements3d)
             options.append(elements3d)
-        elements1d = QCheckbox(
-            "Elements 1D", ui_model_value=comp.settings.get("elements1d_visible", False)
-        )
-        elements1d.on_update_model_value(comp.set_elements1d_visible)
+
+        elements1d = QCheckbox("Elements 1D", ui_model_value=comp.elements1d_visible.value)
+        bind(comp.elements1d_visible, elements1d)
         options.append(elements1d)
+
         shrink = QSlider(
-            ui_model_value=comp.settings.get("shrink", 1.0),
+            ui_model_value=comp.shrink_value.value,
             ui_min=0.0,
             ui_max=1.0,
             ui_step=0.01,
             ui_label=True,
             ui_label_always=True,
         )
-        shrink.on_update_model_value(comp.set_shrink)
+        bind(comp.shrink_value, shrink)
 
         curve_enabled = QCheckbox(
             "",
-            ui_model_value=comp.settings.get("mesh_curvature_enabled", False),
+            ui_model_value=comp.mesh_curvature_enabled.value,
             ui_style="transform: scale(0.85);",
         )
         self.curve_order = curve_order = QInput(
             ui_type="number",
-            ui_model_value=comp.settings.get("mesh_curvature_order", 2),
+            ui_model_value=comp.mesh_curvature_order.value,
             ui_dense=True,
         )
-        curve_order.ui_disable = not comp.settings.get("mesh_curvature_enabled", False)
-        curve_enabled.on_update_model_value(self._toggle_curving)
-        curve_order.on_update_model_value(comp.set_mesh_curvature_order)
+        curve_order.ui_disable = not comp.mesh_curvature_enabled.value
+        bind(comp.mesh_curvature_enabled, curve_enabled)
+        comp.mesh_curvature_enabled.on_change(
+            lambda val, _old: setattr(curve_order, "ui_disable", not val)
+        )
+        # Curvature order needs int conversion, so we bind manually
+        comp.mesh_curvature_order.on_change(
+            lambda val, _old: setattr(curve_order, "ui_model_value", val)
+        )
+        curve_order.on_update_model_value(self._update_curvature_order)
+
         curving_row = Row(
             curve_enabled,
             Div("Curve Order"),
@@ -75,6 +81,12 @@ class MeshViewSection(QExpansionItem):
             ui_label="View Options",
         )
 
+    def _update_curvature_order(self, event):
+        try:
+            self.comp.mesh_curvature_order.value = int(event.value)
+        except (TypeError, ValueError):
+            pass
+
     def _draw_geometry(self, *args):
         comp = self.comp
         try:
@@ -86,7 +98,3 @@ class MeshViewSection(QExpansionItem):
             )
         except Exception as e:
             print(f"Could not extract geometry from mesh: {e}")
-
-    def _toggle_curving(self, event):
-        self.curve_order.ui_disable = not event.value
-        self.comp.set_mesh_curvature_enabled(event)

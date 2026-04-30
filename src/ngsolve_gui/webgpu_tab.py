@@ -12,6 +12,17 @@ class WebgpuTab(Div):
         self.wgpu.ui_style = "width: 100%; height: 100%;"
         self.icon = "mdi-vector-triangle"
 
+        # Observable for clipping state
+        if not hasattr(self, 'clipping_enabled'):
+            tab = app_data.get_tab(name)
+            saved = tab.get("settings", {}) if tab else {}
+            self.clipping_enabled = Observable(
+                saved.get("clipping_enabled", False), "clipping_enabled"
+            )
+            self.use_global_clipping = Observable(
+                saved.get("use_global_clipping", True), "use_global_clipping"
+            )
+
         self.reset_camera_btn = QBtn(
             QTooltip("Reset Camera"),
             ui_icon="mdi-refresh",
@@ -49,6 +60,8 @@ class WebgpuTab(Div):
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
         self.scene.input_handler.on_wheel(self._on_wheel, ctrl=True)
 
+        # Wire clipping observable after scene is ready
+        self.clipping_enabled.on_change(self._apply_clipping_enabled)
         def redraw_if_needed():
             if self._redraw_needed:
                 self.redraw()
@@ -117,10 +130,6 @@ class WebgpuTab(Div):
             self.scene.render()
 
     @property
-    def settings(self):
-        return self.app_data.get_settings(self.name)
-
-    @property
     def clipping(self):
         return self.app_data.clipping
 
@@ -166,15 +175,12 @@ class WebgpuTab(Div):
         getattr(camera, f"reset_{plane}")()
         self.scene.render()
 
-    def toggle_clipping(self):
-        clip = self.clipping
-        if clip.mode == clip.Mode.DISABLED:
-            clip.enable_clipping(True)
-            self.settings.set("clipping_enabled", True)
-        else:
-            clip.enable_clipping(False)
-            self.settings.set("clipping_enabled", False)
+    def _apply_clipping_enabled(self, val, _old):
+        self.clipping.enable_clipping(val)
         self.wgpu.scene.render()
+
+    def toggle_clipping(self):
+        self.clipping_enabled.toggle()
 
     def clip_along_axis(self, axis):
         clip = self.clipping
@@ -189,8 +195,7 @@ class WebgpuTab(Div):
         clip.set_nz_value(normal[2])
         clip.set_offset(0)
         if clip.mode == clip.Mode.DISABLED:
-            clip.enable_clipping(True)
-            self.settings.set("clipping_enabled", True)
+            self.clipping_enabled.value = True
         self.wgpu.scene.render()
 
     def reset_clipping(self):

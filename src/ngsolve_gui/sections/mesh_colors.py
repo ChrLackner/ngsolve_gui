@@ -18,7 +18,7 @@ class MeshColorSection(QExpansionItem):
         edge_descriptors = list(comp.mesh.ngmesh.EdgeDescriptors())
         if edge_descriptors:
             enames = [ed.name for ed in edge_descriptors]
-            saved = comp.settings.get("edge_colors", {})
+            saved = comp.edge_colors.value
             self.ecolors = {name: saved.get(name, [0, 0, 0, 255]) for name in set(enames)}
             ecolors = [
                 (c[0] / 255, c[1] / 255, c[2] / 255, c[3] / 255 if c[3] > 1 else c[3])
@@ -78,7 +78,7 @@ class MeshColorSection(QExpansionItem):
                 int(c[2] * 255),
                 int(c[3] * 255),
             ]
-        self.comp.settings.set("edge_colors", self.ecolors)
+        self.comp.edge_colors._value = self.ecolors
         edge_descriptors = list(self.comp.mesh.ngmesh.EdgeDescriptors())
         colors = [self.ecolors[ed.name] for ed in edge_descriptors]
         self.comp.elements1d._user_colors = colors

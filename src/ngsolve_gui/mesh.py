@@ -21,69 +21,89 @@ class MeshComponent(WebgpuTab):
         self.elements3d = None
         self.el2d_bitarray = data.get("el2d_bitarray", None)
         self.el3d_bitarray = data.get("el3d_bitarray", None)
+
+        # -- Observable properties (restored from saved settings) -----------
+        tab = app_data.get_tab(name)
+        saved = tab.get("settings", {}) if tab else {}
+        self.wireframe_visible = Observable(
+            saved.get("wireframe_visible", True), "wireframe_visible"
+        )
+        self.elements1d_visible = Observable(
+            saved.get("elements1d_visible", False), "elements1d_visible"
+        )
+        self.elements2d_visible = Observable(
+            saved.get("elements2d_visible", True), "elements2d_visible"
+        )
+        self.elements3d_visible = Observable(
+            saved.get("elements3d_visible", False), "elements3d_visible"
+        )
+        self.shrink_value = Observable(
+            saved.get("shrink", 1.0), "shrink"
+        )
+        self.mesh_curvature_enabled = Observable(
+            saved.get("mesh_curvature_enabled", False), "mesh_curvature_enabled"
+        )
+        self.mesh_curvature_order = Observable(
+            saved.get("mesh_curvature_order", 2), "mesh_curvature_order"
+        )
+        self.edge_colors = Observable(
+            saved.get("edge_colors", {}), "edge_colors"
+        )
+
         super().__init__(name, data, app_data)
 
-    def update(self, title, mesh, settings):
-        self.title = title
-        if self.mesh == mesh:
-            return
-        self.mesh = mesh
-        self.settings = settings
-        self.draw()
+        # -- Wire GPU side-effects after draw() has created render objects --
+        self.wireframe_visible.on_change(self._apply_wireframe)
+        self.elements1d_visible.on_change(self._apply_elements1d)
+        self.elements2d_visible.on_change(self._apply_elements2d)
+        self.elements3d_visible.on_change(self._apply_elements3d)
+        self.shrink_value.on_change(self._apply_shrink)
+        self.mesh_curvature_enabled.on_change(self._apply_curvature)
+        self.mesh_curvature_order.on_change(self._apply_curvature_order)
 
-    def set_wireframe_visible(self, event):
-        self.wireframe.active = event.value
-        self.settings.set("wireframe_visible", event.value)
-        self.scene.render()
+    # -- GPU side-effect handlers -------------------------------------------
 
-    def set_elements1d_visible(self, event):
-        self.settings.set("elements1d_visible", event.value)
-        self.elements1d.active = event.value
-        self.scene.render()
-
-    def set_elements2d_visible(self, event):
-        self.elements2d.active = event.value
-        self.settings.set("elements2d_visible", event.value)
-        self.scene.render()
-
-    def set_elements3d_visible(self, event):
-        self.settings.set("elements3d_visible", event.value)
-        if self.elements3d is None:
-            self.draw()
-        self.elements3d.active = event.value
-        self.scene.render()
-
-    def set_shrink(self, event):
-        self.mdata.shrink = event.value
-        self.settings.set("shrink", event.value)
-        if self.elements3d is not None:
-            self.elements3d.shrink = event.value
+    def _apply_wireframe(self, val, _old):
+        self.wireframe.active = val
         self.wgpu.scene.render()
 
-    def set_mesh_curvature_enabled(self, event):
-        if event.value != self.settings.get("mesh_curvature_enabled", False):
-            order = self.settings.get("mesh_curvature_order", 2)
-            if order > 3:
-                subdiv = (order + 2) // 3 + 1
-            elif order > 1:
-                subdiv = 3
-            else:
-                subdiv = 1
-            self.mdata.subdivision = subdiv
-            self.mdata.set_needs_update()
-        self.settings.set("mesh_curvature_enabled", event.value)
+    def _apply_elements1d(self, val, _old):
+        self.elements1d.active = val
+        self.wgpu.scene.render()
+
+    def _apply_elements2d(self, val, _old):
+        self.elements2d.active = val
+        self.wgpu.scene.render()
+
+    def _apply_elements3d(self, val, _old):
+        if self.elements3d is None:
+            self.draw()
+        self.elements3d.active = val
+        self.wgpu.scene.render()
+
+    def _apply_shrink(self, val, _old):
+        self.mdata.shrink = val
+        if self.elements3d is not None:
+            self.elements3d.shrink = val
+        self.wgpu.scene.render()
+
+    def _apply_curvature(self, val, _old):
+        order = self.mesh_curvature_order.value
+        if order > 3:
+            subdiv = (order + 2) // 3 + 1
+        elif order > 1:
+            subdiv = 3
+        else:
+            subdiv = 1
+        self.mdata.subdivision = subdiv
+        self.mdata.set_needs_update()
         self.draw()
 
-    def set_mesh_curvature_order(self, event):
-        try:
-            if event.value != self.settings.get("mesh_curvature_order", 2):
-                self.mdata.set_needs_update()
-            self.settings.set("mesh_curvature_order", int(event.value))
-        except (TypeError, ValueError):
-            pass
+    def _apply_curvature_order(self, val, _old):
+        self.mdata.set_needs_update()
         self.draw()
 
-    # -- Keybinding support ---------------------------------------------
+    # -- Keybinding support -------------------------------------------------
 
     def get_keybindings(self):
         kb = super().get_keybindings()
@@ -101,32 +121,27 @@ class MeshComponent(WebgpuTab):
         return kb
 
     def toggle_wireframe(self):
-        self.wireframe.active = not self.wireframe.active
-        self.settings.set("wireframe_visible", self.wireframe.active)
-        self.wgpu.scene.render()
+        self.wireframe_visible.toggle()
 
     def toggle_elements_1d(self):
-        self.elements1d.active = not self.elements1d.active
-        self.settings.set("elements1d_visible", self.elements1d.active)
-        self.wgpu.scene.render()
+        self.elements1d_visible.toggle()
 
     def toggle_elements_2d(self):
-        self.elements2d.active = not self.elements2d.active
-        self.settings.set("elements2d_visible", self.elements2d.active)
-        self.wgpu.scene.render()
+        self.elements2d_visible.toggle()
 
     def toggle_elements_3d(self):
-        if self.elements3d is None:
-            self.settings.set("elements3d_visible", True)
-            self.draw()
-        else:
-            self.elements3d.active = not self.elements3d.active
-            self.settings.set("elements3d_visible", self.elements3d.active)
-        self.wgpu.scene.render()
+        self.elements3d_visible.toggle()
+
+    def update(self, title, mesh, settings):
+        self.title = title
+        if self.mesh == mesh:
+            return
+        self.mesh = mesh
+        self.draw()
 
     def draw(self):
-        curve_enabled = self.settings.get("mesh_curvature_enabled", False)
-        curve_order = int(self.settings.get("mesh_curvature_order", 2))
+        curve_enabled = self.mesh_curvature_enabled.value
+        curve_order = int(self.mesh_curvature_order.value)
         if curve_enabled:
             self.mesh.Curve(curve_order)
         else:
@@ -141,20 +156,20 @@ class MeshComponent(WebgpuTab):
         else:
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
-        self.wireframe.active = self.settings.get("wireframe_visible", True)
-        saved_edge_colors = self.settings.get("edge_colors", {})
+        self.wireframe.active = self.wireframe_visible.value
+        saved_edge_colors = self.edge_colors.value
         if saved_edge_colors:
             edge_descriptors = list(self.mesh.ngmesh.EdgeDescriptors())
             edge_colors = [saved_edge_colors.get(ed.name, [0, 0, 0, 255]) for ed in edge_descriptors]
         else:
             edge_colors = None
         self.elements1d = MeshSegments(self.mdata, clipping=self.clipping, colors=edge_colors)
-        self.elements1d.active = self.settings.get("elements1d_visible", False)
+        self.elements1d.active = self.elements1d_visible.value
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
-        self.elements2d.active = self.settings.get("elements2d_visible", True)
-        if self.settings.get("elements3d_visible", False):
+        self.elements2d.active = self.elements2d_visible.value
+        if self.elements3d_visible.value:
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
-            self.elements3d.shrink = self.settings.get("shrink", 1.0)
+            self.elements3d.shrink = self.shrink_value.value
         self.mesh_info = Labels(
             [
                 f"VOL: {self.mesh.GetNE(ngs.VOL)} BND: {self.mesh.GetNE(ngs.BND)} CD2: {self.mesh.GetNE(ngs.BBND)} CD3: {self.mesh.GetNE(ngs.BBBND)}"

@@ -1,27 +1,20 @@
 from ngapp.components import *
 
-from .styles import sidebar_style
-
-# Shared style applied to every section's content wrapper.
-# Sections just provide their widgets — this padding makes them all look consistent.
-SECTION_CONTENT_STYLE = "padding: 8px 12px;"
+from .styles import sidebar_props, prop_title, section_content, section_border
 
 
 class PropertyPanel(Div):
     def __init__(self):
         self._title = Div(
             "Properties",
-            ui_style="font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;"
-            " font-weight: 700; color: #78909c; padding: 12px 16px 8px;",
+            ui_class=str(prop_title),
         )
         self._sections = Div()
         super().__init__(
             self._title,
             QSeparator(),
             self._sections,
-            ui_style=sidebar_style(
-                border_side="left", extra="width: 280px; min-width: 280px;"
-            ),
+            ui_class=str(sidebar_props),
         )
 
     def set_component(self, comp, type_key):
@@ -51,7 +44,7 @@ class PropertyPanel(Div):
                 # Apply consistent content padding to every section
                 section.ui_dense = True
                 section.ui_expand_separator = True
-                section.ui_style = "border-bottom: 1px solid #eee;"
+                section.ui_class = str(section_border)
                 # Wrap section content children in padded container
                 _apply_section_padding(section)
                 sections.append(section)
@@ -81,4 +74,4 @@ def _apply_section_padding(section):
     """
     children = list(section.ui_children) if section.ui_children else []
     if children:
-        section.ui_children = [Div(*children, ui_style=SECTION_CONTENT_STYLE)]
+        section.ui_children = [Div(*children, ui_class=str(section_content))]
