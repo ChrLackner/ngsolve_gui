@@ -38,13 +38,13 @@ class MeshComponent(WebgpuTab):
             saved.get("elements3d_visible", False), "elements3d_visible"
         )
         self.shrink_value = Observable(
-            saved.get("shrink", 1.0), "shrink"
+            saved.get("shrink", 1.0), "shrink", converter=float
         )
         self.mesh_curvature_enabled = Observable(
             saved.get("mesh_curvature_enabled", False), "mesh_curvature_enabled"
         )
         self.mesh_curvature_order = Observable(
-            saved.get("mesh_curvature_order", 2), "mesh_curvature_order"
+            saved.get("mesh_curvature_order", 2), "mesh_curvature_order", converter=int
         )
         self.edge_colors = Observable(
             saved.get("edge_colors", {}), "edge_colors"
@@ -88,14 +88,6 @@ class MeshComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     def _apply_curvature(self, val, _old):
-        order = self.mesh_curvature_order.value
-        if order > 3:
-            subdiv = (order + 2) // 3 + 1
-        elif order > 1:
-            subdiv = 3
-        else:
-            subdiv = 1
-        self.mdata.subdivision = subdiv
         self.mdata.set_needs_update()
         self.draw()
 
@@ -144,8 +136,6 @@ class MeshComponent(WebgpuTab):
         curve_order = int(self.mesh_curvature_order.value)
         if curve_enabled:
             self.mesh.Curve(curve_order)
-        else:
-            self.mesh.Curve(1)
 
         if self.el2d_bitarray is not None or self.el3d_bitarray is not None:
             self.mdata = MeshData(
@@ -155,6 +145,15 @@ class MeshComponent(WebgpuTab):
             )
         else:
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
+
+        actual_order = self.mesh.GetCurveOrder()
+        if actual_order > 3:
+            subdiv = (actual_order + 2) // 3 + 1
+        elif actual_order > 1:
+            subdiv = 3
+        else:
+            subdiv = 1
+        self.mdata.subdivision = subdiv
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.wireframe_visible.value
         saved_edge_colors = self.edge_colors.value

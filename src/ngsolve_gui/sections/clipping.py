@@ -9,14 +9,12 @@ class ClippingSection(QExpansionItem):
             raise ValueError("Clipping not applicable for 2D")
         use_global = QCheckbox(
             "Use Global Clipping Plane",
-            ui_model_value=comp.use_global_clipping.value,
+            ui_model_value=comp.use_global_clipping,
         )
-        bind(comp.use_global_clipping, use_global)
         self.enable = enable = QCheckbox(
             "Enable Clipping",
-            ui_model_value=comp.clipping.mode != comp.clipping.Mode.DISABLED,
+            ui_model_value=comp.clipping_enabled,
         )
-        bind(comp.clipping_enabled, enable)
         clip = comp.clipping
         debounce_time = 300
         self.cx = QInput(

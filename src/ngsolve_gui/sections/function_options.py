@@ -6,9 +6,8 @@ class FunctionOptionsSection(QExpansionItem):
         self.comp = comp
         self.wireframe_visible = QCheckbox(
             ui_label="Wireframe Visible",
-            ui_model_value=comp.wireframe_visible.value,
+            ui_model_value=comp.wireframe_visible,
         )
-        bind(comp.wireframe_visible, self.wireframe_visible)
 
         reset_camera = QBtn(
             ui_icon="mdi-refresh",
@@ -22,25 +21,22 @@ class FunctionOptionsSection(QExpansionItem):
         if comp.draw_surf:
             self.surface_solution_visible = QCheckbox(
                 ui_label="Surface Solution Visible",
-                ui_model_value=comp.elements2d_visible.value,
+                ui_model_value=comp.elements2d_visible,
             )
-            bind(comp.elements2d_visible, self.surface_solution_visible)
             items.append(self.surface_solution_visible)
 
         if comp.mesh.dim == 3:
             self.clipping_plane_visible = QCheckbox(
                 ui_label="Clipping Function",
-                ui_model_value=comp.clipping_visible.value,
+                ui_model_value=comp.clipping_visible,
             )
-            bind(comp.clipping_visible, self.clipping_plane_visible)
             items.append(self.clipping_plane_visible)
 
         if self.comp.contact is not None:
             self.contact_visible = QCheckbox(
                 ui_label="Contact Pairs",
-                ui_model_value=comp.contact_enabled.value,
+                ui_model_value=comp.contact_enabled,
             )
-            bind(comp.contact_enabled, self.contact_visible)
             items.append(self.contact_visible)
 
         draw_mesh = QBtn(

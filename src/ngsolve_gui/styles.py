@@ -33,12 +33,10 @@ css = StyleSheet()
 _sidebar_base = Style(height="100%", overflow_y="auto", background=theme.sidebar_bg)
 
 sidebar_nav = css.add(
-    _sidebar_base
-    | Style(border_right=theme.border_line(), width="200px", min_width="200px")
+    _sidebar_base | Style(border_right=theme.border_line())
 )
 sidebar_props = css.add(
-    _sidebar_base
-    | Style(border_left=theme.border_line(), width="280px", min_width="280px")
+    _sidebar_base | Style(border_left=theme.border_line())
 )
 
 hidden = css.add(Style(display="none"))

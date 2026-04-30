@@ -6,25 +6,19 @@ class MeshingInput(QInput):
         self.comp = comp
         self.observable = observable
         super().__init__(
-            ui_label=label, ui_model_value=observable.value, ui_type=type, **kwargs
+            ui_label=label, ui_model_value=observable, ui_type=type, **kwargs
         )
-        self.on_update_model_value(self.update_value)
+        self.observable.on_change(self._validate)
         self.ui_error = False
         self.ui_error_message = ""
 
-    def update_value(self, event):
-        try:
-            value = event.value
-            if value is None or value == "":
-                value = None
-            else:
-                value = float(value)
-                if value <= 0:
-                    raise ValueError("Value must be positive.")
+    def _validate(self, value, _old):
+        if value is not None and value <= 0:
+            self.ui_error = True
+            self.ui_error_message = "Value must be positive."
+        else:
             self.ui_error = False
-            self.observable.value = value
-        except ValueError as e:
-            self.set_error(str(e))
+            self.ui_error_message = ""
 
     def set_error(self, message):
         self.ui_error = True
@@ -41,9 +35,8 @@ class GeometryOptionsSection(QExpansionItem):
 
         self.show_edges = QCheckbox(
             ui_label="Show Edges",
-            ui_model_value=comp.show_edges.value,
+            ui_model_value=comp.show_edges,
         )
-        bind(comp.show_edges, self.show_edges)
 
         self.create_mesh_btn = QBtn(
             ui_label="Create Mesh",
@@ -95,4 +88,3 @@ class GeometryOptionsSection(QExpansionItem):
             self.comp.create_mesh()
         finally:
             self.create_mesh_btn.ui_loading = False
-

@@ -19,9 +19,8 @@ class VectorSection(QExpansionItem):
         if comp.mesh.dim == 3 and comp.cf.dim == 3:
             self.clipping_vectors = QCheckbox(
                 ui_label="Show Clipping Vectors",
-                ui_model_value=comp.clipping_vectors_visible.value,
+                ui_model_value=comp.clipping_vectors_visible,
             )
-            bind(comp.clipping_vectors_visible, self.clipping_vectors)
             comps.append(self.clipping_vectors)
         if (
             comp.mesh.dim == 2
@@ -31,9 +30,8 @@ class VectorSection(QExpansionItem):
         ):
             self.surf_vectors = QCheckbox(
                 ui_label="Show Surface Vectors",
-                ui_model_value=comp.surface_vectors_visible.value,
+                ui_model_value=comp.surface_vectors_visible,
             )
-            bind(comp.surface_vectors_visible, self.surf_vectors)
             comps.append(self.surf_vectors)
         self.grid_size = QInput(
             ui_label="Grid Size",

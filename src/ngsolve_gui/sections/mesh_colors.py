@@ -86,20 +86,15 @@ class MeshColorSection(QExpansionItem):
         self.comp.wgpu.scene.render()
 
     def change_d_color(self, name, color):
-        colors = []
         colmap = dict(zip(name, color))
-        for i, d in enumerate(self.comp.mesh.GetMaterials()):
-            if d in colmap:
-                c = list(colmap[d])
-            else:
-                c = [1.0, 0.0, 0.0, 1.0]
+        for d, c in colmap.items():
             self.dcolors[d] = [
                 int(c[0] * 255),
                 int(c[1] * 255),
                 int(c[2] * 255),
                 int(c[3] * 255),
             ]
-            colors.append(self.dcolors[d])
+        colors = [self.dcolors[d] for d in self.comp.mesh.GetMaterials()]
         if self.comp.elements3d is not None:
             self.comp.elements3d.colormap.set_colormap(colors)
             self.comp.elements3d.set_needs_update()

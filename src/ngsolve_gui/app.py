@@ -8,7 +8,7 @@ from .file_loader import load_file
 from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
 from .property_panel import PropertyPanel
-from .styles import css, theme, sidebar_nav, sidebar_props, hidden, page_layout, flex_fill, panel_full
+from .styles import css, theme, flex_fill, panel_full
 
 
 class Panel(Div):
@@ -130,17 +130,41 @@ class NGSolveGui(App):
 
         self._nav_visible = self.usersettings.get("nav_visible", True)
         self._prop_visible = self.usersettings.get("prop_visible", True)
-        self._apply_panel_visibility()
+        self._nav_width = self.usersettings.get("nav_width", 200)
+        self._prop_width = self.usersettings.get("prop_width", 280)
 
-        # Keybinding manager — no after_action needed: Observable handles UI sync
         self.kb = KeybindingManager(self, theme=theme)
 
-        page = Div(
-            self.navigator,
-            Div(self.tab_panel, ui_class=str(flex_fill)),
-            self.property_panel,
-            ui_class=str(page_layout),
+        # Inner splitter: center | property panel (reverse so model = prop width)
+        self._inner_splitter = QSplitter(
+            ui_model_value=self._prop_width if self._prop_visible else 0,
+            ui_unit="px",
+            ui_reverse=True,
+            ui_limits=[0, 500] if self._prop_visible else [0, 0],
+            ui_emit_immediately=True,
+            ui_slots={
+                "before": [Div(self.tab_panel, ui_class=str(flex_fill))],
+                "after": [self.property_panel],
+            },
+            ui_style="height: calc(100vh - 60px);",
         )
+        self._inner_splitter.on_update_model_value(self._on_prop_width_change)
+
+        # Outer splitter: navigator | inner splitter
+        self._outer_splitter = QSplitter(
+            ui_model_value=self._nav_width if self._nav_visible else 0,
+            ui_unit="px",
+            ui_limits=[0, 500] if self._nav_visible else [0, 0],
+            ui_emit_immediately=True,
+            ui_slots={
+                "before": [self.navigator],
+                "after": [self._inner_splitter],
+            },
+            ui_style="height: calc(100vh - 60px);",
+        )
+        self._outer_splitter.on_update_model_value(self._on_nav_width_change)
+
+        page = self._outer_splitter
 
         super().__init__(bar, page, self.kb.indicator, self.kb.help_overlay)
 
@@ -228,11 +252,33 @@ class NGSolveGui(App):
         self.usersettings.set("prop_visible", self._prop_visible)
         self._apply_panel_visibility()
 
+    def _on_nav_width_change(self, event):
+        val = int(event.value)
+        if val > 0:
+            self._nav_width = val
+            self.usersettings.set("nav_width", val)
+
+    def _on_prop_width_change(self, event):
+        val = int(event.value)
+        if val > 0:
+            self._prop_width = val
+            self.usersettings.set("prop_width", val)
+
     def _apply_panel_visibility(self):
-        nav_cls = sidebar_nav if self._nav_visible else sidebar_nav + hidden
-        prop_cls = sidebar_props if self._prop_visible else sidebar_props + hidden
-        self.navigator.ui_class = str(nav_cls)
-        self.property_panel.ui_class = str(prop_cls)
+        if not hasattr(self, "_outer_splitter"):
+            return
+        if self._nav_visible:
+            self._outer_splitter.ui_model_value = self._nav_width
+            self._outer_splitter.ui_limits = [0, 500]
+        else:
+            self._outer_splitter.ui_model_value = 0
+            self._outer_splitter.ui_limits = [0, 0]
+        if self._prop_visible:
+            self._inner_splitter.ui_model_value = self._prop_width
+            self._inner_splitter.ui_limits = [0, 500]
+        else:
+            self._inner_splitter.ui_model_value = 0
+            self._inner_splitter.ui_limits = [0, 0]
 
 
     def redraw(self, *args, **kwargs):

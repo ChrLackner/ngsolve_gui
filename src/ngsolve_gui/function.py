@@ -86,36 +86,36 @@ class FunctionComponent(WebgpuTab):
             "deformation_enabled",
         )
         self.deformation_scale = Observable(
-            s.get("deformation_scale", 1.0), "deformation_scale"
+            s.get("deformation_scale", 1.0), "deformation_scale", converter=float
         )
         self.deformation_scale2 = Observable(
-            s.get("deformation_scale2", 1.0), "deformation_scale2"
+            s.get("deformation_scale2", 1.0), "deformation_scale2", converter=float
         )
         cm = s.get("colormap", (autoscale, discrete_colormap, minval, maxval))
         self.colormap_autoscale = Observable(cm[0], "colormap_autoscale")
         self.colormap_discrete = Observable(cm[1], "colormap_discrete")
-        self.colormap_min = Observable(cm[2], "colormap_min")
-        self.colormap_max = Observable(cm[3], "colormap_max")
+        self.colormap_min = Observable(cm[2], "colormap_min", converter=float)
+        self.colormap_max = Observable(cm[3], "colormap_max", converter=float)
         self.colormap_name = Observable(
             s.get("colormap_name", "matlab:jet"), "colormap_name"
         )
         self.ncolors_colormap = Observable(
-            s.get("ncolors_colormap", 8), "ncolors_colormap"
+            s.get("ncolors_colormap", 8), "ncolors_colormap", converter=int
         )
         self.contact_enabled = Observable(
             s.get("contact_enabled", True), "contact_enabled"
         )
         self.fieldlines_num_lines = Observable(
-            s.get("fieldlines_num_lines", 100), "fieldlines_num_lines"
+            s.get("fieldlines_num_lines", 100), "fieldlines_num_lines", converter=int
         )
         self.fieldlines_length = Observable(
-            s.get("fieldlines_length", 0.5), "fieldlines_length"
+            s.get("fieldlines_length", 0.5), "fieldlines_length", converter=float
         )
         self.fieldlines_thickness = Observable(
-            s.get("fieldlines_thickness", 0.0015), "fieldlines_thickness"
+            s.get("fieldlines_thickness", 0.0015), "fieldlines_thickness", converter=float
         )
         self.fieldlines_direction = Observable(
-            s.get("fieldlines_direction", 0), "fieldlines_direction"
+            s.get("fieldlines_direction", 0), "fieldlines_direction", converter=int
         )
 
         super().__init__(name, data, app_data)

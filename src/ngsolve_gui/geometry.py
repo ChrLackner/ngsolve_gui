@@ -14,9 +14,9 @@ class GeometryComponent(WebgpuTab):
         tab = app_data.get_tab(name)
         s = tab.get("settings", {}) if tab else {}
         self.show_edges = Observable(s.get("show_edges", True), "show_edges")
-        self.maxh = Observable(s.get("maxh", 1000), "maxh")
-        self.segments_per_edge = Observable(s.get("segments_per_edge", 0.2), "segments_per_edge")
-        self.curvaturesafety = Observable(s.get("curvaturesafety", 1.5), "curvaturesafety")
+        self.maxh = Observable(s.get("maxh", 1000), "maxh", converter=float)
+        self.segments_per_edge = Observable(s.get("segments_per_edge", 0.2), "segments_per_edge", converter=float)
+        self.curvaturesafety = Observable(s.get("curvaturesafety", 1.5), "curvaturesafety", converter=float)
         self.closeedgefac = Observable(s.get("closeedgefac", None), "closeedgefac")
         super().__init__(name, data, app_data)
         self.show_edges.on_change(self._apply_show_edges)
