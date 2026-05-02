@@ -39,6 +39,32 @@ class FunctionOptionsSection(QExpansionItem):
             )
             items.append(self.contact_visible)
 
+        if comp.cf.is_complex:
+            self.complex_mode = QSelect(
+                ui_label="Complex Mode",
+                ui_options=[
+                    {"label": "Real", "value": "real"},
+                    {"label": "Imag", "value": "imag"},
+                    {"label": "Abs", "value": "abs"},
+                    {"label": "Arg", "value": "arg"},
+                ],
+                ui_model_value=comp.complex_mode,
+                ui_emit_value=True,
+                ui_map_options=True,
+            )
+            self.complex_animate = QCheckbox(
+                ui_label="Animate",
+                ui_model_value=comp.complex_animate,
+            )
+            self.complex_speed = QSlider(
+                ui_label="Animation Speed",
+                ui_model_value=comp.complex_speed,
+                ui_min=0.1,
+                ui_max=5.0,
+                ui_step=0.1,
+            )
+            items.extend([self.complex_mode, self.complex_animate, self.complex_speed])
+
         draw_mesh = QBtn(
             ui_icon="mdi-vector-triangle",
             ui_label="Draw Mesh",

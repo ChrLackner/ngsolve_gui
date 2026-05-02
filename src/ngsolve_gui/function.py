@@ -124,6 +124,15 @@ class FunctionComponent(WebgpuTab):
             s.get("fieldlines_direction", 0), "fieldlines_direction", converter=int
         )
 
+        if self.cf.is_complex:
+            self.complex_mode = Observable(
+                s.get("complex_mode", "real"), "complex_mode"
+            )
+            self.complex_animate = Observable(False, "complex_animate")
+            self.complex_speed = Observable(
+                s.get("complex_speed", 1.0), "complex_speed", converter=float
+            )
+
         super().__init__(name, data, app_data)
 
         # -- Wire GPU side-effects -----------------------------------------
@@ -143,6 +152,10 @@ class FunctionComponent(WebgpuTab):
         self.colormap_autoscale.on_change(self._apply_autoscale)
         self.colormap_discrete.on_change(self._apply_discrete)
         self.colormap_name.on_change(self._apply_colormap_name)
+        if self.cf.is_complex:
+            self.complex_mode.on_change(self._apply_complex_mode)
+            self.complex_animate.on_change(self._apply_complex_animate)
+            self.complex_speed.on_change(self._apply_complex_speed)
 
     # -- GPU side-effect handlers -------------------------------------------
 
@@ -282,6 +295,21 @@ class FunctionComponent(WebgpuTab):
             )
         )
 
+        if self.cf.is_complex:
+            kb["modes"].append(
+                (
+                    "x",
+                    "Complex",
+                    [
+                        ("r", lambda: setattr(self.complex_mode, 'value', 'real'), "Real part"),
+                        ("i", lambda: setattr(self.complex_mode, 'value', 'imag'), "Imag part"),
+                        ("a", lambda: setattr(self.complex_mode, 'value', 'abs'), "Absolute value"),
+                        ("p", lambda: setattr(self.complex_mode, 'value', 'arg'), "Phase/Arg"),
+                        ("space", lambda: self.complex_animate.toggle(), "Toggle animation"),
+                    ],
+                )
+            )
+
         return kb
 
     # -- Toggle methods (now one-liners) ------------------------------------
@@ -354,8 +382,34 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     @property
+    def _complex_renderers(self):
+        return [r for r in [self.elements2d, self.clippingcf, self.clipping_vectors, self.surface_vectors] if r is not None]
+
+    @property
     def _vector_renderers(self):
         return [r for r in [self.clipping_vectors, self.surface_vectors] if r is not None]
+
+    def _apply_complex_mode(self, val, _old):
+        for r in self._complex_renderers:
+            r.set_complex_mode(val)
+        self.wgpu.scene.render()
+
+    def _apply_complex_animate(self, val, _old):
+        if val:
+            if self.colormap_autoscale.value:
+                self.colormap_autoscale.value = False
+            for r in self._complex_renderers:
+                r.animate_phase(self.scene, speed=self.complex_speed.value)
+        else:
+            for r in self._complex_renderers:
+                r.stop_animation()
+                r.set_complex_mode(self.complex_mode.value)
+            self.wgpu.scene.render()
+
+    def _apply_complex_speed(self, val, _old):
+        for r in self._complex_renderers:
+            if r._phase_animation is not None:
+                r._phase_animation.speed = val
 
     def toggle_autoscale(self):
         self.colormap_autoscale.toggle()
@@ -465,6 +519,10 @@ class FunctionComponent(WebgpuTab):
             self.elements2d.active = self.elements2d_visible.value
         else:
             self.elements2d = None
+        if self.cf.is_complex:
+            for r in self._complex_renderers:
+                r._scene = self.scene
+                r.set_complex_mode(self.complex_mode.value)
         self.colorbar = Colorbar(self.colormap)
         self.colorbar.width = 0.8
         self.colorbar.position = (-0.5, 0.9)
