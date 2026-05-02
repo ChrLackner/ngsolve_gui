@@ -1,4 +1,7 @@
+import ctypes
 import os
+import threading
+import time
 
 from ngapp.app import App
 from ngapp.components import *
@@ -64,6 +67,170 @@ class Settings(QMenu):
         super().__init__(QCard(QCardSection("Settings"), QCardSection(nthreads)))
 
 
+class StatusBar(Div):
+    """Floating pill overlay at the bottom of the scene showing loading progress."""
+
+    # Outer wrapper — anchored to the bottom-center of the nearest
+    # position:relative ancestor (the scene container).
+    _VISIBLE = (
+        "position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); "
+        "z-index: 1000; display: flex; flex-direction: column; align-items: stretch; "
+        "background: rgba(15,23,42,0.88); backdrop-filter: blur(6px); "
+        "border-radius: 12px; padding: 10px 18px 12px; min-width: 320px; "
+        "max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.25); "
+        "color: #e2e8f0; font-size: 0.82rem;"
+    )
+    _HIDDEN = "display: none;"
+
+    def __init__(self):
+        # Top row: icon + label + cancel
+        self._label = Div(
+            "",
+            ui_style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+        )
+        self._pct_label = Div(
+            "",
+            ui_style=(
+                "white-space: nowrap; font-variant-numeric: tabular-nums; "
+                "font-size: 0.78rem; color: #94a3b8; min-width: 36px; text-align: right;"
+            ),
+        )
+        self._cancel_btn = QBtn(
+            QTooltip("Cancel"),
+            ui_icon="mdi-close",
+            ui_flat=True,
+            ui_dense=True,
+            ui_round=True,
+            ui_size="xs",
+            ui_padding="2px",
+            ui_color="grey-5",
+        )
+        self._cancel_btn.on_click(self._on_cancel)
+
+        top_row = Div(
+            QSpinner(ui_color="accent", ui_size="18px"),
+            self._label,
+            QSpace(),
+            self._pct_label,
+            self._cancel_btn,
+            ui_style="display: flex; align-items: center; gap: 8px;",
+        )
+
+        # Progress bar (track + filled portion)
+        self._bar_fill = Div(
+            ui_style=(
+                "height: 100%; width: 0%; border-radius: 3px; "
+                "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
+                "transition: width 0.3s ease;"
+            ),
+        )
+        bar_track = Div(
+            self._bar_fill,
+            ui_style=(
+                "height: 6px; border-radius: 3px; "
+                "background: rgba(255,255,255,0.12); margin-top: 8px; "
+                "overflow: hidden;"
+            ),
+        )
+
+        self._thread = None
+        self._done_event = None
+        self._generation = 0
+
+        super().__init__(top_row, bar_track, ui_style=self._HIDDEN)
+
+    def show(self, filename, thread, done_event):
+        self._generation += 1
+        self._thread = thread
+        self._done_event = done_event
+        self._thread_name = thread.name if thread else ""
+        self._label.ui_children = [f"Loading {filename} \u2026"]
+        self._pct_label.ui_children = [""]
+        self._bar_fill.ui_style = (
+            "height: 100%; width: 100%; border-radius: 3px; "
+            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
+            "animation: indeterminate 1.4s ease infinite; "
+            "transition: none;"
+        )
+        self.ui_style = self._VISIBLE
+        self._start_poll(self._generation)
+
+    def hide(self):
+        self._thread = None
+        self._done_event = None
+        self.ui_style = self._HIDDEN
+
+    def _set_progress(self, percent):
+        """Set determinate progress (0–100)."""
+        w = max(0, min(100, percent))
+        self._bar_fill.ui_style = (
+            f"height: 100%; width: {w:.1f}%; border-radius: 3px; "
+            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
+            "transition: width 0.3s ease;"
+        )
+        self._pct_label.ui_children = [f"{w:.0f}%"]
+
+    def _set_indeterminate(self):
+        self._bar_fill.ui_style = (
+            "height: 100%; width: 100%; border-radius: 3px; "
+            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
+            "animation: indeterminate 1.4s ease infinite; "
+            "transition: none;"
+        )
+        self._pct_label.ui_children = [""]
+
+    def _start_poll(self, gen):
+        def poll():
+            from netgen.libngpy._meshing import _GetStatus
+
+            while gen == self._generation:
+                time.sleep(0.3)
+                done_event = self._done_event
+                if done_event is None:
+                    break
+                try:
+                    status_text, percent = _GetStatus()
+                except Exception:
+                    status_text, percent = "idle", 0.0
+
+                done = done_event.is_set()
+
+                if status_text and status_text != "idle":
+                    self._label.ui_children = [status_text]
+                    if percent > 0:
+                        self._set_progress(percent)
+                    else:
+                        self._set_indeterminate()
+                    # Script finished but netgen hasn't reset status yet
+                    if done:
+                        self.hide()
+                        break
+                elif done:
+                    self.hide()
+                    break
+
+        threading.Thread(target=poll, daemon=True, name="StatusPoll").start()
+
+    def _on_cancel(self):
+        self._generation += 1
+        thread = self._thread
+        # Only interrupt non-IPython threads; the IPython shell stays
+        # alive for interactive use — just dismiss the pill.
+        if (
+            thread
+            and thread.is_alive()
+            and self._thread_name != "IPythonEmbedder"
+        ):
+            try:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_ulong(thread.ident),
+                    ctypes.py_object(KeyboardInterrupt),
+                )
+            except Exception:
+                pass
+        self.hide()
+
+
 class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
         self._local_path = local_path if local_path else os.path.expanduser("~")
@@ -127,6 +294,7 @@ class NGSolveGui(App):
         self.navigator = Navigator(self.app_data, self._click_tab)
         self.property_panel = PropertyPanel()
         self.tab_panel = Panel(self.app_data)
+        self.status_bar = StatusBar()
 
         self._nav_visible = self.usersettings.get("nav_visible", True)
         self._prop_visible = self.usersettings.get("prop_visible", True)
@@ -166,11 +334,12 @@ class NGSolveGui(App):
 
         page = self._outer_splitter
 
-        super().__init__(bar, page, self.kb.indicator, self.kb.help_overlay)
+        super().__init__(bar, page, self.status_bar, self.kb.indicator, self.kb.help_overlay)
 
         theme.apply(self)
         css.inject(self)
         keybinding_styles.inject(self)
+        self._inject_status_bar_css()
         self.on_load(self.__on_load)
         self.on_mounted(self._disable_contextmenu)
 
@@ -191,10 +360,10 @@ class NGSolveGui(App):
         self.add_keybinding("escape", lambda e: self.kb.on_escape())
         self.on_before_save(self.__on_before_save)
         if isinstance(filename, str):
-            load_file(filename, self)
+            self._load_with_status(filename)
         elif isinstance(filename, list):
             for f in filename:
-                load_file(f, self)
+                self._load_with_status(f)
 
     def _disable_contextmenu(self):
         import webgpu.platform as pl
@@ -202,6 +371,21 @@ class NGSolveGui(App):
         pl.js.document.addEventListener(
             "contextmenu", pl.create_event_handler(lambda e: None, prevent_default=True)
         )
+
+    def _inject_status_bar_css(self):
+        kf = (
+            "@keyframes indeterminate {"
+            "  0%   { transform: translateX(-100%); }"
+            "  100% { transform: translateX(100%);  }"
+            "}"
+        )
+
+        def _inject(js):
+            el = js.document.createElement("style")
+            el.textContent = kf
+            js.document.head.appendChild(el)
+
+        self.call_js(_inject)
 
     def _load_file(self):
         from tkinter import Tk, filedialog
@@ -220,7 +404,16 @@ class NGSolveGui(App):
         root.destroy()
         if file_path:
             self._local_path = os.path.dirname(file_path)
-        load_file(file_path, self)
+        self._load_with_status(file_path)
+
+    def _load_with_status(self, filename):
+        if not filename:
+            return
+        result = load_file(filename, self)
+        if result:
+            thread, done_event = result
+            name = os.path.basename(str(filename))
+            self.status_bar.show(name, thread, done_event)
 
     def __on_before_save(self):
         self.storage.set("app_data", self.app_data.get_save_data(), use_pickle=True)

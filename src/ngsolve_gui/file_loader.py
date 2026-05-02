@@ -53,7 +53,9 @@ ngsolve.Draw(obj, name='{name}')"""
     raise ValueError(f"Unsupported file type: {ext.lstrip('.')}")
 
 
-def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
+def _launch_interactive_shell(
+    code: str, script_globals: dict, app, done_event: threading.Event
+) -> threading.Thread:
     """Start IPython in a background thread; clean up terminal on exit."""
     import sys
     import termios
@@ -69,7 +71,10 @@ def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
 
     def launch_shell():
         ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
-        asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
+        try:
+            asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
+        finally:
+            done_event.set()
         ipshell[0].mainloop()
 
     t = threading.Thread(target=launch_shell, name="IPythonEmbedder", daemon=True)
@@ -85,18 +90,36 @@ def _launch_interactive_shell(code: str, script_globals: dict, app) -> None:
         ipshell[0].run_cell("import os; os._exit(0)")
 
     app.on_exit(exit_shell)
+    return t
 
 
-def _run_script(code: str, script_globals: dict, app) -> None:
-    """Run user code with optional IPython; fall back to plain exec."""
+def _run_script(
+    code: str, script_globals: dict, app
+) -> tuple[threading.Thread, threading.Event]:
+    """Run user code with optional IPython; fall back to plain exec.
+
+    Returns ``(worker_thread, done_event)`` where *done_event* is set
+    when the initial code execution finishes (or is cancelled).
+    """
+    done_event = threading.Event()
     try:
-        _launch_interactive_shell(code, script_globals, app)
+        thread = _launch_interactive_shell(code, script_globals, app, done_event)
     except ImportError:
         print("IPython is not installed, skipping interactive shell.")
-        t = threading.Thread(
-            target=exec, args=(code, script_globals), name="PythonRunner", daemon=True
+
+        def _run_and_signal():
+            try:
+                exec(code, script_globals)
+            except (SystemExit, KeyboardInterrupt):
+                pass
+            finally:
+                done_event.set()
+
+        thread = threading.Thread(
+            target=_run_and_signal, name="PythonRunner", daemon=True
         )
-        t.start()
+        thread.start()
+    return thread, done_event
 
 
 # Dispatch table mapping types to default name + component
@@ -189,23 +212,24 @@ def load_file(filename, app):
 
     :param filename: The path to the file to be loaded.
     :param app: The running application instance providing app data and redraw hooks.
+    :return: ``(thread, done_event)`` tuple, or ``None`` if no loading was started.
     """
     global _appdata, _redraw_func
     _appdata = app.app_data
     _redraw_func = app.redraw
     if filename is None:
-        return
+        return None
 
     filename = str(filename)
     for loader in _custom_loaders:
         if loader(filename, app):
-            return
+            return None
 
     path = Path(filename)
     name = path.stem
     code = _build_loader_snippet(filename, name)
     script_globals = {"__name__": "__main__"}
-    _run_script(code, script_globals, app)
+    return _run_script(code, script_globals, app)
 
 
 def DrawBadElements(mesh: ngs.Mesh, threshold_3d=100, threshold_2d=20, intorder=4):
