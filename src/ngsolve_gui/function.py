@@ -133,6 +133,17 @@ class FunctionComponent(WebgpuTab):
                 s.get("complex_speed", 1.0), "complex_speed", converter=float
             )
 
+        # -- Entity number observables --
+        self.entity_number_entities = ["vertices", "edges", "facets", "surface_elements"]
+        if self.mesh.dim == 3:
+            self.entity_number_entities.append("volume_elements")
+        for entity in self.entity_number_entities:
+            key = f"{entity}_numbers_visible"
+            setattr(self, key, Observable(saved.get(key, False), key))
+        self.numbers_one_based = Observable(
+            saved.get("numbers_one_based", False), "numbers_one_based"
+        )
+
         super().__init__(name, data, app_data)
 
         # -- Wire GPU side-effects -----------------------------------------
@@ -156,6 +167,10 @@ class FunctionComponent(WebgpuTab):
             self.complex_mode.on_change(self._apply_complex_mode)
             self.complex_animate.on_change(self._apply_complex_animate)
             self.complex_speed.on_change(self._apply_complex_speed)
+        for entity in self.entity_number_entities:
+            obs = getattr(self, f"{entity}_numbers_visible")
+            obs.on_change(lambda val, _old, e=entity: self._apply_entity_numbers(e, val))
+        self.numbers_one_based.on_change(self._apply_numbers_one_based)
 
     # -- GPU side-effect handlers -------------------------------------------
 
@@ -234,6 +249,16 @@ class FunctionComponent(WebgpuTab):
             self.contact_pairs.active = val
         self.wgpu.scene.render()
 
+    def _apply_entity_numbers(self, entity, val):
+        self._entity_number_renderers[entity].active = val
+        self.wgpu.scene.render()
+
+    def _apply_numbers_one_based(self, val, _old):
+        for r in self._entity_number_renderers.values():
+            r.zero_based = not val
+            r.set_needs_update()
+        self.wgpu.scene.render()
+
     # -- Keybinding support -------------------------------------------------
 
     _COLORMAPS = ["viridis", "plasma", "cet_l20", "matlab:jet", "matplotlib:coolwarm"]
@@ -310,6 +335,16 @@ class FunctionComponent(WebgpuTab):
                 )
             )
 
+        num_bindings = [
+            ("v", lambda: self._toggle_numbers("vertices"), "Vertex numbers"),
+            ("e", lambda: self._toggle_numbers("edges"), "Edge numbers"),
+            ("f", lambda: self._toggle_numbers("facets"), "Facet numbers"),
+            ("s", lambda: self._toggle_numbers("surface_elements"), "Surface el. numbers"),
+        ]
+        if self.mesh.dim == 3:
+            num_bindings.append(("3", lambda: self._toggle_numbers("volume_elements"), "Volume el. numbers"))
+        kb["modes"].append(("n", "Numbers", num_bindings))
+
         return kb
 
     # -- Toggle methods (now one-liners) ------------------------------------
@@ -331,6 +366,9 @@ class FunctionComponent(WebgpuTab):
 
     def toggle_clipping_function(self):
         self.clipping_visible.toggle()
+
+    def _toggle_numbers(self, entity):
+        getattr(self, f"{entity}_numbers_visible").toggle()
 
     def _change_vector_density(self, factor):
         grid_size = max(10, int(self.vector_grid_size.value * factor))
@@ -562,6 +600,12 @@ class FunctionComponent(WebgpuTab):
             ]
             if obj is not None
         ]
+        self._entity_number_renderers = {}
+        for entity in self.entity_number_entities:
+            r = EntityNumbers(mdata, entity=entity, clipping=self.clipping, zero_based=not self.numbers_one_based.value)
+            r.active = getattr(self, f"{entity}_numbers_visible").value
+            self._entity_number_renderers[entity] = r
+        render_objects += list(self._entity_number_renderers.values())
         self.wgpu.draw(render_objects, camera=self.camera)
 
         def set_min_max():
@@ -582,6 +626,7 @@ from .sections import (
     VectorSection,
     FieldLinesSection,
     FunctionOptionsSection,
+    EntityNumbersSection,
 )
 
 register_component(
@@ -595,5 +640,6 @@ register_component(
         VectorSection,
         FieldLinesSection,
         FunctionOptionsSection,
+        EntityNumbersSection,
     ],
 )

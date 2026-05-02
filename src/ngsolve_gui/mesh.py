@@ -6,6 +6,7 @@ from webgpu.labels import Labels
 
 from .webgpu_tab import WebgpuTab
 import netgen.occ as ngocc
+from ngsolve_webgpu import EntityNumbers
 
 
 class MeshComponent(WebgpuTab):
@@ -50,6 +51,17 @@ class MeshComponent(WebgpuTab):
             saved.get("edge_colors", {}), "edge_colors"
         )
 
+        # -- Entity number observables --
+        self.entity_number_entities = ["vertices", "edges", "facets", "surface_elements"]
+        if self.mesh.dim == 3:
+            self.entity_number_entities.append("volume_elements")
+        for entity in self.entity_number_entities:
+            key = f"{entity}_numbers_visible"
+            setattr(self, key, Observable(saved.get(key, False), key))
+        self.numbers_one_based = Observable(
+            saved.get("numbers_one_based", False), "numbers_one_based"
+        )
+
         super().__init__(name, data, app_data)
 
         # -- Wire GPU side-effects after draw() has created render objects --
@@ -60,6 +72,10 @@ class MeshComponent(WebgpuTab):
         self.shrink_value.on_change(self._apply_shrink)
         self.mesh_curvature_enabled.on_change(self._apply_curvature)
         self.mesh_curvature_order.on_change(self._apply_curvature_order)
+        for entity in self.entity_number_entities:
+            obs = getattr(self, f"{entity}_numbers_visible")
+            obs.on_change(lambda val, _old, e=entity: self._apply_entity_numbers(e, val))
+        self.numbers_one_based.on_change(self._apply_numbers_one_based)
 
     # -- GPU side-effect handlers -------------------------------------------
 
@@ -95,6 +111,16 @@ class MeshComponent(WebgpuTab):
         self.mdata.set_needs_update()
         self.draw()
 
+    def _apply_entity_numbers(self, entity, val):
+        self._entity_number_renderers[entity].active = val
+        self.wgpu.scene.render()
+
+    def _apply_numbers_one_based(self, val, _old):
+        for r in self._entity_number_renderers.values():
+            r.zero_based = not val
+            r.set_needs_update()
+        self.wgpu.scene.render()
+
     # -- Keybinding support -------------------------------------------------
 
     def get_keybindings(self):
@@ -110,6 +136,15 @@ class MeshComponent(WebgpuTab):
         kb["modes"].append(("s", "Show", show))
         if self.mesh.dim == 3:
             kb["modes"].append(("c", "Clipping", self._clipping_mode_bindings()))
+        num_bindings = [
+            ("v", lambda: self._toggle_numbers("vertices"), "Vertex numbers"),
+            ("e", lambda: self._toggle_numbers("edges"), "Edge numbers"),
+            ("f", lambda: self._toggle_numbers("facets"), "Facet numbers"),
+            ("s", lambda: self._toggle_numbers("surface_elements"), "Surface el. numbers"),
+        ]
+        if self.mesh.dim == 3:
+            num_bindings.append(("3", lambda: self._toggle_numbers("volume_elements"), "Volume el. numbers"))
+        kb["modes"].append(("n", "Numbers", num_bindings))
         return kb
 
     def toggle_wireframe(self):
@@ -123,6 +158,9 @@ class MeshComponent(WebgpuTab):
 
     def toggle_elements_3d(self):
         self.elements3d_visible.toggle()
+
+    def _toggle_numbers(self, entity):
+        getattr(self, f"{entity}_numbers_visible").toggle()
 
     def update(self, title, mesh, settings):
         self.title = title
@@ -177,6 +215,12 @@ class MeshComponent(WebgpuTab):
             font_size=14,
         )
 
+        self._entity_number_renderers = {}
+        for entity in self.entity_number_entities:
+            r = EntityNumbers(self.mdata, entity=entity, clipping=self.clipping, zero_based=not self.numbers_one_based.value)
+            r.active = getattr(self, f"{entity}_numbers_visible").value
+            self._entity_number_renderers[entity] = r
+
         render_objects = [
             obj
             for obj in [
@@ -188,16 +232,17 @@ class MeshComponent(WebgpuTab):
             ]
             if obj is not None
         ]
+        render_objects += list(self._entity_number_renderers.values())
         self.wgpu.draw(render_objects, camera=self.camera)
 
 
 # Register with the component registry
 from .registry import register_component
-from .sections import MeshViewSection, MeshColorSection, ClippingSection
+from .sections import MeshViewSection, MeshColorSection, ClippingSection, EntityNumbersSection
 
 register_component(
     "mesh",
     icon="mdi-vector-triangle",
     component_class=MeshComponent,
-    sections=[MeshViewSection, MeshColorSection, ClippingSection],
+    sections=[MeshViewSection, MeshColorSection, ClippingSection, EntityNumbersSection],
 )

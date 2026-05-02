@@ -8,3 +8,4 @@ from .mesh_colors import MeshColorSection
 from .function_options import FunctionOptionsSection
 from .geometry_options import GeometryOptionsSection
 from .geometry_selection import GeometrySelectionSection
+from .entity_numbers import EntityNumbersSection
