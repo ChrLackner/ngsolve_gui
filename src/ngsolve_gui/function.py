@@ -80,6 +80,12 @@ class FunctionComponent(WebgpuTab):
             or s.get("vector_grid_size", 200),
             "vector_grid_size",
         )
+        self.vector_scale = Observable(
+            s.get("vector_scale", 1.0), "vector_scale", converter=float
+        )
+        self.vector_scale_by_value = Observable(
+            s.get("vector_scale_by_value", True), "vector_scale_by_value",
+        )
         self.deformation_enabled = Observable(
             data.get("deformation", None) is not None
             or s.get("deformation_enabled", False),
@@ -128,6 +134,8 @@ class FunctionComponent(WebgpuTab):
         self.field_lines_visible.on_change(self._apply_fieldlines)
         self.clipping_visible.on_change(self._apply_clipping_function)
         self.vector_grid_size.on_change(self._apply_vector_grid_size)
+        self.vector_scale.on_change(self._apply_vector_scale)
+        self.vector_scale_by_value.on_change(self._apply_vector_scale_by_value)
         self.deformation_enabled.on_change(self._apply_deformation_toggle)
         self.deformation_scale.on_change(self._apply_deformation_scale)
         self.deformation_scale2.on_change(self._apply_deformation_scale)
@@ -174,6 +182,18 @@ class FunctionComponent(WebgpuTab):
         if self.surface_vectors is not None:
             self.surface_vectors.set_grid_size(val)
             self.surface_vectors.set_needs_update()
+        self.wgpu.scene.render()
+
+    def _apply_vector_scale(self, val, _old):
+        for r in self._vector_renderers:
+            r.user_scale = val
+            r.set_needs_update()
+        self.wgpu.scene.render()
+
+    def _apply_vector_scale_by_value(self, val, _old):
+        for r in self._vector_renderers:
+            r.scale_by_value = val
+            r.set_needs_update()
         self.wgpu.scene.render()
 
     def _apply_deformation_toggle(self, val, _old):
@@ -333,6 +353,10 @@ class FunctionComponent(WebgpuTab):
         self.redraw()
         self.wgpu.scene.render()
 
+    @property
+    def _vector_renderers(self):
+        return [r for r in [self.clipping_vectors, self.surface_vectors] if r is not None]
+
     def toggle_autoscale(self):
         self.colormap_autoscale.toggle()
 
@@ -397,7 +421,9 @@ class FunctionComponent(WebgpuTab):
                 clipping=self.clipping,
                 colormap=self.colormap,
                 grid_size=self.vector_grid_size.value,
+                scale_by_value=self.vector_scale_by_value.value,
             )
+            self.surface_vectors.user_scale = self.vector_scale.value
             self.surface_vectors.active = self.surface_vectors_visible.value
         else:
             self.surface_vectors = None
@@ -426,7 +452,9 @@ class FunctionComponent(WebgpuTab):
                     clipping=self.clipping,
                     colormap=self.colormap,
                     grid_size=self.vector_grid_size.value,
+                    scale_by_value=self.vector_scale_by_value.value,
                 )
+                self.clipping_vectors.user_scale = self.vector_scale.value
                 self.clipping_vectors.active = self.clipping_vectors_visible.value
         else:
             self.clippingcf = None

@@ -61,6 +61,21 @@ class VectorSection(QExpansionItem):
         self.grid_size.on_update_model_value(self._update_grid_size)
         comps.append(self.grid_size)
 
+        self.scale_by_value = QCheckbox(
+            ui_label="Scale by magnitude",
+            ui_model_value=comp.vector_scale_by_value,
+        )
+        comps.append(self.scale_by_value)
+
+        self.vector_scale = QSlider(
+            ui_label="Vector Size",
+            ui_model_value=comp.vector_scale,
+            ui_min=0.1,
+            ui_max=5.0,
+            ui_step=0.1,
+        )
+        comps.append(self.vector_scale)
+
         super().__init__(
             *comps,
             ui_icon="mdi-arrow-top-right-thin",
