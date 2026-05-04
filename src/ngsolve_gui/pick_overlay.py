@@ -9,9 +9,10 @@ class PickOverlay(Div):
     _STYLE = (
         "position: absolute; bottom: 8px; right: 8px; "
         "background: rgba(15,23,42,0.82); backdrop-filter: blur(4px); "
-        "color: #e2e8f0; font-size: 12px; font-family: monospace; "
-        "border-radius: 6px; padding: 4px 10px; "
+        "color: #e2e8f0; font-size: 14px; font-family: monospace; "
+        "border-radius: 6px; padding: 5px 12px; "
         "pointer-events: none; white-space: pre; "
+        "min-width: 340px; "
         "transition: opacity 0.15s; z-index: 10;"
     )
 

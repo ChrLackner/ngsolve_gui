@@ -60,12 +60,15 @@ class MeshViewSection(QExpansionItem):
         )
         draw_geo_btn.on_click(self._draw_geometry)
 
+        picking = QCheckbox("Highlight on Hover", ui_model_value=comp.picking_enabled)
+
         super().__init__(
             *options,
             Div("Shrink", ui_style="font-size: 0.85rem; padding-top: 8px;"),
             Div(shrink, ui_style="width: 100%; padding: 0 4px;"),
             curving_row,
             draw_geo_btn,
+            picking,
             ui_icon="mdi-eye",
             ui_label="View Options",
         )

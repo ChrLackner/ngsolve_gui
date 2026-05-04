@@ -54,54 +54,58 @@ class GeometrySelectionSection(QExpansionItem):
         # Let the component notify us on selection changes
         comp._selection_section = self
 
+    def _entity_name_maxh(self, kind, index):
+        """Return (name, maxh) for an entity, using the component helper."""
+        entity = self.comp._get_entity(kind, index)
+        if entity is None:
+            return ("", None)
+        raw_maxh = entity.maxh
+        return (entity.name or "", None if raw_maxh >= 1e99 else raw_maxh)
+
     def update_selection(self, kind, index):
-        """Called by GeometryComponent when a face/edge/vertex/solid is selected."""
-        geo = self.comp.geo
-        if kind == "face":
-            face = geo.faces[index]
-            self._heading.ui_children = [f"Face {index}"]
-            self.meshsize_input.ui_model_value = (
-                None if face.maxh >= 1e99 else face.maxh
-            )
-            self.name_input.ui_model_value = face.name
-            self.meshsize_input.ui_disable = False
-            self.name_input.ui_disable = False
-        elif kind == "edge":
-            edge = geo.edges[index]
-            self._heading.ui_children = [f"Edge {index}"]
-            self.meshsize_input.ui_model_value = (
-                None if edge.maxh >= 1e99 else edge.maxh
-            )
-            self.name_input.ui_model_value = edge.name
-            self.meshsize_input.ui_disable = False
-            self.name_input.ui_disable = False
-        elif kind == "vertex":
-            self._heading.ui_children = [f"Vertex {index}"]
-            self.meshsize_input.ui_model_value = None
+        """Called by GeometryComponent when a single entity is selected."""
+        label = {"face": "Face", "edge": "Edge", "vertex": "Vertex", "solid": "Solid"}.get(kind, kind)
+        self._heading.ui_children = [f"{label} {index}"]
+        name, maxh = self._entity_name_maxh(kind, index)
+        self.meshsize_input.ui_model_value = maxh
+        self.meshsize_input.ui_hint = ""
+        self.name_input.ui_model_value = name
+        self.name_input.ui_hint = ""
+        self.meshsize_input.ui_disable = False
+        self.name_input.ui_disable = False
+        self.ui_model_value = True
+
+    def update_multi_selection(self, items):
+        """Called when multiple entities are selected."""
+        self._heading.ui_children = [f"{len(items)} selected"]
+        names = set()
+        maxhs = set()
+        for kind, idx in items:
+            name, maxh = self._entity_name_maxh(kind, idx)
+            names.add(name)
+            maxhs.add(maxh)
+        if len(names) == 1:
+            self.name_input.ui_model_value = names.pop()
+            self.name_input.ui_hint = ""
+        else:
             self.name_input.ui_model_value = ""
-            self.meshsize_input.ui_disable = True
-            self.name_input.ui_disable = True
-        elif kind == "solid":
-            solid_name = ""
-            try:
-                solid_name = list(self.comp.geo.shape.solids)[index].name or ""
-            except Exception:
-                pass
-            heading = f"Solid {index}"
-            if solid_name:
-                heading += f"  ({solid_name})"
-            self._heading.ui_children = [heading]
+            self.name_input.ui_hint = "Multiple values"
+        if len(maxhs) == 1:
+            self.meshsize_input.ui_model_value = maxhs.pop()
+            self.meshsize_input.ui_hint = ""
+        else:
             self.meshsize_input.ui_model_value = None
-            self.name_input.ui_model_value = ""
-            self.meshsize_input.ui_disable = True
-            self.name_input.ui_disable = True
-        # Auto-expand when something is selected
+            self.meshsize_input.ui_hint = "Multiple values"
+        self.meshsize_input.ui_disable = False
+        self.name_input.ui_disable = False
         self.ui_model_value = True
 
     def clear_selection(self):
         """Reset the panel to no-selection state."""
         self._heading.ui_children = ["No selection"]
         self.meshsize_input.ui_model_value = None
+        self.meshsize_input.ui_hint = ""
         self.name_input.ui_model_value = ""
+        self.name_input.ui_hint = ""
         self.meshsize_input.ui_disable = True
         self.name_input.ui_disable = True

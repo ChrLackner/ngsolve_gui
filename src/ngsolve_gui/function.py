@@ -248,16 +248,16 @@ class FunctionComponent(WebgpuTab):
         """Show element, region, position, and solution value."""
         pos = result.world_pos
         val = result.evaluate(self.cf, self.mesh)
-        parts = [
-            f"{result.kind_label} El {result.element_nr}  {result.region_name}",
-            f"({pos[0]:.4g}, {pos[1]:.4g}, {pos[2]:.4g})",
-        ]
+        label = f"{result.kind_label} El {result.element_nr}"
+        region = result.region_name or ""
+        coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
+        text = f"{label:<14s} {region:<12s} {coords}"
         if val is not None:
             if val.size == 1:
-                parts.append(f"val={float(val):.6g}")
+                text += f"  val={float(val):>12.6f}"
             else:
-                parts.append(f"val=[{', '.join(f'{v:.4g}' for v in val.flat)}]")
-        return "  ".join(parts)
+                text += f"  val=[{', '.join(f'{v:>9.4f}' for v in val.flat)}]"
+        return text
 
     def _apply_contact(self, val, _old):
         if self.contact_pairs is not None:

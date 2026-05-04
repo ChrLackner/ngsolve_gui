@@ -13,6 +13,7 @@ class GeometryComponent(WebgpuTab):
         self.selected = None
         self._selected_items = []  # list of (kind, index) — ordered, no dups
         self._selection_section = None
+        self._picking_always_active = True
         tab = app_data.get_tab(name)
         s = tab.get("settings", {}) if tab else {}
         self.show_edges = Observable(s.get("show_edges", True), "show_edges")
@@ -126,6 +127,21 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer.edges.set_colors(colors)
         self.wgpu.scene.render()
 
+    def _get_entity(self, kind, index):
+        """Return the OCC shape object for a (kind, index) selection."""
+        try:
+            if kind == "face":
+                return self.geo.faces[index]
+            elif kind == "edge":
+                return self.geo.edges[index]
+            elif kind == "vertex":
+                return list(self.geo.shape.vertices)[index]
+            elif kind == "solid":
+                return list(self.geo.shape.solids)[index]
+        except (IndexError, Exception):
+            pass
+        return None
+
     def change_maxh(self, event):
         value = event.value
         try:
@@ -137,12 +153,10 @@ class GeometryComponent(WebgpuTab):
                     raise ValueError("Max mesh size must be positive.")
             if self._selection_section:
                 self._selection_section.meshsize_input.ui_error = False
-            if self.selected[0] == "face":
-                face = self.geo.faces[self.selected[1]]
-                face.maxh = value if value is not None else 1e99
-            elif self.selected[0] == "edge":
-                edge = self.geo.edges[self.selected[1]]
-                edge.maxh = value if value is not None else 1e99
+            for kind, idx in self._selected_items:
+                entity = self._get_entity(kind, idx)
+                if entity is not None:
+                    entity.maxh = value if value is not None else 1e99
         except ValueError as e:
             if self._selection_section:
                 self._selection_section.meshsize_input.ui_error_message = str(e)
@@ -153,12 +167,10 @@ class GeometryComponent(WebgpuTab):
         try:
             if value == "":
                 value = None
-            if self.selected[0] == "face":
-                face = self.geo.faces[self.selected[1]]
-                face.name = value
-            elif self.selected[0] == "edge":
-                edge = self.geo.edges[self.selected[1]]
-                edge.name = value
+            for kind, idx in self._selected_items:
+                entity = self._get_entity(kind, idx)
+                if entity is not None:
+                    entity.name = value
             if self._selection_section:
                 self._selection_section.name_input.ui_error = False
         except ValueError as e:
@@ -203,7 +215,7 @@ class GeometryComponent(WebgpuTab):
         try:
             result = GeoPickResult(event, self.geo, self.scene.options.camera)
             pos = result.world_pos
-            pos_str = f"({pos[0]:.4g}, {pos[1]:.4g}, {pos[2]:.4g})"
+            coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
             hl = self._highlight
 
             if self.pick_solid.value and result.geo_type == 2:
@@ -213,15 +225,14 @@ class GeometryComponent(WebgpuTab):
                     solid_name = list(self.geo.shape.solids)[solid_idx].name or ""
                 except Exception:
                     pass
-                name_part = f"  {solid_name}" if solid_name else ""
-                text = f"Solid {solid_idx}{name_part}  {pos_str}"
+                text = f"{'Solid':<8s}{solid_idx:<6d} {solid_name:<12s} {coords}"
                 hl.renderer_id = event.obj_id
                 hl.element_id = 0xFFFFFFFF
                 hl.region_index = 0xFFFFFFFF
                 hl.solid_index = solid_idx
             else:
-                name_part = f"  {result.name}" if result.name else ""
-                text = f"{result.kind_label} {result.index}{name_part}  {pos_str}"
+                name = result.name or ""
+                text = f"{result.kind_label:<8s}{result.index:<6d} {name:<12s} {coords}"
                 hl.renderer_id = event.obj_id
                 hl.element_id = 0xFFFFFFFF
                 hl.region_index = result.index
@@ -323,10 +334,14 @@ class GeometryComponent(WebgpuTab):
         if not self._selected_items:
             self.selected = None
             self._selection_section.clear_selection()
+        elif len(self._selected_items) == 1:
+            kind, idx = self._selected_items[0]
+            self.selected = (kind, idx)
+            self._selection_section.update_selection(kind, idx)
         else:
             kind, idx = self._selected_items[-1]
             self.selected = (kind, idx)
-            self._selection_section.update_selection(kind, idx)
+            self._selection_section.update_multi_selection(self._selected_items)
 
     def _on_pick_solid_change(self, val, _old):
         if self._updating_pick_modes:

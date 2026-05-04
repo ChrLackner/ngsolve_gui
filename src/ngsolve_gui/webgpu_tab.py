@@ -26,6 +26,14 @@ class WebgpuTab(Div):
             _usersettings.get("navcube_visible", False), "navcube_visible"
         )
 
+        # -- Picking (persisted; geometry overrides via _picking_always_active) --
+        if getattr(self, '_picking_always_active', False):
+            self.picking_enabled = Observable(True, "picking_enabled")
+        else:
+            self.picking_enabled = Observable(
+                _usersettings.get("picking_enabled", False), "picking_enabled"
+            )
+
         self.coordinate_axes = CoordinateAxes()
         self.coordinate_axes.active = self.axes_visible.value
         self.navigation_cube = NavigationCube()
@@ -92,6 +100,7 @@ class WebgpuTab(Div):
         # Wire gizmo visibility
         self.axes_visible.on_change(self._apply_axes_visible)
         self.navcube_visible.on_change(self._apply_navcube_visible)
+        self.picking_enabled.on_change(self._apply_picking_enabled)
 
         # Wire nav cube face selection
         self.navigation_cube.faces.on_select(self._on_navcube_select)
@@ -122,6 +131,17 @@ class WebgpuTab(Div):
 
     def toggle_navcube(self):
         self.navcube_visible.toggle()
+
+    def toggle_picking(self):
+        self.picking_enabled.toggle()
+
+    def _apply_picking_enabled(self, val, _old):
+        if not getattr(self, '_picking_always_active', False):
+            _usersettings.set("picking_enabled", val)
+        if not val and hasattr(self, '_highlight'):
+            self._clear_highlight()
+            self.pick_overlay.hide()
+            self.scene.render()
 
     # -- Nav cube click-to-view --
 
@@ -245,6 +265,8 @@ class WebgpuTab(Div):
                 self.pick_overlay.show_text(text)
             else:
                 self.pick_overlay.hide()
+            if not self.picking_enabled.value:
+                return
             hl = self._highlight
             hl.renderer_id = event.obj_id
             if getattr(self, '_shift_hover', False):
@@ -273,10 +295,10 @@ class WebgpuTab(Div):
     def _format_pick_result(self, result):
         """Format pick result for display. Override in subclasses."""
         pos = result.world_pos
-        return (
-            f"{result.kind_label} El {result.element_nr}  {result.region_name}  "
-            f"({pos[0]:.4g}, {pos[1]:.4g}, {pos[2]:.4g})"
-        )
+        label = f"{result.kind_label} El {result.element_nr}"
+        region = result.region_name or ""
+        coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
+        return f"{label:<14s} {region:<12s} {coords}"
 
     @property
     def clipping(self):
@@ -316,6 +338,10 @@ class WebgpuTab(Div):
                 ],
             ),
         ]
+        if not getattr(self, '_picking_always_active', False):
+            modes.append(
+                ("p", "Pick", [("a", self.toggle_picking, "Toggle highlight")])
+            )
         return {"flat": flat, "modes": modes}
 
     def _gizmo_show_bindings(self):

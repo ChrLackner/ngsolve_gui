@@ -74,6 +74,9 @@ class FunctionOptionsSection(QExpansionItem):
         draw_mesh.on_click(self._draw_mesh)
         items.append(draw_mesh)
 
+        picking = QCheckbox("Highlight on Hover", ui_model_value=comp.picking_enabled)
+        items.append(picking)
+
         super().__init__(
             *items,
             ui_icon="mdi-cog-outline",
