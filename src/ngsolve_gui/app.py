@@ -144,7 +144,7 @@ class StatusBar(Div):
         self._thread = thread
         self._done_event = done_event
         self._thread_name = thread.name if thread else ""
-        self._label.ui_children = [f"Loading {filename} \u2026"]
+        self._label.ui_children = [f"Running {filename} \u2026"]
         self._pct_label.ui_children = [""]
         self._bar_fill.ui_style = (
             "height: 100%; width: 100%; border-radius: 3px; "
