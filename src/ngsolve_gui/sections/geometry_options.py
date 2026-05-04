@@ -37,6 +37,10 @@ class GeometryOptionsSection(QExpansionItem):
             ui_label="Show Edges",
             ui_model_value=comp.show_edges,
         )
+        self.show_vertices = QCheckbox(
+            ui_label="Show Vertices",
+            ui_model_value=comp.show_vertices,
+        )
 
         self.create_mesh_btn = QBtn(
             ui_label="Create Mesh",
@@ -72,6 +76,7 @@ class GeometryOptionsSection(QExpansionItem):
 
         super().__init__(
             self.show_edges,
+            self.show_vertices,
             self.create_mesh_btn,
             Heading("Meshing Parameters", 6),
             self.maxh,

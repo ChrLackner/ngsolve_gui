@@ -217,8 +217,8 @@ class WebgpuTab(Div):
         for r, kind in renderers:
             r.on_select(lambda ev, k=kind: self._on_pick_select(ev, k))
         self.scene.on_click_background(self._on_pick_background)
-        self.scene.input_handler.on_mousemove(self._on_pick_hover, shift=None)
-        self.scene.input_handler.on_mouseout(self._on_pick_out, shift=None)
+        self.scene.input_handler.on_mousemove(self._on_pick_hover)
+        self.scene.input_handler.on_mouseout(self._on_pick_out)
 
     def _on_pick_hover(self, ev):
         if ev["buttons"] == 0 and self.scene.canvas is not None:
@@ -265,6 +265,7 @@ class WebgpuTab(Div):
         hl.renderer_id = 0
         hl.element_id = 0xFFFFFFFF
         hl.region_index = 0xFFFFFFFF
+        hl.solid_index = 0xFFFFFFFF
         hl.update_buffer()
 
 
