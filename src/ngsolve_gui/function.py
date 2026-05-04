@@ -244,6 +244,21 @@ class FunctionComponent(WebgpuTab):
             )
             self.wgpu.scene.render()
 
+    def _format_pick_result(self, result):
+        """Show element, region, position, and solution value."""
+        pos = result.world_pos
+        val = result.evaluate(self.cf, self.mesh)
+        parts = [
+            f"{result.kind_label} El {result.element_nr}  {result.region_name}",
+            f"({pos[0]:.4g}, {pos[1]:.4g}, {pos[2]:.4g})",
+        ]
+        if val is not None:
+            if val.size == 1:
+                parts.append(f"val={float(val):.6g}")
+            else:
+                parts.append(f"val=[{', '.join(f'{v:.4g}' for v in val.flat)}]")
+        return "  ".join(parts)
+
     def _apply_contact(self, val, _old):
         if self.contact_pairs is not None:
             self.contact_pairs.active = val
@@ -610,6 +625,12 @@ class FunctionComponent(WebgpuTab):
             self._entity_number_renderers[entity] = r
         render_objects += list(self._entity_number_renderers.values())
         self.wgpu.draw(render_objects, camera=self.camera)
+
+        pickable = [(r, k) for r, k in [
+            (self.elements2d, "surface"),
+            (self.clippingcf, "clipping"),
+        ] if r is not None]
+        self.setup_picking(pickable, self.mesh)
 
         def set_min_max():
             self.colormap_min.value = float(self.colormap.minval)

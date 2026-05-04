@@ -3,6 +3,9 @@ from ngapp.utils import UserSettings
 from webgpu import Scene, CoordinateAxes, NavigationCube
 
 _usersettings = UserSettings(app_id="NGSolve GUI")
+from webgpu import Scene
+from ngsolve_webgpu.pick import MeshPickResult, HighlightUniforms
+from .pick_overlay import PickOverlay
 
 
 class WebgpuTab(Div):
@@ -49,9 +52,12 @@ class WebgpuTab(Div):
         )
         self.reset_camera_btn.on_click(self.reset_camera)
 
+        self.pick_overlay = PickOverlay()
+
         super().__init__(
             self.wgpu,
             self.reset_camera_btn,
+            self.pick_overlay,
             ui_style="position: relative; width: 100%; height: 100%;",
         )
 
@@ -192,6 +198,84 @@ class WebgpuTab(Div):
             camera = self.scene.options.camera
             camera.reset(pmin, pmax)
             self.scene.render()
+
+    # -- Picking support ---------------------------------------------------
+
+    def setup_picking(self, renderers, mesh):
+        """Register hover picking on the given renderers.
+
+        Call this at the end of draw() in subclasses.
+        Args:
+            renderers: list of (Renderer, kind) tuples where kind is
+                       "surface", "volume", or "clipping"
+            mesh: the ngsolve/netgen mesh for interpreting results
+        """
+        self._pick_mesh = mesh
+        self._pick_renderers = renderers
+        self._highlight = HighlightUniforms()
+        self.scene.options.add_bindings(self._highlight)
+        for r, kind in renderers:
+            r.on_select(lambda ev, k=kind: self._on_pick_select(ev, k))
+        self.scene.on_click_background(self._on_pick_background)
+        self.scene.input_handler.on_mousemove(self._on_pick_hover, shift=None)
+        self.scene.input_handler.on_mouseout(self._on_pick_out, shift=None)
+
+    def _on_pick_hover(self, ev):
+        if ev["buttons"] == 0 and self.scene.canvas is not None:
+            self._shift_hover = ev.get("shiftKey", False)
+            self.scene.select(ev["canvasX"], ev["canvasY"])
+
+    def _on_pick_out(self, ev):
+        if not hasattr(self, '_pick_mesh'):
+            return
+        self._clear_highlight()
+        self.pick_overlay.hide()
+        self.scene.render()
+
+    def _on_pick_background(self, ev):
+        self._clear_highlight()
+        self.pick_overlay.hide()
+        self.scene._render_highlight()
+
+    def _on_pick_select(self, event, kind="surface"):
+        try:
+            result = MeshPickResult(event, self._pick_mesh, self.scene.options.camera, kind=kind)
+            text = self._format_pick_result(result)
+            if text:
+                self.pick_overlay.show_text(text)
+            else:
+                self.pick_overlay.hide()
+            hl = self._highlight
+            hl.renderer_id = event.obj_id
+            if getattr(self, '_shift_hover', False):
+                # Shift+hover: highlight entire region
+                hl.element_id = 0xFFFFFFFF
+                hl.region_index = result.region_index
+            else:
+                # Normal hover: highlight single element
+                hl.element_id = result.element_nr
+                hl.region_index = 0xFFFFFFFF
+            hl.update_buffer()
+            self.scene._render_highlight()
+        except Exception:
+            self.pick_overlay.hide()
+
+    def _clear_highlight(self):
+        hl = self._highlight
+        hl.renderer_id = 0
+        hl.element_id = 0xFFFFFFFF
+        hl.region_index = 0xFFFFFFFF
+        hl.update_buffer()
+
+
+
+    def _format_pick_result(self, result):
+        """Format pick result for display. Override in subclasses."""
+        pos = result.world_pos
+        return (
+            f"{result.kind_label} El {result.element_nr}  {result.region_name}  "
+            f"({pos[0]:.4g}, {pos[1]:.4g}, {pos[2]:.4g})"
+        )
 
     @property
     def clipping(self):

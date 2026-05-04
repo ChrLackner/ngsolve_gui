@@ -238,6 +238,12 @@ class MeshComponent(WebgpuTab):
         render_objects += list(self._entity_number_renderers.values())
         self.wgpu.draw(render_objects, camera=self.camera)
 
+        pickable = [(r, k) for r, k in [
+            (self.elements2d, "surface"),
+            (self.elements3d, "volume"),
+        ] if r is not None]
+        self.setup_picking(pickable, self.mesh)
+
 
 # Register with the component registry
 from .registry import register_component
