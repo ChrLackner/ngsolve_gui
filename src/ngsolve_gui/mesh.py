@@ -132,6 +132,7 @@ class MeshComponent(WebgpuTab):
         ]
         if self.mesh.dim == 3:
             show.append(("3", self.toggle_elements_3d, "Toggle elements 3D"))
+        show += self._gizmo_show_bindings()
         kb["flat"].append(("w", self.toggle_wireframe, "Toggle wireframe", "General"))
         kb["modes"].append(("s", "Show", show))
         if self.mesh.dim == 3:
@@ -229,6 +230,8 @@ class MeshComponent(WebgpuTab):
                 self.elements3d,
                 self.elements1d,
                 self.mesh_info,
+                self.coordinate_axes,
+                self.navigation_cube,
             ]
             if obj is not None
         ]

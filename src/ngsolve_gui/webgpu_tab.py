@@ -1,5 +1,8 @@
 from ngapp.components import *
-from webgpu import Scene
+from ngapp.utils import UserSettings
+from webgpu import Scene, CoordinateAxes, NavigationCube
+
+_usersettings = UserSettings(app_id="NGSolve GUI")
 
 
 class WebgpuTab(Div):
@@ -11,6 +14,19 @@ class WebgpuTab(Div):
         self.wgpu = WebgpuComponent()
         self.wgpu.ui_style = "width: 100%; height: 100%;"
         self.icon = "mdi-vector-triangle"
+
+        # -- Gizmo visibility (persisted in user settings) --
+        self.axes_visible = Observable(
+            _usersettings.get("axes_visible", True), "axes_visible"
+        )
+        self.navcube_visible = Observable(
+            _usersettings.get("navcube_visible", False), "navcube_visible"
+        )
+
+        self.coordinate_axes = CoordinateAxes()
+        self.coordinate_axes.active = self.axes_visible.value
+        self.navigation_cube = NavigationCube()
+        self.navigation_cube.active = self.navcube_visible.value
 
         # Observable for clipping state
         if not hasattr(self, 'clipping_enabled'):
@@ -41,6 +57,13 @@ class WebgpuTab(Div):
 
         self.draw()
         self.reset_camera()
+
+        # Enable selection on right-click (needed for nav cube)
+        def _on_click_select(event):
+            if event["button"] == 2:
+                self.scene.select(event["canvasX"], event["canvasY"])
+        self.scene.input_handler.on_click(_on_click_select)
+
         self.clipping.center = 0.5 * (
             self.scene.bounding_box[1] + self.scene.bounding_box[0]
         )
@@ -60,13 +83,54 @@ class WebgpuTab(Div):
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
         self.scene.input_handler.on_wheel(self._on_wheel, ctrl=True)
 
+        # Wire gizmo visibility
+        self.axes_visible.on_change(self._apply_axes_visible)
+        self.navcube_visible.on_change(self._apply_navcube_visible)
+
+        # Wire nav cube face selection
+        self.navigation_cube.faces.on_select(self._on_navcube_select)
+
         # Wire clipping observable after scene is ready
         self.clipping_enabled.on_change(self._apply_clipping_enabled)
+
         def redraw_if_needed():
             if self._redraw_needed:
                 self.redraw()
 
         self.on_mounted(redraw_if_needed)
+
+    # -- Gizmo visibility handlers --
+
+    def _apply_axes_visible(self, val, _old):
+        self.coordinate_axes.active = val
+        _usersettings.set("axes_visible", val)
+        self.scene.render()
+
+    def _apply_navcube_visible(self, val, _old):
+        self.navigation_cube.active = val
+        _usersettings.set("navcube_visible", val)
+        self.scene.render()
+
+    def toggle_axes(self):
+        self.axes_visible.toggle()
+
+    def toggle_navcube(self):
+        self.navcube_visible.toggle()
+
+    # -- Nav cube click-to-view --
+
+    def _on_navcube_select(self, event):
+        face_id = event.uint32[1]
+        views = NavigationCube.FACE_VIEWS
+        if face_id >= len(views):
+            return
+        view = views[face_id]
+        camera = self.scene.options.camera
+        if view.endswith("_flip"):
+            getattr(camera, f"reset_{view[:-5]}")(flip=True)
+        else:
+            getattr(camera, f"reset_{view}")()
+        self.scene.render()
 
     def redraw(self):
         self._redraw_needed = False
@@ -168,6 +232,13 @@ class WebgpuTab(Div):
             ),
         ]
         return {"flat": flat, "modes": modes}
+
+    def _gizmo_show_bindings(self):
+        """Return show-mode bindings for gizmo toggles. Subclasses append to their 'Show' mode."""
+        return [
+            ("a", self.toggle_axes, "Toggle axes"),
+            ("n", self.toggle_navcube, "Toggle nav cube"),
+        ]
 
     def set_view(self, plane):
         """Set camera to a standard view (``"xy"``, ``"xz"``, or ``"yz"``)."""

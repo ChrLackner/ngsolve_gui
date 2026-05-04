@@ -31,7 +31,7 @@ class GeometryComponent(WebgpuTab):
                 "Show",
                 [
                     ("e", self.toggle_edges, "Toggle edges"),
-                ],
+                ] + self._gizmo_show_bindings(),
             )
         )
         kb["modes"].append(("c", "Clipping", self._clipping_mode_bindings()))
@@ -161,7 +161,7 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer.faces.on_select(self.select_face)
         self.geo_renderer.edges.on_select(self.selected_edge)
         self.geo_renderer.edges.active = self.show_edges.value
-        scene = self.wgpu.draw([self.geo_renderer], camera=self.app_data.camera)
+        scene = self.wgpu.draw([self.geo_renderer, self.coordinate_axes, self.navigation_cube], camera=self.app_data.camera)
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
 
         def on_click(event):

@@ -280,6 +280,7 @@ class FunctionComponent(WebgpuTab):
         if self.surface_vectors is not None or self.clipping_vectors is not None:
             show.append(("+", self.increase_vector_density, "Increase vector density"))
             show.append(("-", self.decrease_vector_density, "Decrease vector density"))
+        show += self._gizmo_show_bindings()
         kb["modes"].append(("s", "Show", show))
 
         # c → Clipping (3D only)
@@ -597,6 +598,8 @@ class FunctionComponent(WebgpuTab):
                 self.clipping_vectors,
                 self.surface_vectors,
                 self.fieldlines,
+                self.coordinate_axes,
+                self.navigation_cube,
             ]
             if obj is not None
         ]
