@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from ngapp.components import *
 
 from ngsolve_webgpu import *
@@ -26,6 +28,8 @@ class GeometryComponent(WebgpuTab):
         self.pick_faces = Observable(True, "pick_faces")
         self.pick_edges = Observable(True, "pick_edges")
         self.pick_vertices = Observable(False, "pick_vertices")
+        self._hidden_solids = set()  # set of hidden solid indices
+        self._face_to_solids = defaultdict(set)  # face_idx -> set of solid indices
         super().__init__(name, data, app_data)
         self.show_edges.on_change(self._apply_show_edges)
         self.show_vertices.on_change(self._apply_show_vertices)
@@ -46,6 +50,8 @@ class GeometryComponent(WebgpuTab):
                 [
                     ("e", self.toggle_edges, "Toggle edges"),
                     ("v", self.toggle_vertices, "Toggle vertices"),
+                    ("h", self._hide_selected_shape, "Hide selected"),
+                    ("u", self._show_all_shapes, "Unhide all"),
                 ] + self._gizmo_show_bindings(),
             )
         )
@@ -117,6 +123,7 @@ class GeometryComponent(WebgpuTab):
         return self.app_data.clipping
 
     def _show_all_shapes(self):
+        self._hidden_solids.clear()
         colors = self.geo_renderer.faces.colors
         for i in range(len(colors) // 4):
             colors[i * 4 + 3] = 1.0
@@ -125,7 +132,87 @@ class GeometryComponent(WebgpuTab):
         for i in range(len(colors) // 4):
             colors[i * 4 + 3] = 1.0
         self.geo_renderer.edges.set_colors(colors)
+        colors = self.geo_renderer.vertices.colors
+        for i in range(len(colors) // 4):
+            colors[i * 4 + 3] = 1.0
+        self.geo_renderer.vertices.set_colors(colors)
         self.wgpu.scene.render()
+
+    def _build_face_to_solids(self):
+        """Build mapping from face index to set of solid indices that contain it."""
+        if self._face_to_solids:
+            return
+        try:
+            solids = list(self.geo.shape.solids)
+            n_faces = len(self.geo.faces)
+            for solid_idx, solid in enumerate(solids):
+                centers = {tuple(round(c, 8) for c in f.center) for f in solid.faces}
+                for fi in range(n_faces):
+                    gc = tuple(round(c, 8) for c in self.geo.faces[fi].center)
+                    if gc in centers:
+                        self._face_to_solids[fi].add(solid_idx)
+        except Exception:
+            pass
+
+    def _build_edge_to_faces(self):
+        """Build mapping from edge index to set of face indices that contain it."""
+        if hasattr(self, '_edge_to_faces') and self._edge_to_faces:
+            return
+        self._edge_to_faces = defaultdict(set)
+        try:
+            edge_centers = [tuple(round(c, 8) for c in e.center) for e in self.geo.edges]
+            center_to_edge = {}
+            for ei, ec in enumerate(edge_centers):
+                center_to_edge[ec] = ei
+            for fi, face in enumerate(self.geo.faces):
+                for e in face.edges:
+                    ec = tuple(round(c, 8) for c in e.center)
+                    if ec in center_to_edge:
+                        self._edge_to_faces[center_to_edge[ec]].add(fi)
+        except Exception:
+            pass
+
+    def _build_vertex_to_faces(self):
+        """Build mapping from vertex index to set of face indices that contain it."""
+        if hasattr(self, '_vertex_to_faces') and self._vertex_to_faces:
+            return
+        self._vertex_to_faces = defaultdict(set)
+        try:
+            verts = list(set(self.geo.shape.vertices))
+            vert_positions = [tuple(round(c, 8) for c in v.p) for v in verts]
+            pos_to_vert = {}
+            for vi, vp in enumerate(vert_positions):
+                pos_to_vert[vp] = vi
+            for fi, face in enumerate(self.geo.faces):
+                for v in face.vertices:
+                    vp = tuple(round(c, 8) for c in v.p)
+                    if vp in pos_to_vert:
+                        self._vertex_to_faces[pos_to_vert[vp]].add(fi)
+        except Exception:
+            pass
+
+    def _update_edge_vertex_visibility(self):
+        """Hide edges/vertices that have no visible faces attached."""
+        face_colors = self.geo_renderer.faces.colors
+        hidden_faces = {i for i in range(len(face_colors) // 4) if face_colors[i * 4 + 3] == 0.0}
+
+        self._build_edge_to_faces()
+        edge_colors = self.geo_renderer.edges.colors
+        for ei, faces in self._edge_to_faces.items():
+            if faces and faces.issubset(hidden_faces):
+                edge_colors[ei * 4 + 3] = 0.0
+            else:
+                edge_colors[ei * 4 + 3] = 1.0
+        self.geo_renderer.edges.set_colors(edge_colors)
+
+        self._build_vertex_to_faces()
+        vert_colors = self.geo_renderer.vertices.colors
+        for vi, faces in self._vertex_to_faces.items():
+            if faces and faces.issubset(hidden_faces):
+                vert_colors[vi * 4 + 3] = 0.0
+            else:
+                vert_colors[vi * 4 + 3] = 1.0
+        self.geo_renderer.vertices.set_colors(vert_colors)
 
     def _get_entity(self, kind, index):
         """Return the OCC shape object for a (kind, index) selection."""
@@ -179,14 +266,31 @@ class GeometryComponent(WebgpuTab):
                 self._selection_section.name_input.ui_error = True
 
     def _hide_selected_shape(self, event=None):
-        if self.selected[0] == "face":
-            colors = self.geo_renderer.faces.colors
-            colors[self.selected[1] * 4 + 3] = 0.0
-            self.geo_renderer.faces.set_colors(colors)
-        elif self.selected[0] == "edge":
-            colors = self.geo_renderer.edges.colors
-            colors[self.selected[1] * 4 + 3] = 0.0
-            self.geo_renderer.edges.set_colors(colors)
+        if not self._selected_items:
+            return
+        face_colors = self.geo_renderer.faces.colors
+        for kind, idx in self._selected_items:
+            if kind == "face":
+                face_colors[idx * 4 + 3] = 0.0
+            elif kind == "edge":
+                edge_colors = self.geo_renderer.edges.colors
+                edge_colors[idx * 4 + 3] = 0.0
+                self.geo_renderer.edges.set_colors(edge_colors)
+            elif kind == "solid":
+                self._hidden_solids.add(idx)
+        # For solids: hide faces only if ALL their solids are hidden
+        if any(k == "solid" for k, _ in self._selected_items):
+            self._build_face_to_solids()
+            for face_idx, solids in self._face_to_solids.items():
+                if solids and solids.issubset(self._hidden_solids):
+                    face_colors[face_idx * 4 + 3] = 0.0
+                elif not solids.issubset(self._hidden_solids):
+                    face_colors[face_idx * 4 + 3] = 1.0
+        self.geo_renderer.faces.set_colors(face_colors)
+        self._update_edge_vertex_visibility()
+        self._selected_items = []
+        self._update_selection_buffers()
+        self._update_selection_panel()
         self.scene.render()
 
     def draw(self):
@@ -220,6 +324,11 @@ class GeometryComponent(WebgpuTab):
 
             if self.pick_solid.value and result.geo_type == 2:
                 solid_idx = int(self.geo_renderer.faces._solid_ids[result.index])
+                if solid_idx in self._hidden_solids:
+                    self._clear_highlight()
+                    self.pick_overlay.hide()
+                    self.scene._render_highlight()
+                    return
                 solid_name = ""
                 try:
                     solid_name = list(self.geo.shape.solids)[solid_idx].name or ""
