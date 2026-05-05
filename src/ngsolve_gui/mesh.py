@@ -52,9 +52,12 @@ class MeshComponent(WebgpuTab):
         )
 
         # -- Entity number observables --
-        self.entity_number_entities = ["vertices", "edges", "facets", "surface_elements"]
+        self.entity_number_entities = ["vertices", "edges", "facets", "segments", "surface_elements"]
         if self.mesh.dim == 3:
             self.entity_number_entities.append("volume_elements")
+        self.entity_number_entities += ["surface_indices", "segment_indices"]
+        if self.mesh.dim == 3:
+            self.entity_number_entities.append("volume_indices")
         for entity in self.entity_number_entities:
             key = f"{entity}_numbers_visible"
             setattr(self, key, Observable(saved.get(key, False), key))
