@@ -4,7 +4,7 @@ from webgpu import Scene, CoordinateAxes, NavigationCube
 
 _usersettings = UserSettings(app_id="NGSolve GUI")
 from webgpu import Scene
-from ngsolve_webgpu.pick import MeshPickResult, HighlightUniforms
+from ngsolve_webgpu.pick import MeshPickResult
 from .pick_overlay import PickOverlay
 
 
@@ -118,12 +118,10 @@ class WebgpuTab(Div):
 
     def _apply_axes_visible(self, val, _old):
         self.coordinate_axes.active = val
-        _usersettings.set("axes_visible", val)
         self.scene.render()
 
     def _apply_navcube_visible(self, val, _old):
         self.navigation_cube.active = val
-        _usersettings.set("navcube_visible", val)
         self.scene.render()
 
     def toggle_axes(self):
@@ -138,7 +136,7 @@ class WebgpuTab(Div):
     def _apply_picking_enabled(self, val, _old):
         if not getattr(self, '_picking_always_active', False):
             _usersettings.set("picking_enabled", val)
-        if not val and hasattr(self, '_highlight'):
+        if not val and hasattr(self, '_highlights'):
             self._clear_highlight()
             self.pick_overlay.hide()
             self.scene.render()
@@ -232,8 +230,10 @@ class WebgpuTab(Div):
         """
         self._pick_mesh = mesh
         self._pick_renderers = renderers
-        self._highlight = HighlightUniforms()
-        self.scene.options.add_bindings(self._highlight)
+        self._highlights = [ro._highlight_uniforms for ro in self.scene.render_objects if hasattr(ro, "_highlight_uniforms")]
+        for ro in self.scene.render_objects:
+            if hasattr(ro, "render_objects"):
+                self._highlights += [sub._highlight_uniforms for sub in ro.render_objects if hasattr(sub, "_highlight_uniforms")]
         for r, kind in renderers:
             r.on_select(lambda ev, k=kind: self._on_pick_select(ev, k))
         self.scene.on_click_background(self._on_pick_background)
@@ -267,28 +267,26 @@ class WebgpuTab(Div):
                 self.pick_overlay.hide()
             if not self.picking_enabled.value:
                 return
-            hl = self._highlight
-            hl.renderer_id = event.obj_id
-            if getattr(self, '_shift_hover', False):
-                # Shift+hover: highlight entire region
-                hl.element_id = 0xFFFFFFFF
-                hl.region_index = result.region_index
-            else:
-                # Normal hover: highlight single element
-                hl.element_id = result.element_nr
-                hl.region_index = 0xFFFFFFFF
-            hl.update_buffer()
+            for hl in self._highlights:
+                hl.renderer_id = event.obj_id
+                if getattr(self, "_shift_hover", False):
+                    hl.element_id = 0xFFFFFFFF
+                    hl.region_index = result.region_index
+                else:
+                    hl.element_id = result.element_nr
+                    hl.region_index = 0xFFFFFFFF
+                hl.update_buffer()
             self.scene._render_highlight()
         except Exception:
             self.pick_overlay.hide()
 
     def _clear_highlight(self):
-        hl = self._highlight
-        hl.renderer_id = 0
-        hl.element_id = 0xFFFFFFFF
-        hl.region_index = 0xFFFFFFFF
-        hl.solid_index = 0xFFFFFFFF
-        hl.update_buffer()
+        for hl in self._highlights:
+            hl.renderer_id = 0
+            hl.element_id = 0xFFFFFFFF
+            hl.region_index = 0xFFFFFFFF
+            hl.solid_index = 0xFFFFFFFF
+            hl.update_buffer()
 
 
 

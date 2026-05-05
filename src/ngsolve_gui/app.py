@@ -64,7 +64,29 @@ class Settings(QMenu):
             ui_model_value=val,
         )
         nthreads.on_update_model_value(self.app.usersettings.update("nthreads"))
-        super().__init__(QCard(QCardSection("Settings"), QCardSection(nthreads)))
+
+        show_axes = QCheckbox(
+            ui_label="Show Axes by Default",
+            ui_model_value=self.app.usersettings.get("axes_visible", True),
+        )
+        show_axes.on_update_model_value(self.app.usersettings.update("axes_visible"))
+
+        show_navcube = QCheckbox(
+            ui_label="Show Navigation Cube by Default",
+            ui_model_value=self.app.usersettings.get("navcube_visible", False),
+        )
+        show_navcube.on_update_model_value(self.app.usersettings.update("navcube_visible"))
+
+        scale_by_mag = QCheckbox(
+            ui_label="Scale Vectors by Magnitude by Default",
+            ui_model_value=self.app.usersettings.get("scale_by_magnitude", True),
+        )
+        scale_by_mag.on_update_model_value(self.app.usersettings.update("scale_by_magnitude"))
+
+        super().__init__(QCard(
+            QCardSection("Settings"),
+            QCardSection(nthreads, show_axes, show_navcube, scale_by_mag),
+        ))
 
 
 class StatusBar(Div):

@@ -1,6 +1,6 @@
 from ngapp.components import *
 from ngsolve_webgpu import *
-from .webgpu_tab import WebgpuTab
+from .webgpu_tab import WebgpuTab, _usersettings
 import ngsolve as ngs
 import copy
 
@@ -84,7 +84,7 @@ class FunctionComponent(WebgpuTab):
             s.get("vector_scale", 1.0), "vector_scale", converter=float
         )
         self.vector_scale_by_value = Observable(
-            s.get("vector_scale_by_value", True), "vector_scale_by_value",
+            s.get("vector_scale_by_value", _usersettings.get("scale_by_magnitude", True)), "vector_scale_by_value",
         )
         self.deformation_enabled = Observable(
             data.get("deformation", None) is not None
