@@ -363,7 +363,6 @@ class NGSolveGui(App):
         keybinding_styles.inject(self)
         self._inject_status_bar_css()
         self.on_load(self.__on_load)
-        self.on_mounted(self._disable_contextmenu)
 
         # -- Global keybindings (always active) --
         kb = self.kb
@@ -386,13 +385,6 @@ class NGSolveGui(App):
         elif isinstance(filename, list):
             for f in filename:
                 self._load_with_status(f)
-
-    def _disable_contextmenu(self):
-        import webgpu.platform as pl
-
-        pl.js.document.addEventListener(
-            "contextmenu", pl.create_event_handler(lambda e: None, prevent_default=True)
-        )
 
     def _inject_status_bar_css(self):
         kf = (
