@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ngsolve_gui"
 dynamic = ["version"]
-dependencies = ["ngapp", "ngsolve_webgpu", "webgpu"]
+dependencies = ["ngapp", "ngsolve_webgpu", "webgpu", "psutil"]
 
 [project.scripts]
 ngsolve = "ngsolve_gui.run:main"

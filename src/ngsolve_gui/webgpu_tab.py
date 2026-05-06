@@ -241,7 +241,7 @@ class WebgpuTab(Div):
         self.scene.input_handler.on_mouseout(self._on_pick_out)
 
     def _on_pick_hover(self, ev):
-        if ev["buttons"] == 0 and self.scene.canvas is not None:
+        if ev["buttons"] == 0 and self.scene.canvas is not None and self.scene.canvas.select_texture is not None:
             self._shift_hover = ev.get("shiftKey", False)
             self.scene.select(ev["canvasX"], ev["canvasY"])
 

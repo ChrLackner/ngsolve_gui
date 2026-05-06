@@ -12,6 +12,7 @@ from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
 from .property_panel import PropertyPanel
 from .styles import css, theme, flex_fill, panel_full
+from .system_monitor import SystemMonitor
 
 
 class Panel(Div):
@@ -298,12 +299,15 @@ class NGSolveGui(App):
             ui_style="width: 200px;",
         )
 
+        self.system_monitor = SystemMonitor()
+
         bar = QBar(
             ngs_logo,
             upload_file,
             savebtn,
             loadbtn,
             QSpace(),
+            self.system_monitor,
             self._nav_btn,
             self._prop_btn,
             settings_btn,
