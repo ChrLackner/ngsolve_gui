@@ -70,7 +70,9 @@ class ColorbarSection(QExpansionItem):
 
     def _update_min(self, event):
         try:
-            self.comp.colormap.set_min(self.comp.colormap_min.value)
+            val = float(event.value)
+            self.comp.colormap_min.value = val
+            self.comp.colormap.set_min(val)
             self.comp.colormap_autoscale.value = False
             self.comp.wgpu.scene.render()
         except (ValueError, TypeError):
@@ -78,7 +80,9 @@ class ColorbarSection(QExpansionItem):
 
     def _update_max(self, event):
         try:
-            self.comp.colormap.set_max(self.comp.colormap_max.value)
+            val = float(event.value)
+            self.comp.colormap_max.value = val
+            self.comp.colormap.set_max(val)
             self.comp.colormap_autoscale.value = False
             self.comp.wgpu.scene.render()
         except (ValueError, TypeError):
