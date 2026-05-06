@@ -236,6 +236,8 @@ class FunctionComponent(WebgpuTab):
             )
         else:
             self.mdata.deformation_scale = 0.0
+        if self.clippingcf is not None:
+            self.clippingcf.set_needs_update()
         self.wgpu.scene.render()
 
     def _apply_deformation_scale(self, _val, _old):
@@ -245,6 +247,8 @@ class FunctionComponent(WebgpuTab):
             self.mdata.deformation_scale = (
                 self.deformation_scale.value * self.deformation_scale2.value
             )
+            if self.clippingcf is not None:
+                self.clippingcf.set_needs_update()
             self.wgpu.scene.render()
 
     def _format_pick_result(self, result):
