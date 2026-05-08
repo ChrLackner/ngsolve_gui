@@ -76,6 +76,19 @@ def make_geometry():
     return occ.OCCGeometry(box)
 
 
+def make_geometry_named():
+    import netgen.occ as occ
+
+    box = occ.Box(occ.Pnt(0, 0, 0), occ.Pnt(1, 1, 1))
+    box.faces.Min(occ.X).name = "left"
+    box.faces.Max(occ.X).name = "right"
+    box.faces.Min(occ.Y).name = "front"
+    box.faces.Max(occ.Y).name = "back"
+    box.faces.Min(occ.Z).name = "bottom"
+    box.faces.Max(occ.Z).name = "top"
+    return occ.OCCGeometry(box)
+
+
 # ---------------------------------------------------------------------------
 # Playwright UI interaction helpers
 # ---------------------------------------------------------------------------
