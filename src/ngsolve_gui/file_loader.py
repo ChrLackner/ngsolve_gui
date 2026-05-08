@@ -47,7 +47,8 @@ obj = pickle.load(open("{filename}", "rb"))
 ngsolve.Draw(obj, name='{name}')"""
 
     if ext == ".py":
-        with open(filename, "r") as f:
+        import tokenize
+        with tokenize.open(filename) as f:
             return f.read()
 
     raise ValueError(f"Unsupported file type: {ext.lstrip('.')}")
