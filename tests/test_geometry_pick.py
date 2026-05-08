@@ -38,18 +38,26 @@ def test_geometry_pick(page: Page, app) -> None:
     page.wait_for_timeout(500)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_selected.png")
 
-    # Verify selection panel is active with correct content
-    sel = comp._selection_section
-    assert sel.meshsize_input.ui_disable is False
-    assert sel.name_input.ui_disable is False
-    assert "Face" in sel._heading.ui_children[0]
-    assert sel.name_input.ui_model_value != ""
+    # Verify component selection state
+    assert len(comp._selected_items) == 1
+    assert comp._selected_items[0][0] == "face"
 
-    # 3. Click background → deselect
-    bx, by = _canvas_pos(page, 0.05, 0.05)
+    # 3. Click a different position (top-right corner, likely background)
+    bx, by = _canvas_pos(page, 0.95, 0.95)
     page.mouse.click(bx, by)
     page.wait_for_timeout(500)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_deselected.png")
 
-    assert sel.meshsize_input.ui_disable is True
-    assert sel.name_input.ui_disable is True
+    # 4. Switch to solid pick mode, hover → solid highlight
+    comp.pick_solid.value = True
+    page.wait_for_timeout(300)
+    page.mouse.move(x, y)
+    page.wait_for_timeout(500)
+    assert_matches_baseline(page, comp.wgpu, "geometry_pick_solid_hover.png")
+
+    # 5. Click solid → solid selected (all faces of solid highlighted)
+    page.mouse.click(x, y)
+    page.wait_for_timeout(500)
+    assert_matches_baseline(page, comp.wgpu, "geometry_pick_solid_selected.png")
+    assert len(comp._selected_items) == 1
+    assert comp._selected_items[0][0] == "solid"
