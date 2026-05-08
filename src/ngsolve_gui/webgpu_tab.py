@@ -259,7 +259,7 @@ class WebgpuTab(Div):
 
     def _on_pick_select(self, event, kind="surface"):
         try:
-            result = MeshPickResult(event, self._pick_mesh, self.scene.options.camera, kind=kind)
+            result = MeshPickResult(event, self._pick_mesh, self.scene.options, kind=kind)
             text = self._format_pick_result(result)
             if text:
                 self.pick_overlay.show_text(text)
