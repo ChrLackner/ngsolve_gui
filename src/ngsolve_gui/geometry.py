@@ -312,7 +312,9 @@ class GeometryComponent(WebgpuTab):
             if event["button"] == 0:
                 self._geo_click_pending = True
                 self._click_ctrl = event.get("ctrlKey", False)
-                self.scene.select(event["canvasX"], event["canvasY"])
+                # Bypass debounce — scene.select is rate-limited and here we dont want that.
+                # TODO: Better interface
+                self.scene.select.__wrapped__(self.scene, event["canvasX"], event["canvasY"])
         scene.input_handler.on_click(on_click)
 
     def _on_pick_select(self, event, kind="face"):
@@ -320,7 +322,6 @@ class GeometryComponent(WebgpuTab):
             result = GeoPickResult(event, self.geo, self.scene.options)
             pos = result.world_pos
             coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
-            hl = self._highlight
 
             if self.pick_solid.value and result.geo_type == 2:
                 solid_idx = int(self.geo_renderer.faces._solid_ids[result.index])
@@ -335,17 +336,21 @@ class GeometryComponent(WebgpuTab):
                 except Exception:
                     pass
                 text = f"{'Solid':<8s}{solid_idx:<6d} {solid_name:<12s} {coords}"
-                hl.renderer_id = event.obj_id
-                hl.element_id = 0xFFFFFFFF
-                hl.region_index = 0xFFFFFFFF
-                hl.solid_index = solid_idx
+                for hl in self._highlights:
+                    hl.renderer_id = event.obj_id
+                    hl.element_id = 0xFFFFFFFF
+                    hl.region_index = 0xFFFFFFFF
+                    hl.solid_index = solid_idx
+                    hl.update_buffer()
             else:
                 name = result.name or ""
                 text = f"{result.kind_label:<8s}{result.index:<6d} {name:<12s} {coords}"
-                hl.renderer_id = event.obj_id
-                hl.element_id = 0xFFFFFFFF
-                hl.region_index = result.index
-                hl.solid_index = 0xFFFFFFFF
+                for hl in self._highlights:
+                    hl.renderer_id = event.obj_id
+                    hl.element_id = 0xFFFFFFFF
+                    hl.region_index = result.index
+                    hl.solid_index = 0xFFFFFFFF
+                    hl.update_buffer()
 
             self.pick_overlay.show_text(text)
 
@@ -369,7 +374,6 @@ class GeometryComponent(WebgpuTab):
                 self._update_selection_buffers()
                 self._update_selection_panel()
 
-            hl.update_buffer()
             self.scene._render_highlight()
         except Exception:
             self.pick_overlay.hide()
