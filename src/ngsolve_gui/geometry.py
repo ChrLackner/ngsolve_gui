@@ -317,7 +317,7 @@ class GeometryComponent(WebgpuTab):
 
     def _on_pick_select(self, event, kind="face"):
         try:
-            result = GeoPickResult(event, self.geo, self.scene.options.camera)
+            result = GeoPickResult(event, self.geo, self.scene.options)
             pos = result.world_pos
             coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
             hl = self._highlight
