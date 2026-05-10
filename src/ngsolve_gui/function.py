@@ -26,6 +26,7 @@ class FunctionComponent(WebgpuTab):
             if isinstance(cf, ngs.GridFunction):
                 self.order = min(2, cf.space.globalorder)
         self.deformation = data.get("deformation", None)
+        self.facet = data.get("facet", None)
         self.contact = data.get("contact", None)
         self.contact_pairs = None
 
@@ -47,7 +48,10 @@ class FunctionComponent(WebgpuTab):
             and self.cf.dim == 1
             and self.mesh.dim < 3
         ):
-            self.deformation = ngs.CF((0, 0, self.cf))
+            # Skip auto-deformation for FacetFESpace (can't evaluate on elements)
+            is_facet = isinstance(self.cf, ngs.GridFunction) and isinstance(self.cf.space, ngs.FacetFESpace)
+            if not is_facet:
+                self.deformation = ngs.CF((0, 0, self.cf))
 
         cv = data.get("clipping_vectors", False)
         sv = data.get("surface_vectors", False)
@@ -60,6 +64,13 @@ class FunctionComponent(WebgpuTab):
         )
         self.elements2d_visible = Observable(
             s.get("elements2d_visible", True), "elements2d_visible"
+        )
+        self.facet_visible = Observable(
+            bool(self.facet) if self.facet is not None else s.get("facet_visible", False),
+            "facet_visible",
+        )
+        self.facet_thickness = Observable(
+            s.get("facet_thickness", 0.008), "facet_thickness", converter=float
         )
         self.clipping_vectors_visible = Observable(
             bool(cv) if cv else s.get("clipping_vectors", False), "clipping_vectors"
@@ -152,6 +163,8 @@ class FunctionComponent(WebgpuTab):
         # -- Wire GPU side-effects -----------------------------------------
         self.wireframe_visible.on_change(self._apply_wireframe)
         self.elements2d_visible.on_change(self._apply_elements2d)
+        self.facet_visible.on_change(self._apply_facet)
+        self.facet_thickness.on_change(self._apply_facet_thickness)
         self.clipping_vectors_visible.on_change(self._apply_clipping_vectors)
         self.surface_vectors_visible.on_change(self._apply_surface_vectors)
         self.field_lines_visible.on_change(self._apply_fieldlines)
@@ -185,6 +198,17 @@ class FunctionComponent(WebgpuTab):
         if self.elements2d is not None:
             self.elements2d.active = val
         self.wgpu.scene.render()
+
+    def _apply_facet(self, visible, _old):
+        if self.facet_renderer is not None:
+            self.facet_renderer.active = visible
+            self.wgpu.scene.render()
+
+    def _apply_facet_thickness(self, val, _old):
+        if self.facet_renderer is not None:
+            self.facet_renderer.thickness = val
+            self.facet_renderer.set_needs_update()
+            self.wgpu.scene.render()
 
     def _apply_clipping_vectors(self, val, _old):
         if self.clipping_vectors is not None:
@@ -293,6 +317,8 @@ class FunctionComponent(WebgpuTab):
         show = [("w", self.toggle_wireframe, "Toggle wireframe")]
         if self.draw_surf:
             show.append(("s", self.toggle_surface_solution, "Toggle surface"))
+        if self.facet_renderer is not None:
+            show.append(("e", self.toggle_facet, "Toggle element boundaries"))
         if self.surface_vectors is not None:
             show.append(("v", self.toggle_surface_vectors, "Toggle surface vectors"))
         if self.clipping_vectors is not None:
@@ -377,6 +403,9 @@ class FunctionComponent(WebgpuTab):
 
     def toggle_surface_solution(self):
         self.elements2d_visible.toggle()
+
+    def toggle_facet(self):
+        self.facet_visible.toggle()
 
     def toggle_clipping_vectors(self):
         self.clipping_vectors_visible.toggle()
@@ -580,6 +609,38 @@ class FunctionComponent(WebgpuTab):
             self.elements2d.active = self.elements2d_visible.value
         else:
             self.elements2d = None
+
+        # Facet rendering (element-boundary CF visualization)
+        self.facet_renderer = None
+        if self.mesh.dim == 2:
+            facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
+            try:
+                facet_data = FacetFunctionData(
+                    mdata, facet_cf, order=self.order,
+                    deformation_cf=self.deformation if self.deformation is not None and self.deformation_enabled.value else None,
+                )
+                self.facet_renderer = FacetCFRenderer(
+                    facet_data, colormap=self.colormap, clipping=self.clipping,
+                    thickness=self.facet_thickness.value,
+                )
+            except Exception as e:
+                import traceback
+                print(f"Warning: facet renderer creation failed: {e}")
+                traceback.print_exc()
+        elif self.mesh.dim == 3:
+            try:
+                from ngsolve_webgpu.facet_cf import FacetCFRenderer3D
+                facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
+                self.facet_renderer = FacetCFRenderer3D(
+                    mdata, facet_cf, order=self.order,
+                    colormap=self.colormap, clipping=self.clipping,
+                )
+            except Exception as e:
+                import traceback
+                print(f"Warning: 3D facet renderer creation failed: {e}")
+                traceback.print_exc()
+        if self.facet_renderer is not None:
+            self.facet_renderer.active = self.facet_visible.value
         if self.cf.is_complex:
             for r in self._complex_renderers:
                 r._scene = self.scene
@@ -614,6 +675,7 @@ class FunctionComponent(WebgpuTab):
             for obj in [
                 self.clippingcf,
                 self.elements2d,
+                self.facet_renderer,
                 self.wireframe,
                 self.colorbar,
                 self.contact_pairs,

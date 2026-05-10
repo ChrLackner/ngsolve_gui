@@ -25,6 +25,20 @@ class FunctionOptionsSection(QExpansionItem):
             )
             items.append(self.surface_solution_visible)
 
+        if comp.facet_renderer is not None:
+            self.facet_visible = QCheckbox(
+                ui_label="Element Boundaries",
+                ui_model_value=comp.facet_visible,
+            )
+            self.facet_thickness = QSlider(
+                ui_label="Facet Thickness",
+                ui_model_value=comp.facet_thickness,
+                ui_min=0.001,
+                ui_max=0.05,
+                ui_step=0.001,
+            )
+            items.extend([self.facet_visible, self.facet_thickness])
+
         if comp.mesh.dim == 3:
             self.clipping_plane_visible = QCheckbox(
                 ui_label="Clipping Function",
