@@ -5,7 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ngsolve_gui"
 dynamic = ["version"]
-dependencies = ["ngapp", "ngsolve_webgpu", "webgpu", "psutil", "websockets", "watchdog"]
+dependencies = ["ngapp", "ngsolve_webgpu", "webgpu", "ngsolve", "numpy", "psutil"]
+
+[project.optional-dependencies]
+gpu-monitor = ["pynvml"]
+plotting = ["plotly", "matplotlib"]
+interactive = ["IPython"]
 
 [project.scripts]
 ngsolve = "ngsolve_gui.run:main"
