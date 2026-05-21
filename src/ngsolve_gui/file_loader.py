@@ -71,6 +71,7 @@ def _launch_interactive_shell(
     ipshell = [None]
 
     def launch_shell():
+        _lower_thread_priority()
         ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
         try:
             asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
@@ -94,6 +95,36 @@ def _launch_interactive_shell(
     return t
 
 
+def _lower_thread_priority():
+    """Lower the calling thread's scheduling priority.
+
+    On Linux this sets per-thread niceness so the script thread yields
+    CPU time more readily to the GUI / render threads.
+    On Windows it uses SetThreadPriority to achieve the same effect.
+    Silently ignored on platforms where it is not supported.
+    """
+    try:
+        import sys
+
+        if sys.platform == "win32":
+            import ctypes
+
+            THREAD_PRIORITY_BELOW_NORMAL = -1
+            handle = ctypes.windll.kernel32.GetCurrentThread()
+            ctypes.windll.kernel32.SetThreadPriority(
+                handle, THREAD_PRIORITY_BELOW_NORMAL
+            )
+        else:
+            import os
+            import threading
+
+            os.setpriority(
+                os.PRIO_PROCESS, threading.get_native_id(), 10
+            )
+    except Exception:
+        pass
+
+
 def _run_script(
     code: str, script_globals: dict, app
 ) -> tuple[threading.Thread, threading.Event]:
@@ -109,6 +140,7 @@ def _run_script(
         print("IPython is not installed, skipping interactive shell.")
 
         def _run_and_signal():
+            _lower_thread_priority()
             try:
                 exec(code, script_globals)
             except (SystemExit, KeyboardInterrupt):

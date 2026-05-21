@@ -20,6 +20,19 @@ def _apply_nthreads():
         pass
 
 
+def _apply_gpu_preference():
+    """Read GPU preference from user settings and set env var before webgpu is imported."""
+    try:
+        import os
+        from ngapp.utils import UserSettings
+
+        settings = UserSettings(app_id="NGSolve GUI")
+        pref = settings.get("gpu_power_preference", "high-performance")
+        os.environ["WEBGPU_POWER_PREFERENCE"] = pref
+    except Exception:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -34,6 +47,7 @@ def main():
     app_args = {}
     if args.filename:
         app_args["filename"] = [Path(f).resolve() for f in args.filename]
+    _apply_gpu_preference()
     _apply_nthreads()
     from ngsolve import TaskManager
     with TaskManager():

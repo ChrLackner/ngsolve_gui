@@ -84,9 +84,46 @@ class Settings(QMenu):
         )
         scale_by_mag.on_update_model_value(self.app.usersettings.update("scale_by_magnitude"))
 
+        redraw_interval = QInput(
+            QTooltip(
+                "Minimum time in milliseconds between redraws during script execution. "
+                "Lower values give smoother animation but may slow down the script. "
+                "Set to 0 to redraw on every call (no throttling)."
+            ),
+            ui_label="Redraw Interval (ms)",
+            ui_type="number",
+            ui_model_value=int(self.app.usersettings.get("redraw_interval_ms", 50)),
+        )
+
+        def _on_redraw_interval(event):
+            val = int(event.value)
+            self.app.usersettings.set("redraw_interval_ms", val)
+            self.app._redraw_interval = max(0, val) / 1000.0
+
+        redraw_interval.on_update_model_value(_on_redraw_interval)
+
+        gpu_pref_options = ["high-performance", "low-power"]
+        current_gpu_pref = self.app.usersettings.get("gpu_power_preference", "high-performance")
+        gpu_preference = QSelect(
+            QTooltip(
+                "Select which GPU adapter WebGPU should prefer. "
+                "'high-performance' uses the dedicated GPU, "
+                "'low-power' uses the integrated GPU. "
+                "Only takes effect after restarting the application."
+            ),
+            ui_label="GPU Preference (restart required)",
+            ui_options=gpu_pref_options,
+            ui_model_value=current_gpu_pref,
+            ui_dense=True,
+            ui_emit_value=True,
+        )
+        gpu_preference.on_update_model_value(
+            self.app.usersettings.update("gpu_power_preference")
+        )
+
         super().__init__(QCard(
             QCardSection("Settings"),
-            QCardSection(nthreads, show_axes, show_navcube, scale_by_mag),
+            QCardSection(nthreads, show_axes, show_navcube, scale_by_mag, redraw_interval, gpu_preference),
         ))
 
 
@@ -301,6 +338,13 @@ class NGSolveGui(App):
 
         self.system_monitor = SystemMonitor()
 
+        # -- Redraw throttling state --
+        self._redraw_lock = threading.Lock()
+        self._redraw_pending = False
+        self._redraw_timer_running = False
+        self._last_redraw_time = 0.0
+        self._redraw_interval = max(0, int(self.usersettings.get("redraw_interval_ms", 50))) / 1000.0
+
         bar = QBar(
             ngs_logo,
             upload_file,
@@ -494,10 +538,52 @@ class NGSolveGui(App):
 
     def redraw(self, *args, **kwargs):
         self.app_data.set_needs_redraw()
+        self._request_redraw()
+
+    def _request_redraw(self):
+        """Coalesce rapid redraw calls into at most one actual redraw per interval.
+
+        When a Python script calls ngs.Redraw() in a tight loop (e.g. time-stepping),
+        this avoids blocking the script thread and flooding the GPU with renders.
+        Only the *active* tab is redrawn; other tabs pick up `_redraw_needed` when
+        they are next switched to (via `redraw_if_needed` on mount).
+
+        The trailing-edge timer guarantees the *last* requested redraw is always
+        rendered, even if no further calls arrive.
+        """
+        interval = self._redraw_interval
+        if interval <= 0:
+            # No throttling — redraw immediately on every call.
+            self._do_redraw()
+            return
+
+        now = time.monotonic()
+        with self._redraw_lock:
+            self._redraw_pending = True
+            elapsed = now - self._last_redraw_time
+            if elapsed >= interval:
+                # Enough time passed — redraw immediately (leading edge).
+                self._do_redraw()
+            elif not self._redraw_timer_running:
+                # Schedule a trailing-edge timer so the last redraw is never lost.
+                self._redraw_timer_running = True
+                delay = interval - elapsed
+                threading.Timer(delay, self._deferred_redraw).start()
+
+    def _deferred_redraw(self):
+        """Trailing-edge timer callback — guarantees the final redraw fires."""
+        with self._redraw_lock:
+            self._redraw_timer_running = False
+            if self._redraw_pending:
+                self._do_redraw()
+
+    def _do_redraw(self):
+        """Actually perform the redraw (must be called with _redraw_lock held, or interval=0)."""
+        self._redraw_pending = False
+        self._last_redraw_time = time.monotonic()
         comp = self.tab_panel.comp
-        if comp is not None:
-            if hasattr(comp, "redraw"):
-                comp.redraw()
+        if comp is not None and hasattr(comp, "redraw"):
+            comp.redraw()
 
     def _update(self):
         self.navigator.update()
