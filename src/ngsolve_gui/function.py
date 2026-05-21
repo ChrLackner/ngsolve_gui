@@ -588,7 +588,8 @@ class FunctionComponent(WebgpuTab):
             )
             self.fieldlines.active = self.field_lines_visible.value
         if self.mesh.dim == 3 and self.draw_vol:
-            self.clippingcf = ClippingCF(func_data, self.clipping, self.colormap)
+            self.clippingcf = ClippingIsolineRenderer(func_data, clipping=self.clipping,
+                                                     n_lines=0, show_field=True, colormap=self.colormap)
             self.clippingcf.active = self.clipping_visible.value
             if self.cf.dim == 3:
                 self.clipping_vectors = ClippingVectors(
@@ -603,8 +604,9 @@ class FunctionComponent(WebgpuTab):
         else:
             self.clippingcf = None
         if self.draw_surf:
-            self.elements2d = CFRenderer(
-                func_data, clipping=self.clipping, colormap=self.colormap
+            self.elements2d = IsolineRenderer(
+                func_data, n_lines=0, show_field=True,
+                clipping=self.clipping, colormap=self.colormap
             )
             self.elements2d.active = self.elements2d_visible.value
         else:
