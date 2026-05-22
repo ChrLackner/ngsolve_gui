@@ -492,11 +492,11 @@ class GeometryComponent(WebgpuTab):
 
 # Register with the component registry
 from .registry import register_component
-from .sections import GeometryOptionsSection, GeometrySelectionSection, ClippingSection
+from .sections import GeometryDisplaySection, GeometrySelectionSection, ClippingSection, MeshGenerationSection
 
 register_component(
     "geometry",
     icon="mdi-cube",
     component_class=GeometryComponent,
-    sections=[GeometryOptionsSection, GeometrySelectionSection, ClippingSection],
+    sections=[GeometryDisplaySection, GeometrySelectionSection, ClippingSection, MeshGenerationSection],
 )

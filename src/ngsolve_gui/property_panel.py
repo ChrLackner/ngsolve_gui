@@ -1,12 +1,41 @@
 from ngapp.components import *
 
-from .styles import sidebar_props, prop_title, section_content, section_border
+from .styles import sidebar_props, prop_title, prop_title_text, section_content, section_border, SECTION_COLORS
+
+
+# Section key → accent color mapping (for left-border on headers)
+_SECTION_KEY_MAP = {
+    "GeometryDisplaySection": "display",
+    "MeshDisplaySection": "display",
+    "FunctionDisplaySection": "display",
+    "ColorbarSection": "colormap",
+    "MeshColorSection": "colors",
+    "ClippingSection": "clipping",
+    "DeformationSection": "deformation",
+    "VectorsFlowSection": "vectors",
+    "ComplexSection": "complex",
+    "GeometrySelectionSection": "selection",
+    "MeshGenerationSection": "meshing",
+    "EntityNumbersSection": "numbers",
+}
+
+
+def _section_header_style(section_cls):
+    """Generate a header style with colored left-border accent."""
+    key = _SECTION_KEY_MAP.get(section_cls.__name__, "")
+    color = SECTION_COLORS.get(key, "#90a4ae")
+    return f"border-left: 3px solid {color}; font-weight: 600; font-size: 0.82rem;"
 
 
 class PropertyPanel(Div):
     def __init__(self):
+        self._title_text = Div("Properties", ui_class=str(prop_title_text))
+        self._actions = Div(
+            ui_style="display: flex; gap: 4px; align-items: center;",
+        )
         self._title = Div(
-            "Properties",
+            self._title_text,
+            self._actions,
             ui_class=str(prop_title),
         )
         self._sections = Div()
@@ -22,7 +51,8 @@ class PropertyPanel(Div):
         from .registry import get_sections_for
 
         if comp is None:
-            self._title.ui_children = ["Properties"]
+            self._title_text.ui_children = ["Properties"]
+            self._actions.ui_children = []
             self._sections.ui_children = [
                 Div(
                     "No item selected.",
@@ -34,17 +64,21 @@ class PropertyPanel(Div):
 
         # Show the component title
         title = getattr(comp, "title", type_key)
-        self._title.ui_children = [title]
+        self._title_text.ui_children = [title]
+
+        # Action buttons in header (Draw Mesh / Draw Geometry)
+        self._actions.ui_children = self._build_actions(comp, type_key)
 
         section_classes = get_sections_for(type_key)
         sections = []
         for cls in section_classes:
             try:
                 section = cls(comp)
-                # Apply consistent content padding to every section
+                # Apply consistent styling to every section
                 section.ui_dense = True
                 section.ui_expand_separator = True
                 section.ui_class = str(section_border)
+                section.ui_header_style = _section_header_style(cls)
                 # Wrap section content children in padded container
                 _apply_section_padding(section)
                 sections.append(section)
@@ -63,6 +97,51 @@ class PropertyPanel(Div):
                     ui_style="padding: 16px; font-size: 0.85rem;",
                 )
             ]
+
+    def _build_actions(self, comp, type_key):
+        """Build header action buttons based on component type."""
+        buttons = []
+        if type_key == "function":
+            btn = QBtn(
+                QTooltip("Open as Mesh"),
+                ui_icon="mdi-vector-triangle",
+                ui_flat=True,
+                ui_dense=True,
+                ui_round=True,
+                ui_size="sm",
+                ui_color="grey-7",
+            )
+            btn.on_click(lambda *a: self._draw_mesh(comp))
+            buttons.append(btn)
+        elif type_key == "mesh":
+            btn = QBtn(
+                QTooltip("Open Geometry"),
+                ui_icon="mdi-cube-outline",
+                ui_flat=True,
+                ui_dense=True,
+                ui_round=True,
+                ui_size="sm",
+                ui_color="grey-7",
+            )
+            btn.on_click(lambda *a: self._draw_geometry(comp))
+            buttons.append(btn)
+        return buttons
+
+    def _draw_mesh(self, comp):
+        from .mesh import MeshComponent
+        comp.app_data.add_tab(
+            "Mesh_" + comp.name, MeshComponent, {"obj": comp.mesh}, comp.app_data
+        )
+
+    def _draw_geometry(self, comp):
+        try:
+            geo = comp.mesh.ngmesh.GetGeometry()
+            from .geometry import GeometryComponent
+            comp.app_data.add_tab(
+                "Geo_" + comp.title, GeometryComponent, {"obj": geo}, comp.app_data
+            )
+        except Exception as e:
+            print(f"Could not extract geometry from mesh: {e}")
 
 
 def _apply_section_padding(section):

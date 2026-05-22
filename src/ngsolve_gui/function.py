@@ -111,8 +111,8 @@ class FunctionComponent(WebgpuTab):
         cm = s.get("colormap", (autoscale, discrete_colormap, minval, maxval))
         self.colormap_autoscale = Observable(cm[0], "colormap_autoscale")
         self.colormap_discrete = Observable(cm[1], "colormap_discrete")
-        self.colormap_min = Observable(cm[2], "colormap_min", converter=float)
-        self.colormap_max = Observable(cm[3], "colormap_max", converter=float)
+        self.colormap_min = Observable(cm[2], "colormap_min", converter=float, formatter=lambda v: f"{v:.4g}")
+        self.colormap_max = Observable(cm[3], "colormap_max", converter=float, formatter=lambda v: f"{v:.4g}")
         self.colormap_name = Observable(
             s.get("colormap_name", "matlab:jet"), "colormap_name"
         )
@@ -715,12 +715,12 @@ class FunctionComponent(WebgpuTab):
 # Register with the component registry
 from .registry import register_component
 from .sections import (
+    FunctionDisplaySection,
     ColorbarSection,
     ClippingSection,
     DeformationSection,
-    VectorSection,
-    FieldLinesSection,
-    FunctionOptionsSection,
+    VectorsFlowSection,
+    ComplexSection,
     EntityNumbersSection,
 )
 
@@ -729,12 +729,12 @@ register_component(
     icon="mdi-function-variant",
     component_class=FunctionComponent,
     sections=[
+        FunctionDisplaySection,
         ColorbarSection,
         ClippingSection,
         DeformationSection,
-        VectorSection,
-        FieldLinesSection,
-        FunctionOptionsSection,
+        VectorsFlowSection,
+        ComplexSection,
         EntityNumbersSection,
     ],
 )

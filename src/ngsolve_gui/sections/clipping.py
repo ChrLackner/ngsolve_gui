@@ -1,5 +1,10 @@
+"""Clipping section — cutting plane controls. Compact layout."""
+
 from ngapp.components import *
 import math
+
+_LBL = "font-size: 0.72rem; color: #78909c; min-width: 14px;"
+_SECT = "font-size: 0.72rem; font-weight: 600; color: #546e7a; padding: 4px 0 0;"
 
 
 class ClippingSection(QExpansionItem):
@@ -7,211 +12,116 @@ class ClippingSection(QExpansionItem):
         self.comp = comp
         if hasattr(comp, "mesh") and comp.mesh.dim < 3:
             raise ValueError("Clipping not applicable for 2D")
-        use_global = QCheckbox(
-            "Use Global Clipping Plane",
-            ui_model_value=comp.use_global_clipping,
-        )
-        self.enable = enable = QCheckbox(
-            "Enable Clipping",
-            ui_model_value=comp.clipping_enabled,
-        )
+
         clip = comp.clipping
-        debounce_time = 300
-        self.cx = QInput(
-            ui_label="x",
-            ui_model_value=clip.center[0],
-            ui_debounce=debounce_time,
-            ui_dense=True,
-        )
-        self.cx.on_update_model_value(self.set_cx)
-        self.cy = QInput(
-            ui_label="y",
-            ui_model_value=clip.center[1],
-            ui_debounce=debounce_time,
-            ui_dense=True,
-        )
-        self.cy.on_update_model_value(self.set_cy)
-        self.cz = QInput(
-            ui_label="z",
-            ui_model_value=clip.center[2],
-            ui_debounce=debounce_time,
-            ui_dense=True,
-        )
-        self.cz.on_update_model_value(self.set_cz)
-        self.dx = QSlider(
-            ui_model_value=clip.normal[0],
-            ui_min=-1,
-            ui_max=1,
-            ui_step=0.1,
-            ui_vertical=True,
-            ui_style="height: 50px;",
-        )
-        self.dx.on(
-            "dblclick",
-            lambda e: (setattr(self.dx, "ui_model_value", 0), self.set_nx(0)),
-        )
-        self.dx.on_update_model_value(self.set_nx)
-        self.dy = QSlider(
-            ui_model_value=clip.normal[1],
-            ui_min=-1,
-            ui_max=1,
-            ui_step=0.1,
-            ui_vertical=True,
-            ui_style="height: 50px;",
-        )
-        self.dy.on(
-            "dblclick",
-            lambda e: (setattr(self.dy, "ui_model_value", 0), self.set_ny(0)),
-        )
-        self.dy.on_update_model_value(self.set_ny)
-        self.dz = QSlider(
-            ui_model_value=clip.normal[2],
-            ui_min=-1,
-            ui_max=1,
-            ui_step=0.1,
-            ui_vertical=True,
-            ui_style="height: 50px;",
-        )
-        self.dz.on(
-            "dblclick",
-            lambda e: (setattr(self.dz, "ui_model_value", 0), self.set_nz(0)),
-        )
-        self.dz.on_update_model_value(self.set_nz)
 
-        self.offset = QSlider(ui_min=-1, ui_max=1, ui_step=0.01, ui_model_value=0.0)
-        self.offset.on("dblclick", lambda e: self.set_offset(0))
-        self.slider_badge = QBadge(
-            f"Offset value: {int(self.offset.ui_model_value*100)}% of Bounding Box",
-            ui_color="secondary",
-        )
-        self.offset.on_update_model_value(self.set_offset)
-        offset_g = Row(
-            Col(self.slider_badge, self.offset),
-            ui_style="align-items: flex-start; padding-top: 10px;",
+        # Toggle row
+        enable = QCheckbox("Enable", ui_model_value=comp.clipping_enabled, ui_dense=True)
+        use_global = QCheckbox("Global", ui_model_value=comp.use_global_clipping, ui_dense=True)
+        toggle_row = Row(enable, use_global, ui_style="gap: 8px;")
+
+        # Normal direction — 3 compact slider rows
+        self.dx = QSlider(ui_model_value=clip.normal[0], ui_min=-1, ui_max=1, ui_step=0.1, ui_dense=True)
+        self.dy = QSlider(ui_model_value=clip.normal[1], ui_min=-1, ui_max=1, ui_step=0.1, ui_dense=True)
+        self.dz = QSlider(ui_model_value=clip.normal[2], ui_min=-1, ui_max=1, ui_step=0.1, ui_dense=True)
+        self.dx.on_update_model_value(self._set_nx)
+        self.dy.on_update_model_value(self._set_ny)
+        self.dz.on_update_model_value(self._set_nz)
+        self.dx.on("dblclick", lambda e: (setattr(self.dx, "ui_model_value", 0), self._set_nx(0)))
+        self.dy.on("dblclick", lambda e: (setattr(self.dy, "ui_model_value", 0), self._set_ny(0)))
+        self.dz.on("dblclick", lambda e: (setattr(self.dz, "ui_model_value", 0), self._set_nz(0)))
+
+        dir_block = Div(
+            Row(Div("x", ui_style=_LBL), self.dx, ui_class="items-center no-wrap", ui_style="gap:4px;"),
+            Row(Div("y", ui_style=_LBL), self.dy, ui_class="items-center no-wrap", ui_style="gap:4px;"),
+            Row(Div("z", ui_style=_LBL), self.dz, ui_class="items-center no-wrap", ui_style="gap:4px;"),
         )
 
-        center = Row(
-            Col(Div("Center")),
-            Col(self.cx),
-            Col(self.cy),
-            Col(self.cz),
-            ui_style="align-items: center;",
+        # Center — 3 tight inputs with prefix labels instead of floating labels
+        _pfx = "font-size: 0.7rem; color: #78909c; min-width: 10px;"
+        self.cx = QInput(ui_model_value=clip.center[0], ui_debounce=300, ui_dense=True, ui_borderless=True,
+                         ui_style="max-width: 72px; font-size: 0.78rem;")
+        self.cy = QInput(ui_model_value=clip.center[1], ui_debounce=300, ui_dense=True, ui_borderless=True,
+                         ui_style="max-width: 72px; font-size: 0.78rem;")
+        self.cz = QInput(ui_model_value=clip.center[2], ui_debounce=300, ui_dense=True, ui_borderless=True,
+                         ui_style="max-width: 72px; font-size: 0.78rem;")
+        self.cx.on_update_model_value(self._set_cx)
+        self.cy.on_update_model_value(self._set_cy)
+        self.cz.on_update_model_value(self._set_cz)
+        center_row = Row(
+            Div("x", ui_style=_pfx), self.cx,
+            Div("y", ui_style=_pfx), self.cy,
+            Div("z", ui_style=_pfx), self.cz,
+            ui_class="items-center no-wrap", ui_style="gap: 2px;",
         )
-        direction = Row(
-            Col(Div("Direction")),
-            Col(self.dx),
-            Col(self.dy),
-            Col(self.dz),
-            ui_style="align-items: center;",
-        )
+
+        # Offset
+        self.offset = QSlider(ui_min=-1, ui_max=1, ui_step=0.01, ui_model_value=0.0, ui_dense=True, ui_label=True)
+        self.offset.on("dblclick", lambda e: self._set_offset(0))
+        self.offset.on_update_model_value(self._set_offset)
 
         super().__init__(
-            use_global,
-            enable,
-            center,
-            direction,
-            offset_g,
-            ui_icon="mdi-cube-off-outline",
+            toggle_row,
+            Div("Normal", ui_style=_SECT), dir_block,
+            Div("Center", ui_style=_SECT), center_row,
+            Div("Offset", ui_style=_SECT), self.offset,
+            ui_icon="mdi-box-cutter",
             ui_label="Clipping",
+            ui_dense=True,
         )
-        self.on_mounted(self.update_fields)
+        self.on_mounted(self._update_fields)
 
-    def get_offset_factor(self):
+    def _factor(self):
         try:
-            bounding_box = self.comp.wgpu.scene.bounding_box
-        except Exception as e:
-            print(e)
-            bounding_box = ((0, 0, 0), (1, 1, 1))
-        bb_diag = [bounding_box[1][i] - bounding_box[0][i] for i in range(3)]
-        return math.sqrt(sum([d**2 for d in bb_diag])) / 2.0
+            bb = self.comp.wgpu.scene.bounding_box
+        except Exception:
+            bb = ((0, 0, 0), (1, 1, 1))
+        d = [bb[1][i] - bb[0][i] for i in range(3)]
+        return math.sqrt(sum(x * x for x in d)) / 2.0
 
-    def update_fields(self):
-        value = self.comp.clipping.offset / self.get_offset_factor()
-        self.offset.ui_model_value = value
-        self.slider_badge.ui_children = [
-            f"Offset value: {int(value*100)}% of Bounding Box"
-        ]
-        self.enable.ui_model_value = (
-            self.comp.clipping.mode != self.comp.clipping.Mode.DISABLED
-        )
-        self.cx.ui_model_value = self.comp.clipping.center[0]
-        self.cy.ui_model_value = self.comp.clipping.center[1]
-        self.cz.ui_model_value = self.comp.clipping.center[2]
-        self.dx.ui_model_value = self.comp.clipping.normal[0]
-        self.dy.ui_model_value = self.comp.clipping.normal[1]
-        self.dz.ui_model_value = self.comp.clipping.normal[2]
+    def _update_fields(self):
+        c = self.comp.clipping
+        self.offset.ui_model_value = c.offset / self._factor()
+        self.cx.ui_model_value = c.center[0]
+        self.cy.ui_model_value = c.center[1]
+        self.cz.ui_model_value = c.center[2]
+        self.dx.ui_model_value = c.normal[0]
+        self.dy.ui_model_value = c.normal[1]
+        self.dz.ui_model_value = c.normal[2]
 
-    def enable_clipping(self, event):
-        self.comp.clipping_enabled.value = event.value
-
-    def set_global_clipping(self, event):
-        self.comp.use_global_clipping.value = event.value
-
-    def set_offset(self, event):
-        if isinstance(event, int):
-            value = event
-            self.offset.ui_model_value = value
-        else:
-            value = event.value
-        self.slider_badge.ui_children = [
-            f"Offset value: {int(value*100)}% of Bounding Box"
-        ]
-        self.comp.clipping.set_offset(value * self.get_offset_factor())
+    def _set_offset(self, ev):
+        v = ev if isinstance(ev, (int, float)) else ev.value
+        if isinstance(ev, (int, float)):
+            self.offset.ui_model_value = v
+        self.comp.clipping.set_offset(float(v) * self._factor())
         self.comp.wgpu.scene.render()
 
-    def set_cx(self, event):
+    def _set_cx(self, ev):
+        try: self.comp.clipping.set_x_value(float(ev.value)); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass
+
+    def _set_cy(self, ev):
+        try: self.comp.clipping.set_y_value(float(ev.value)); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass
+
+    def _set_cz(self, ev):
+        try: self.comp.clipping.set_z_value(float(ev.value)); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass
+
+    def _set_nx(self, ev):
         try:
-            value = float(event.value)
-        except:
-            return
-        self.comp.clipping.set_x_value(value)
-        self.comp.wgpu.scene.render()
+            v = float(ev) if isinstance(ev, (int, float)) else float(ev.value)
+            self.comp.clipping.set_nx_value(v); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass
 
-    def set_cy(self, event):
+    def _set_ny(self, ev):
         try:
-            value = float(event.value)
-        except:
-            return
-        self.comp.clipping.set_y_value(value)
-        self.comp.wgpu.scene.render()
+            v = float(ev) if isinstance(ev, (int, float)) else float(ev.value)
+            self.comp.clipping.set_ny_value(v); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass
 
-    def set_cz(self, event):
+    def _set_nz(self, ev):
         try:
-            value = float(event.value)
-        except:
-            return
-        self.comp.clipping.set_z_value(value)
-        self.comp.wgpu.scene.render()
-
-    def set_nx(self, event):
-        if isinstance(event, int):
-            value = event
-        else:
-            try:
-                value = float(event.value)
-            except:
-                return
-        self.comp.clipping.set_nx_value(value)
-        self.comp.wgpu.scene.render()
-
-    def set_ny(self, event):
-        if isinstance(event, int):
-            value = event
-        else:
-            try:
-                value = float(event.value)
-            except:
-                return
-        self.comp.clipping.set_ny_value(value)
-        self.comp.wgpu.scene.render()
-
-    def set_nz(self, event):
-        if isinstance(event, int):
-            value = event
-        else:
-            try:
-                value = float(event.value)
-            except:
-                return
-        self.comp.clipping.set_nz_value(value)
-        self.comp.wgpu.scene.render()
+            v = float(ev) if isinstance(ev, (int, float)) else float(ev.value)
+            self.comp.clipping.set_nz_value(v); self.comp.wgpu.scene.render()
+        except (ValueError, TypeError, AttributeError): pass

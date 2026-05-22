@@ -24,6 +24,20 @@ theme = Theme(
     hint="#94a3b8",
 )
 
+# -- Section accent colors (left-border on headers) -------------------------
+SECTION_COLORS = {
+    "display": "#2196F3",       # blue
+    "colormap": "#9C27B0",      # purple
+    "colors": "#E91E63",        # pink
+    "clipping": "#FF9800",      # orange
+    "deformation": "#4CAF50",   # green
+    "vectors": "#00BCD4",       # teal
+    "complex": "#673AB7",       # deep purple
+    "selection": "#FFC107",     # amber
+    "meshing": "#795548",       # brown
+    "numbers": "#607D8B",       # blue-grey
+}
+
 # ---------------------------------------------------------------------------
 # StyleSheet — registered classes injected into the DOM once
 # ---------------------------------------------------------------------------
@@ -39,6 +53,20 @@ sidebar_props = css.add(
     _sidebar_base | Style(border_left=theme.border_line())
 )
 
+# -- Scoped rules: automatic compact styling for ALL widgets inside panel ---
+sidebar_props.rule(".q-checkbox", padding="0", min_height="28px") \
+             .rule(".q-checkbox__label", font_size="0.82rem", line_height="1.4") \
+             .rule(".q-field--dense .q-field__control", min_height="32px") \
+             .rule(".q-field--dense .q-field__label", font_size="0.72rem") \
+             .rule(".q-field--dense .q-field__native", font_size="0.82rem", padding_top="12px") \
+             .rule(".q-field--dense .q-field__marginal", height="32px") \
+             .rule(".q-slider", margin="4px 0") \
+             .rule(".q-expansion-item > .q-expansion-item__container > .q-item",
+                   padding="8px 12px", min_height="38px", background="rgba(0,0,0,0.02)") \
+             .rule(".q-expansion-item .q-item__section--avatar", min_width="28px", padding_right="8px") \
+             .rule(".q-expansion-item .q-item__section--avatar .q-icon", font_size="1.1rem") \
+             .rule(".q-btn--dense", font_size="0.78rem")
+
 hidden = css.add(Style(display="none"))
 
 # -- Page layout ------------------------------------------------------------
@@ -52,7 +80,6 @@ page_layout = css.add(
 )
 flex_fill = css.add(Style(flex="1", height="100%", overflow="hidden"))
 panel_full = css.add(Style(width="100%", height="100%"))
-
 
 
 # -- Navigator items --------------------------------------------------------
@@ -77,8 +104,12 @@ prop_title = css.add(
         text_transform="uppercase",
         font_weight="700",
         color=theme.muted,
-        padding="12px 16px 8px",
+        padding="8px 16px 6px",
+        display="flex",
+        align_items="center",
+        gap="8px",
     )
 )
-section_content = css.add(Style(padding="8px 12px"))
-section_border = css.add(Style(border_bottom="1px solid #eee"))
+prop_title_text = css.add(Style(flex="1"))
+section_content = css.add(Style(padding="6px 12px 10px"))
+section_border = css.add(Style(border_bottom="1px solid #ddd"))

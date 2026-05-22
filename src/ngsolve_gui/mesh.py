@@ -250,11 +250,11 @@ class MeshComponent(WebgpuTab):
 
 # Register with the component registry
 from .registry import register_component
-from .sections import MeshViewSection, MeshColorSection, ClippingSection, EntityNumbersSection
+from .sections import MeshDisplaySection, MeshColorSection, ClippingSection, EntityNumbersSection
 
 register_component(
     "mesh",
     icon="mdi-vector-triangle",
     component_class=MeshComponent,
-    sections=[MeshViewSection, MeshColorSection, ClippingSection, EntityNumbersSection],
+    sections=[MeshDisplaySection, MeshColorSection, ClippingSection, EntityNumbersSection],
 )

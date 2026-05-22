@@ -1,11 +1,12 @@
 from .clipping import ClippingSection
 from .colorbar import ColorbarSection
 from .deformation import DeformationSection
-from .vectors import VectorSection
-from .fieldlines import FieldLinesSection
-from .mesh_view import MeshViewSection
+from .display import GeometryDisplaySection, MeshDisplaySection, FunctionDisplaySection
+from .vectors_flow import VectorsFlowSection
+from .complex_mode import ComplexSection
+from .mesh_generation import MeshGenerationSection
 from .mesh_colors import MeshColorSection
-from .function_options import FunctionOptionsSection
-from .geometry_options import GeometryOptionsSection
 from .geometry_selection import GeometrySelectionSection
 from .entity_numbers import EntityNumbersSection
+
+ColormapSection = ColorbarSection
