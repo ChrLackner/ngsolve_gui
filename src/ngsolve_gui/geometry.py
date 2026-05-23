@@ -313,8 +313,7 @@ class GeometryComponent(WebgpuTab):
                 self._geo_click_pending = True
                 self._click_ctrl = event.get("ctrlKey", False)
                 # Bypass debounce — scene.select is rate-limited and here we dont want that.
-                # TODO: Better interface
-                self.scene.select.__wrapped__(self.scene, event["canvasX"], event["canvasY"])
+                self.scene.select._original(event["canvasX"], event["canvasY"])
         scene.input_handler.on_click(on_click)
 
     def _on_pick_select(self, event, kind="face"):
