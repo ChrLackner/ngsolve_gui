@@ -75,7 +75,10 @@ class WebgpuTab(Div):
         # Enable selection on right-click (needed for nav cube)
         def _on_click_select(event):
             if event["button"] == 2:
-                self.scene.select(event["canvasX"], event["canvasY"])
+                try:
+                    self.scene.select(event["canvasX"], event["canvasY"])
+                except AttributeError:
+                    pass
         self.scene.input_handler.on_click(_on_click_select)
 
         self.clipping.center = 0.5 * (
@@ -243,7 +246,10 @@ class WebgpuTab(Div):
     def _on_pick_hover(self, ev):
         if ev["buttons"] == 0 and self.scene.canvas is not None and self.scene.canvas.select_texture is not None:
             self._shift_hover = ev.get("shiftKey", False)
-            self.scene.select(ev["canvasX"], ev["canvasY"])
+            try:
+                self.scene.select(ev["canvasX"], ev["canvasY"])
+            except AttributeError:
+                pass
 
     def _on_pick_out(self, ev):
         if not hasattr(self, '_pick_mesh'):
