@@ -16,29 +16,22 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture(scope="module")
-def _playwright():
-    """Override session-scoped playwright to module scope for better GPU isolation."""
-    from playwright.sync_api import sync_playwright
+@pytest.fixture
+def browser():
+    """Fresh browser per test.
 
-    pw = sync_playwright().start()
-    yield pw
-    pw.stop()
-
-
-@pytest.fixture(scope="module")
-def browser(_playwright):
-    """Override session-scoped browser to module scope.
-
-    Restarting the browser per test module prevents WebGPU/SwiftShader
-    resource exhaustion in Docker environments without a real GPU.
+    Prevents WebGPU/SwiftShader resource exhaustion and port conflicts
+    in Docker environments without a real GPU.
     """
+    from playwright.sync_api import sync_playwright
     from ngapp.e2e_webgpu import CHROMIUM_WEBGPU_ARGS
 
-    b = _playwright.chromium.launch(
+    pw = sync_playwright().start()
+    b = pw.chromium.launch(
         channel="chrome",
         headless=False,
         args=["--headless=new"] + CHROMIUM_WEBGPU_ARGS,
     )
     yield b
     b.close()
+    pw.stop()
