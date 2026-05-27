@@ -32,8 +32,7 @@ def test_mesh_2d(page: Page, app) -> None:
     # 1. Default rendering (wireframe + surface elements)
     assert_matches_baseline(page, comp.wgpu, "mesh_2d_default.png")
 
-    # 2. Expand "View", turn wireframe off via UI
-    expand_section(page, "View")
+    # 2. Turn wireframe off via UI (Display section is open by default)
     click_checkbox(page, "Wireframe")
     assert_matches_baseline(page, comp.wgpu, "mesh_2d_no_wireframe.png")
 
@@ -52,21 +51,18 @@ def test_mesh_3d(page: Page, app) -> None:
     # 1. Default rendering (wireframe + surface elements)
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_default.png")
 
-    # 2. Expand "View", turn wireframe off via UI
-    expand_section(page, "View")
+    # 2. Turn wireframe off via UI (Display section is open by default)
     click_checkbox(page, "Wireframe")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_no_wireframe.png")
 
     # 3. Wireframe back on, enable clipping plane via UI
     click_checkbox(page, "Wireframe")
-    collapse_section(page, "View")
     expand_section(page, "Clipping")
-    click_checkbox(page, "Enable Clipping")
+    click_checkbox(page, "Enable")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_clipped.png")
 
     # 4. Enable volume elements (shrunk) via UI
     collapse_section(page, "Clipping")
-    expand_section(page, "View")
     click_checkbox(page, "Elements 3D")
     set_slider(page, 0.8)
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_volume_shrink.png")

@@ -22,7 +22,6 @@ from .helpers import (
     make_mesh_2d,
     make_mesh_3d,
     expand_section,
-    collapse_section,
     click_checkbox,
     fill_input,
 )
@@ -40,12 +39,11 @@ def test_function_scalar_2d(page: Page, app) -> None:
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_default.png")
 
     # 2. Turn wireframe off via UI
-    expand_section(page, "Options")
-    click_checkbox(page, "Wireframe Visible")
+    click_checkbox(page, "Wireframe")
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_no_wireframe.png")
 
     # 3. Turn wireframe back on, disable deformation via UI
-    click_checkbox(page, "Wireframe Visible")
+    click_checkbox(page, "Wireframe")
     expand_section(page, "Deformation")
     click_checkbox(page, "Enable Deformation")
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_flat.png")
@@ -63,7 +61,7 @@ def test_function_scalar_3d(page: Page, app) -> None:
 
     # 2. Enable clipping plane via UI
     expand_section(page, "Clipping")
-    click_checkbox(page, "Enable Clipping")
+    click_checkbox(page, "Enable")
     assert_matches_baseline(page, comp.wgpu, "func_scalar_3d_clipped.png")
 
 
@@ -78,13 +76,13 @@ def test_function_colormap(page: Page, app) -> None:
     assert_matches_baseline(page, comp.wgpu, "func_colormap_default.png")
 
     # 2. Enable discrete mode via UI
-    expand_section(page, "Colorbar")
+    expand_section(page, "Advanced")
     click_checkbox(page, "Discrete")
     assert_matches_baseline(page, comp.wgpu, "func_colormap_discrete.png")
 
     # 3. Disable discrete, disable autoscale, set custom min/max via UI
     click_checkbox(page, "Discrete")
-    click_checkbox(page, "Autoscale")
-    fill_input(page, "Min Value", "0.5")
-    fill_input(page, "Max Value", "2.0")
+    click_checkbox(page, "Auto")
+    fill_input(page, "Min", "0.5")
+    fill_input(page, "Max", "2.0")
     assert_matches_baseline(page, comp.wgpu, "func_colormap_custom_range.png")

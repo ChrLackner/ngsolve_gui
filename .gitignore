@@ -2,3 +2,4 @@ src/ngsolve_gui.egg-info
 /src/ngsolve_gui/__pycache__/
 tests/output/
 **/__pycache__
+/src/ngsolve_gui/_version.py

@@ -96,7 +96,7 @@ def make_geometry_named():
 
 def expand_section(page: Page, name: str) -> None:
     """Expand a sidebar section by clicking its expansion item header."""
-    page.locator(".q-expansion-item").filter(has_text=name).get_by_role("button").first.click()
+    page.locator(".q-expansion-item .q-item__label").get_by_text(name, exact=True).first.click()
     page.wait_for_timeout(300)
 
 
@@ -107,7 +107,7 @@ def collapse_section(page: Page, name: str) -> None:
 
 def click_checkbox(page: Page, name: str) -> None:
     """Click a visible Quasar checkbox by its label text."""
-    page.get_by_role("checkbox", name=name).click()
+    page.get_by_role("checkbox", name=name, exact=True).click()
     page.wait_for_timeout(100)
 
 

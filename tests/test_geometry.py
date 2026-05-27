@@ -28,13 +28,12 @@ def test_geometry_box(page: Page, app) -> None:
     # 1. Default rendering (faces + edges)
     assert_matches_baseline(page, comp.wgpu, "geometry_box_default.png")
 
-    # 2. Hide edges via UI checkbox
-    expand_section(page, "Geometry Options")
-    click_checkbox(page, "Show Edges")
+    # 2. Hide edges via UI checkbox (Display section is open by default)
+    click_checkbox(page, "Edges")
     assert_matches_baseline(page, comp.wgpu, "geometry_box_no_edges.png")
 
     # 3. Re-enable edges, enable clipping plane via UI
-    click_checkbox(page, "Show Edges")
+    click_checkbox(page, "Edges")
     expand_section(page, "Clipping")
-    click_checkbox(page, "Enable Clipping")
+    click_checkbox(page, "Enable")
     assert_matches_baseline(page, comp.wgpu, "geometry_box_clipped.png")

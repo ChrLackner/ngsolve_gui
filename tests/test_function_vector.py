@@ -30,8 +30,7 @@ def test_function_vector_2d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "func_vector_2d_default.png")
 
-    expand_section(page, "Vector Settings")
-    click_checkbox(page, "Show Surface Vectors")
+    click_checkbox(page, "Surf. Vectors")
     assert_matches_baseline(page, comp.wgpu, "func_vector_2d_surface_vectors.png")
 
 
@@ -47,18 +46,17 @@ def test_function_vector_3d(page: Page, app) -> None:
 
     # Enable clipping first so the clipping plane is visible
     expand_section(page, "Clipping")
-    click_checkbox(page, "Enable Clipping")
+    click_checkbox(page, "Enable")
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_clipped.png")
 
     # Show clipping vectors (only meaningful with clipping enabled)
     collapse_section(page, "Clipping")
-    expand_section(page, "Vector Settings")
-    click_checkbox(page, "Show Clipping Vectors")
+    click_checkbox(page, "Clip. Vectors")
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_clipping_vectors.png")
 
     # Switch to surface vectors
-    click_checkbox(page, "Show Clipping Vectors")
-    click_checkbox(page, "Show Surface Vectors")
+    click_checkbox(page, "Clip. Vectors")
+    click_checkbox(page, "Surf. Vectors")
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_surface_vectors.png")
 
 
@@ -71,6 +69,6 @@ def test_function_fieldlines_2d(page: Page, app) -> None:
     comp = app.tab_panel.comp
 
     np.random.seed(42)
-    expand_section(page, "Field Lines")
-    click_checkbox(page, "Show Field Lines")
+    expand_section(page, "More")
+    click_checkbox(page, "Field Lines")
     assert_matches_baseline(page, comp.wgpu, "func_fieldlines_2d.png")

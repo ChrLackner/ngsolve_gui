@@ -15,7 +15,6 @@ from .helpers import (
     make_mesh_3d,
     make_mesh_2d_circle,
     make_mesh_3d_sphere,
-    expand_section,
     click_checkbox,
     click_curving_checkbox,
 )
@@ -30,7 +29,6 @@ def test_mesh_elements_1d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "mesh_2d_elements1d_off.png")
 
-    expand_section(page, "View")
     click_checkbox(page, "Elements 1D")
     assert_matches_baseline(page, comp.wgpu, "mesh_2d_elements1d_on.png")
 
@@ -44,7 +42,6 @@ def test_mesh_curving_2d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "mesh_circle_curved_off.png")
 
-    expand_section(page, "View")
     click_curving_checkbox(page)
     assert_matches_baseline(page, comp.wgpu, "mesh_circle_curved_on.png")
 
@@ -58,7 +55,6 @@ def test_mesh_curving_3d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "mesh_sphere_curved_off.png")
 
-    expand_section(page, "View")
     click_curving_checkbox(page)
     assert_matches_baseline(page, comp.wgpu, "mesh_sphere_curved_on.png")
 

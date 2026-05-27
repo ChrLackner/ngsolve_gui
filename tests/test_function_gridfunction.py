@@ -62,16 +62,15 @@ def test_function_3d_options(page: Page, app) -> None:
 
     # 1. Enable clipping so the clipping plane is visible
     expand_section(page, "Clipping")
-    click_checkbox(page, "Enable Clipping")
+    click_checkbox(page, "Enable")
     assert_matches_baseline(page, comp.wgpu, "func_3d_options_clipped.png")
 
     # 2. Hide surface solution (clipping plane still visible)
     collapse_section(page, "Clipping")
-    expand_section(page, "Options")
-    click_checkbox(page, "Surface Solution Visible")
+    click_checkbox(page, "Surface")
     assert_matches_baseline(page, comp.wgpu, "func_3d_options_no_surface.png")
 
     # 3. Re-show surface, hide clipping function
-    click_checkbox(page, "Surface Solution Visible")
-    click_checkbox(page, "Clipping Function")
+    click_checkbox(page, "Surface")
+    click_checkbox(page, "Clipping Fn")
     assert_matches_baseline(page, comp.wgpu, "func_3d_options_no_clipping_func.png")
