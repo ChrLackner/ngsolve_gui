@@ -34,8 +34,10 @@ def test_geometry_pick(page: Page, app) -> None:
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_hover.png")
 
     # 2. Click face → selection
+    # Recompute center since assert_matches_baseline resizes the canvas
+    x, y = _canvas_center(page)
     page.mouse.click(x, y)
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(1000)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_selected.png")
 
     # Verify component selection state
@@ -51,13 +53,15 @@ def test_geometry_pick(page: Page, app) -> None:
     # 4. Switch to solid pick mode, hover → solid highlight
     comp.pick_solid.value = True
     page.wait_for_timeout(300)
+    x, y = _canvas_center(page)
     page.mouse.move(x, y)
     page.wait_for_timeout(500)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_solid_hover.png")
 
     # 5. Click solid → solid selected (all faces of solid highlighted)
+    x, y = _canvas_center(page)
     page.mouse.click(x, y)
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(1000)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_solid_selected.png")
     assert len(comp._selected_items) == 1
     assert comp._selected_items[0][0] == "solid"
