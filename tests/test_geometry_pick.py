@@ -37,7 +37,7 @@ def test_geometry_pick(page: Page, app) -> None:
     # Recompute center since assert_matches_baseline resizes the canvas
     x, y = _canvas_center(page)
     page.mouse.click(x, y)
-    page.wait_for_timeout(1000)
+    page.wait_for_timeout(500)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_selected.png")
 
     # Verify component selection state
@@ -61,7 +61,7 @@ def test_geometry_pick(page: Page, app) -> None:
     # 5. Click solid → solid selected (all faces of solid highlighted)
     x, y = _canvas_center(page)
     page.mouse.click(x, y)
-    page.wait_for_timeout(1000)
+    page.wait_for_timeout(500)
     assert_matches_baseline(page, comp.wgpu, "geometry_pick_solid_selected.png")
     assert len(comp._selected_items) == 1
     assert comp._selected_items[0][0] == "solid"

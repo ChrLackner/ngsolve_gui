@@ -64,9 +64,9 @@ def test_mesh_3d(page: Page, app) -> None:
     # 4. Enable volume elements (shrunk) via UI
     collapse_section(page, "Clipping")
     click_checkbox(page, "Elements 3D")
-    set_slider(page, 0.8)
+    set_slider(page, 0.8, label="Shrink")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_volume_shrink.png")
 
     # 5. Change shrink to 0.5
-    set_slider(page, 0.5)
+    set_slider(page, 0.5, label="Shrink")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_volume_shrink_low.png")

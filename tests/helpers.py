@@ -130,14 +130,19 @@ def click_curving_checkbox(page: Page) -> None:
 
 
 def set_slider(
-    page: Page, value: float, *, min_val: float = 0.0, max_val: float = 1.0
+    page: Page, value: float, *, label: str | None = None, min_val: float = 0.0, max_val: float = 1.0
 ) -> None:
     """Set a Quasar slider by clicking at the proportional position.
 
-    Finds the first visible slider on the page and clicks at the position
-    corresponding to the given value within [min_val, max_val].
+    When *label* is given, targets the slider in the same row as that label
+    text. Otherwise falls back to the first slider on the page.
     """
-    slider = page.get_by_role("slider")
+    if label:
+        # Find the row containing the label, then locate the slider within it
+        row = page.locator(".row, [class*='row']").filter(has_text=label)
+        slider = row.get_by_role("slider").first
+    else:
+        slider = page.get_by_role("slider").first
     box = slider.bounding_box()
     if box is None:
         raise AssertionError("Slider not visible")
