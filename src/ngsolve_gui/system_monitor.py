@@ -259,6 +259,7 @@ class SystemMonitor(Div):
 
         self._running = True
         self._tick = 0
+        self._last_proc_vram = None  # cache last known per-process VRAM
         # Trigger one-time init (seeds cpu_percent counters)
         _ensure_psutil()
         threading.Thread(target=self._poll, daemon=True).start()
@@ -304,6 +305,10 @@ class SystemMonitor(Div):
             total = stats["gpu_total_gb"]
             pct = (used / total * 100) if total > 0 else 0
             proc_vram = stats.get("proc_gpu_mem_gb")
+            if proc_vram is not None:
+                self._last_proc_vram = proc_vram
+            else:
+                proc_vram = self._last_proc_vram
             self._vram_bar.update(
                 f"{used:.1f}/{total:.0f}G", pct / 100, _color_for_percent(pct),
                 proc_text=f"{proc_vram:.1f}G" if proc_vram is not None else None,
