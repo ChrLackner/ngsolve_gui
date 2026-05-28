@@ -629,7 +629,7 @@ class FunctionComponent(WebgpuTab):
                 import traceback
                 print(f"Warning: facet renderer creation failed: {e}")
                 traceback.print_exc()
-        elif self.mesh.dim == 3:
+        elif self.mesh.dim == 3 and self.draw_vol:
             try:
                 from ngsolve_webgpu.facet_cf import FacetCFRenderer3D
                 facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
