@@ -614,7 +614,7 @@ class FunctionComponent(WebgpuTab):
 
         # Facet rendering (element-boundary CF visualization)
         self.facet_renderer = None
-        if self.mesh.dim == 2:
+        if self.mesh.dim == 2 and self.draw_vol:
             facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
             try:
                 facet_data = FacetFunctionData(
