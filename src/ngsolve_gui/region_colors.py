@@ -1,5 +1,15 @@
 from ngapp.components import *
 
+from .cerbsim_style import (
+    color_swatch,
+    region_item_row,
+    region_header,
+    region_body,
+    region_toggle,
+    field_label,
+    hidden,
+)
+
 
 def get_random_colors(n):
     import random, math, itertools
@@ -39,11 +49,6 @@ def _hex_str(r, g, b):
 
 # ── color swatch button ──────────────────────────────────────────
 
-_SWATCH = (
-    "min-width:22px; max-width:22px; min-height:22px; max-height:22px;"
-    "border-radius:4px; border:1px solid rgba(0,0,0,0.15); padding:0;"
-)
-
 
 class ColorpickerButton(QBtn):
     """Small color swatch that opens a picker popup.
@@ -62,12 +67,14 @@ class ColorpickerButton(QBtn):
         )
         self.picker.on_update_model_value(self._on_pick)
         super().__init__(
-            QMenu(self.picker), ui_size="sm", ui_style=self._style(), **kwargs
+            QMenu(self.picker), ui_size="sm",
+            ui_class=color_swatch, ui_style=self._style(), **kwargs
         )
 
     def _style(self):
+        # Only the fill color is dynamic; the swatch shape lives in color_swatch.
         r, g, b, _ = self._color
-        return f"background-color:{_hex_str(r, g, b)};{_SWATCH}"
+        return f"background-color:{_hex_str(r, g, b)};"
 
     @property
     def color(self):
@@ -157,17 +164,9 @@ class RegionColors(Div):
 
         return Div(
             Div(vis, ui_class="col-auto"),
-            Div(picker, ui_class="col-auto", ui_style="padding: 0 4px;"),
-            Div(
-                Label(name),
-                ui_class="col",
-                ui_style=(
-                    "font-size:0.8rem; white-space:nowrap;"
-                    "overflow:hidden; text-overflow:ellipsis;"
-                ),
-            ),
-            ui_class="row items-center no-wrap",
-            ui_style="padding:2px 4px 2px 20px; min-height:30px;",
+            Div(picker, ui_class="col-auto q-px-xs"),
+            Div(Label(name), ui_class="col " + field_label + " ellipsis"),
+            ui_class="row items-center no-wrap " + region_item_row,
         )
 
     # ── group ─────────────────────────────────────────────────────
@@ -195,44 +194,30 @@ class RegionColors(Div):
 
         # the clickable label area toggles expand/collapse
         toggle = QItem(
-            Div(icon, ui_class="col-auto", ui_style="margin-right:2px;"),
-            Div(
-                Label(f"{key}"),
-                ui_class="col-auto",
-                ui_style="font-size:0.82rem; font-weight:600;",
-            ),
-            Div(
-                Label(f"({len(members)})"),
-                ui_class="col-auto",
-                ui_style="font-size:0.72rem; color:#999; padding-left:4px;",
-            ),
+            Div(icon, ui_class="col-auto q-mr-xs"),
+            Div(Label(f"{key}"), ui_class="col-auto text-weight-medium"),
+            Div(Label(f"({len(members)})"), ui_class="col-auto " + field_label + " q-pl-xs"),
             ui_clickable=True,
             ui_dense=True,
-            ui_style="padding:0; min-height:unset; user-select:none; flex:1;",
-            ui_class="row items-center no-wrap",
+            ui_class="row items-center no-wrap " + region_toggle,
         )
         toggle.on_click(lambda e, k=key: self._toggle(k))
 
         header = Div(
             Div(gvis, ui_class="col-auto"),
-            Div(gpicker, ui_class="col-auto", ui_style="padding:0 6px;"),
+            Div(gpicker, ui_class="col-auto q-px-xs"),
             toggle,
             Div(grand, ui_class="col-auto"),
-            ui_class="row items-center no-wrap",
-            ui_style=(
-                "padding:3px 6px; border-radius:6px;"
-                "background:linear-gradient(135deg, rgba(0,0,0,0.025), rgba(0,0,0,0.05));"
-                "transition: background 0.15s;"
-            ),
+            ui_class="row items-center no-wrap " + region_header,
         )
 
         body = Div(
             *[self._make_item_row(n) for n in members],
-            ui_style="display:none; padding:2px 0 2px 0; border-left:2px solid rgba(0,0,0,0.06); margin-left:14px;",
+            ui_class=region_body + hidden,
         )
         self._group_bodies[key] = body
 
-        group_div = Div(header, body, ui_style="margin-bottom:3px;")
+        group_div = Div(header, body, ui_class="q-mb-xs")
         self._group_rows[key] = group_div
         return group_div
 
@@ -241,10 +226,10 @@ class RegionColors(Div):
         icon = self._group_icons[key]
         expanded = self._group_expanded[key]
         if expanded:
-            body.ui_style = "display:none; padding:2px 0 2px 0; border-left:2px solid rgba(0,0,0,0.06); margin-left:14px;"
+            body.ui_class = region_body + hidden
             icon.ui_name = "mdi-chevron-right"
         else:
-            body.ui_style = "padding:2px 0 2px 0; border-left:2px solid rgba(0,0,0,0.06); margin-left:14px;"
+            body.ui_class = region_body
             icon.ui_name = "mdi-chevron-down"
         self._group_expanded[key] = not expanded
 
@@ -282,7 +267,7 @@ class RegionColors(Div):
                     ui_dense=True,
                     ui_clearable=True,
                     ui_debounce=300,
-                    ui_style="margin-bottom:6px;",
+                    ui_class="q-mb-xs",
                 )
                 filt.on_update_model_value(self._on_filter)
                 rows.append(filt)
@@ -309,10 +294,10 @@ class RegionColors(Div):
         for key, widget in self._group_rows.items():
             members = self._group_members[key]
             hit = not text or text in key.lower() or any(text in m.lower() for m in members)
-            widget.ui_style = "margin-bottom:3px;" if hit else "display:none;"
+            widget.ui_hidden = not hit
         for name, widget in self._item_rows.items():
             hit = not text or text in name.lower()
-            widget.ui_style = "padding:2px 4px;" if hit else "display:none;"
+            widget.ui_hidden = not hit
 
     # ── public API ────────────────────────────────────────────────
 

@@ -8,6 +8,8 @@ Advanced settings (colormap choice, discrete, ncolors) behind nested expander.
 
 from ngapp.components import *
 
+from ..cerbsim_style import gap_xs, input_compact, subexpander_header
+
 
 class ColorbarSection(QExpansionItem):
     def __init__(self, comp):
@@ -17,7 +19,6 @@ class ColorbarSection(QExpansionItem):
         # The observables have a formatter, so QInput shows e.g. "7.957e-06"
         self.autoscale = QCheckbox(
             "Auto", ui_model_value=comp.colormap_autoscale, ui_dense=True,
-            ui_style="min-width: 55px;",
         )
         self.minval = QInput(
             ui_type="number", ui_dense=True,
@@ -31,15 +32,14 @@ class ColorbarSection(QExpansionItem):
         )
         range_row = Row(
             self.autoscale, self.minval, self.maxval,
-            ui_class="items-center no-wrap",
-            ui_style="gap: 4px;",
+            ui_class="items-center no-wrap " + gap_xs,
         )
 
         # -- Advanced (colormap choice, discrete, ncolors) --
         self.colormap_select = QSelect(
             ui_label="Colormap",
             ui_options=[
-                "viridis", "plasma", "cet_l20",
+                "rainbow", "turbo", "viridis", "plasma", "cet_l20",
                 "matlab:jet", "matplotlib:coolwarm",
             ],
             ui_model_value=comp.colormap_name,
@@ -51,12 +51,12 @@ class ColorbarSection(QExpansionItem):
         self.ncolors = QInput(
             ui_label="N colors", ui_type="number",
             ui_model_value=comp.ncolors_colormap, ui_dense=True,
-            ui_style="max-width: 80px;",
+            ui_class=input_compact,
         )
         self.ncolors.on_change(self._update_ncolors)
         discrete_row = Row(
             self.discrete, self.ncolors,
-            ui_class="items-center", ui_style="gap: 4px;",
+            ui_class="items-center " + gap_xs,
         )
         advanced = QExpansionItem(
             self.colormap_select,
@@ -64,7 +64,7 @@ class ColorbarSection(QExpansionItem):
             ui_label="Advanced",
             ui_dense=True,
             ui_dense_toggle=True,
-            ui_header_style="font-size: 0.75rem; color: #78909c; min-height: 28px; padding: 0;",
+            ui_header_class=str(subexpander_header),
         )
 
         # Min/max user edits → disable autoscale

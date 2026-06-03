@@ -1,6 +1,16 @@
 from ngapp.components import *
 
-from .styles import sidebar_props, prop_title, prop_title_text, section_content, section_border, SECTION_COLORS
+from .cerbsim_style import (
+    sidebar_props,
+    prop_title,
+    prop_title_text,
+    section_content,
+    section_border,
+    section_header,
+    field_label,
+    gap_xs,
+    SECTION_COLORS,
+)
 
 
 # Section key → accent color mapping (for left-border on headers)
@@ -20,30 +30,28 @@ _SECTION_KEY_MAP = {
 }
 
 
-def _section_header_style(section_cls):
-    """Generate a header style with colored left-border accent."""
+def _section_header_border(section_cls):
+    """Per-section accent color for the header left-border (data-driven)."""
     key = _SECTION_KEY_MAP.get(section_cls.__name__, "")
-    color = SECTION_COLORS.get(key, "#90a4ae")
-    return f"border-left: 3px solid {color}; font-weight: 600; font-size: 0.82rem;"
+    color = SECTION_COLORS.get(key, "var(--fg-subtle)")
+    return f"border-left: 3px solid {color};"
 
 
 class PropertyPanel(Div):
     def __init__(self):
-        self._title_text = Div("Properties", ui_class=str(prop_title_text))
-        self._actions = Div(
-            ui_style="display: flex; gap: 4px; align-items: center;",
-        )
+        self._title_text = Div("Properties", ui_class=prop_title_text)
+        self._actions = Div(ui_class="row items-center " + gap_xs)
         self._title = Div(
             self._title_text,
             self._actions,
-            ui_class=str(prop_title),
+            ui_class=prop_title,
         )
         self._sections = Div()
         super().__init__(
             self._title,
             QSeparator(),
             self._sections,
-            ui_class=str(sidebar_props),
+            ui_class=sidebar_props,
         )
 
     def set_component(self, comp, type_key):
@@ -54,11 +62,7 @@ class PropertyPanel(Div):
             self._title_text.ui_children = ["Properties"]
             self._actions.ui_children = []
             self._sections.ui_children = [
-                Div(
-                    "No item selected.",
-                    ui_class="text-grey-6",
-                    ui_style="padding: 16px; font-size: 0.85rem;",
-                )
+                Div("No item selected.", ui_class=field_label + " q-pa-md")
             ]
             return
 
@@ -77,8 +81,9 @@ class PropertyPanel(Div):
                 # Apply consistent styling to every section
                 section.ui_dense = True
                 section.ui_expand_separator = True
-                section.ui_class = str(section_border)
-                section.ui_header_style = _section_header_style(cls)
+                section.ui_class = section_border
+                section.ui_header_class = str(section_header)
+                section.ui_header_style = _section_header_border(cls)
                 # Wrap section content children in padded container
                 _apply_section_padding(section)
                 sections.append(section)
@@ -91,11 +96,7 @@ class PropertyPanel(Div):
             self._sections.ui_children = sections
         else:
             self._sections.ui_children = [
-                Div(
-                    "No settings available.",
-                    ui_class="text-grey-6",
-                    ui_style="padding: 16px; font-size: 0.85rem;",
-                )
+                Div("No settings available.", ui_class=field_label + " q-pa-md")
             ]
 
     def _build_actions(self, comp, type_key):
@@ -153,4 +154,4 @@ def _apply_section_padding(section):
     """
     children = list(section.ui_children) if section.ui_children else []
     if children:
-        section.ui_children = [Div(*children, ui_class=str(section_content))]
+        section.ui_children = [Div(*children, ui_class=section_content)]

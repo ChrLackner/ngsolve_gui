@@ -1,6 +1,9 @@
+import os
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("NGAPP_DEFAULT_COLORMAP", "matlab:jet")
 
 pytest_plugins = ["ngapp.e2e_webgpu"]
 

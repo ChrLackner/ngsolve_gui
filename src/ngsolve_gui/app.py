@@ -11,7 +11,8 @@ from .file_loader import load_file
 from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
 from .property_panel import PropertyPanel
-from .styles import css, theme, flex_fill, panel_full
+from . import cerbsim_style as cb
+from .cerbsim_style import theme, flex_fill, panel_full
 from .system_monitor import SystemMonitor
 
 
@@ -19,7 +20,7 @@ class Panel(Div):
     def __init__(self, app_data):
         self.app_data = app_data
         self.comp = None
-        super().__init__(ui_class=str(panel_full))
+        super().__init__(ui_class=panel_full)
         self.set_tab()
 
     def set_tab(self):
@@ -55,6 +56,46 @@ class Panel(Div):
 class Settings(QMenu):
     def __init__(self, app):
         self.app = app
+
+        theme_select = QSelect(
+            QTooltip("Choose the color theme. 'System default' follows your OS setting."),
+            ui_label="Appearance",
+            ui_options=[
+                {"label": "System default", "value": "system"},
+                {"label": "Light", "value": "light"},
+                {"label": "Dark", "value": "dark"},
+            ],
+            ui_model_value=self.app.usersettings.get("theme", "system"),
+            ui_dense=True,
+            ui_emit_value=True,
+            ui_map_options=True,
+        )
+
+        def _on_theme(event):
+            self.app.usersettings.set("theme", event.value)
+            cb.set_theme(self.app, event.value)
+            self.app._apply_viewport_theme()
+
+        colormap_select = QSelect(
+            QTooltip("Default colormap for new field plots. "
+                     "'Auto (theme)' uses rainbow in light mode and turbo in dark mode."),
+            ui_label="Default colormap",
+            ui_options=[
+                {"label": "Auto (theme)", "value": ""},
+                "rainbow", "turbo", "viridis", "plasma", "cet_l20",
+                "matlab:jet", "matplotlib:coolwarm",
+            ],
+            ui_model_value=self.app.usersettings.get("default_colormap", ""),
+            ui_dense=True,
+            ui_emit_value=True,
+            ui_map_options=True,
+        )
+        colormap_select.on_update_model_value(
+            self.app.usersettings.update("default_colormap")
+        )
+
+        theme_select.on_update_model_value(_on_theme)
+
         val = self.app.usersettings.get("nthreads", 0)
         nthreads = QInput(
             QTooltip(
@@ -123,38 +164,17 @@ class Settings(QMenu):
 
         super().__init__(QCard(
             QCardSection("Settings"),
-            QCardSection(nthreads, show_axes, show_navcube, scale_by_mag, redraw_interval, gpu_preference),
+            QCardSection(theme_select, colormap_select, nthreads, show_axes, show_navcube, scale_by_mag, redraw_interval, gpu_preference),
         ))
 
 
 class StatusBar(Div):
     """Floating pill overlay at the bottom of the scene showing loading progress."""
 
-    # Outer wrapper — anchored to the bottom-center of the nearest
-    # position:relative ancestor (the scene container).
-    _VISIBLE = (
-        "position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); "
-        "z-index: 1000; display: flex; flex-direction: column; align-items: stretch; "
-        "background: rgba(15,23,42,0.88); backdrop-filter: blur(6px); "
-        "border-radius: 12px; padding: 10px 18px 12px; min-width: 320px; "
-        "max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.25); "
-        "color: #e2e8f0; font-size: 0.82rem;"
-    )
-    _HIDDEN = "display: none;"
-
     def __init__(self):
         # Top row: icon + label + cancel
-        self._label = Div(
-            "",
-            ui_style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-        )
-        self._pct_label = Div(
-            "",
-            ui_style=(
-                "white-space: nowrap; font-variant-numeric: tabular-nums; "
-                "font-size: 0.78rem; color: #94a3b8; min-width: 36px; text-align: right;"
-            ),
-        )
+        self._label = Div("", ui_class="col ellipsis")
+        self._pct_label = Div("", ui_class=cb.mono + cb.hint + " text-right")
         self._cancel_btn = QBtn(
             QTooltip("Cancel"),
             ui_icon="mdi-close",
@@ -163,41 +183,28 @@ class StatusBar(Div):
             ui_round=True,
             ui_size="xs",
             ui_padding="2px",
-            ui_color="grey-5",
         )
         self._cancel_btn.on_click(self._on_cancel)
 
         top_row = Div(
-            QSpinner(ui_color="accent", ui_size="18px"),
+            QSpinner(ui_color="primary", ui_size="18px"),
             self._label,
             QSpace(),
             self._pct_label,
             self._cancel_btn,
-            ui_style="display: flex; align-items: center; gap: 8px;",
+            ui_class="row items-center " + cb.gap_sm,
         )
 
         # Progress bar (track + filled portion)
-        self._bar_fill = Div(
-            ui_style=(
-                "height: 100%; width: 0%; border-radius: 3px; "
-                "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
-                "transition: width 0.3s ease;"
-            ),
-        )
-        bar_track = Div(
-            self._bar_fill,
-            ui_style=(
-                "height: 6px; border-radius: 3px; "
-                "background: rgba(255,255,255,0.12); margin-top: 8px; "
-                "overflow: hidden;"
-            ),
-        )
+        self._bar_fill = Div(ui_class=cb.status_fill)
+        bar_track = Div(self._bar_fill, ui_class=cb.status_track)
 
         self._thread = None
         self._done_event = None
         self._generation = 0
 
-        super().__init__(top_row, bar_track, ui_style=self._HIDDEN)
+        super().__init__(top_row, bar_track, ui_class=cb.status_pill)
+        self.ui_hidden = True
 
     def show(self, filename, thread, done_event):
         self._generation += 1
@@ -206,37 +213,25 @@ class StatusBar(Div):
         self._thread_name = thread.name if thread else ""
         self._label.ui_children = [f"Running {filename} \u2026"]
         self._pct_label.ui_children = [""]
-        self._bar_fill.ui_style = (
-            "height: 100%; width: 100%; border-radius: 3px; "
-            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
-            "animation: indeterminate 1.4s ease infinite; "
-            "transition: none;"
-        )
-        self.ui_style = self._VISIBLE
+        self._set_indeterminate()
+        self.ui_hidden = False
         self._start_poll(self._generation)
 
     def hide(self):
         self._thread = None
         self._done_event = None
-        self.ui_style = self._HIDDEN
+        self.ui_hidden = True
 
     def _set_progress(self, percent):
-        """Set determinate progress (0–100)."""
+        """Set determinate progress (0–100); width is the live value."""
         w = max(0, min(100, percent))
-        self._bar_fill.ui_style = (
-            f"height: 100%; width: {w:.1f}%; border-radius: 3px; "
-            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
-            "transition: width 0.3s ease;"
-        )
+        self._bar_fill.ui_class = cb.status_fill
+        self._bar_fill.ui_style = f"width: {w:.1f}%;"
         self._pct_label.ui_children = [f"{w:.0f}%"]
 
     def _set_indeterminate(self):
-        self._bar_fill.ui_style = (
-            "height: 100%; width: 100%; border-radius: 3px; "
-            "background: linear-gradient(90deg, #14B8A6, #0EA5E9); "
-            "animation: indeterminate 1.4s ease infinite; "
-            "transition: none;"
-        )
+        self._bar_fill.ui_class = cb.status_fill_indeterminate
+        self._bar_fill.ui_style = ""
         self._pct_label.ui_children = [""]
 
     def _start_poll(self, gen):
@@ -329,11 +324,13 @@ class NGSolveGui(App):
         close_btn.on_click(self.quit)
         ngs_logo = Div(
             QImg(
-                ui_src=self.load_asset("logo_withname_retina.png"),
-                ui_height="40px",
-                ui_fit="scale-down",
+                ui_src=self.load_asset("ngsolve-mark.png"),
+                ui_height="34px",
+                ui_width="34px",
+                ui_fit="contain",
             ),
-            ui_style="width: 200px;",
+            Div("Netgen/NGSolve", ui_class=cb.brand_wordmark),
+            ui_class=cb.brand + " " + cb.gap_sm,
         )
 
         self.system_monitor = SystemMonitor()
@@ -356,8 +353,7 @@ class NGSolveGui(App):
             self._prop_btn,
             settings_btn,
             close_btn,
-            ui_style="height: 60px",
-            ui_class="bg-primary text-grey-4",
+            ui_class=cb.app_bar,
         )
 
         # Three-column layout using flex
@@ -381,10 +377,10 @@ class NGSolveGui(App):
             ui_limits=[0, 500] if self._prop_visible else [0, 0],
             ui_emit_immediately=True,
             ui_slots={
-                "before": [Div(self.tab_panel, ui_class=str(flex_fill))],
+                "before": [Div(self.tab_panel, ui_class=flex_fill)],
                 "after": [self.property_panel],
             },
-            ui_style="height: calc(100vh - 60px);",
+            ui_class=cb.body_height,
         )
         self._inner_splitter.on_update_model_value(self._on_prop_width_change)
 
@@ -398,7 +394,7 @@ class NGSolveGui(App):
                 "before": [self.navigator],
                 "after": [self._inner_splitter],
             },
-            ui_style="height: calc(100vh - 60px);",
+            ui_class=cb.body_height,
         )
         self._outer_splitter.on_update_model_value(self._on_nav_width_change)
 
@@ -406,10 +402,10 @@ class NGSolveGui(App):
 
         super().__init__(bar, page, self.status_bar, self.kb.indicator, self.kb.help_overlay)
 
-        theme.apply(self)
-        css.inject(self)
+        cb.install(self, default_theme=self.usersettings.get("theme", "system"))
+        from .webgpu_tab import sync_default_viewport_clear
+        sync_default_viewport_clear()
         keybinding_styles.inject(self)
-        self._inject_status_bar_css()
         self.on_load(self.__on_load)
 
         # -- Global keybindings (always active) --
@@ -433,21 +429,6 @@ class NGSolveGui(App):
         elif isinstance(filename, list):
             for f in filename:
                 self._load_with_status(f)
-
-    def _inject_status_bar_css(self):
-        kf = (
-            "@keyframes indeterminate {"
-            "  0%   { transform: translateX(-100%); }"
-            "  100% { transform: translateX(100%);  }"
-            "}"
-        )
-
-        def _inject(js):
-            el = js.document.createElement("style")
-            el.textContent = kf
-            js.document.head.appendChild(el)
-
-        self.call_js(_inject)
 
     def _load_file(self):
         from tkinter import Tk, filedialog
@@ -534,6 +515,15 @@ class NGSolveGui(App):
         else:
             self._inner_splitter.ui_model_value = 0
             self._inner_splitter.ui_limits = [0, 0]
+
+    def _apply_viewport_theme(self):
+        """Update the scene background of every open 3D tab to the active theme."""
+        from .webgpu_tab import sync_default_viewport_clear
+        sync_default_viewport_clear()  # so tabs opened later also start correct
+        for tab in self.app_data.get_tabs().values():
+            comp = tab.get("component")
+            if comp is not None and hasattr(comp, "apply_viewport_theme"):
+                comp.apply_viewport_theme()
 
 
     def redraw(self, *args, **kwargs):

@@ -1,21 +1,22 @@
 from ngapp.components import *
 
+from ..cerbsim_style import field_label, nowrap, gap_sm
+
 
 class GeometrySelectionSection(QExpansionItem):
     def __init__(self, comp):
         self.comp = comp
         self._heading = Div(
             "No selection",
-            ui_style="font-size: 0.85rem; color: #78909c; padding-bottom: 4px;",
+            ui_class=field_label + " q-pb-xs",
         )
-        _cb_style = "padding: 0 4px 0 0;"
         self._pick_mode_row = Row(
-            Div("Pick:", ui_style="font-size: 0.8rem; color: #78909c; white-space: nowrap; margin-right: 4px; line-height: 32px;"),
-            QCheckbox(ui_label="S", ui_model_value=comp.pick_solid, ui_dense=True, ui_style=_cb_style),
-            QCheckbox(ui_label="F", ui_model_value=comp.pick_faces, ui_dense=True, ui_style=_cb_style),
-            QCheckbox(ui_label="E", ui_model_value=comp.pick_edges, ui_dense=True, ui_style=_cb_style),
-            QCheckbox(ui_label="V", ui_model_value=comp.pick_vertices, ui_dense=True, ui_style=_cb_style),
-            ui_style="align-items: center; flex-wrap: nowrap;",
+            Div("Pick:", ui_class=field_label + " " + nowrap + " q-mr-xs"),
+            QCheckbox(ui_label="S", ui_model_value=comp.pick_solid, ui_dense=True, ui_class="q-pr-xs"),
+            QCheckbox(ui_label="F", ui_model_value=comp.pick_faces, ui_dense=True, ui_class="q-pr-xs"),
+            QCheckbox(ui_label="E", ui_model_value=comp.pick_edges, ui_dense=True, ui_class="q-pr-xs"),
+            QCheckbox(ui_label="V", ui_model_value=comp.pick_vertices, ui_dense=True, ui_class="q-pr-xs"),
+            ui_class="items-center no-wrap",
         )
         self.meshsize_input = QInput(
             ui_label="Mesh Size",
@@ -46,7 +47,7 @@ class GeometrySelectionSection(QExpansionItem):
             self._heading,
             self.meshsize_input,
             self.name_input,
-            Row(hide_btn, showall_btn, ui_style="margin-top: 4px; gap: 8px;"),
+            Row(hide_btn, showall_btn, ui_class="q-mt-xs " + gap_sm),
             ui_icon="mdi-cursor-default-click",
             ui_label="Selection",
         )

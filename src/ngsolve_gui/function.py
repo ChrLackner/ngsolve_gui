@@ -1,6 +1,7 @@
 from ngapp.components import *
 from ngsolve_webgpu import *
 from .webgpu_tab import WebgpuTab, _usersettings
+from . import cerbsim_style as cb
 import ngsolve as ngs
 import copy
 
@@ -114,7 +115,7 @@ class FunctionComponent(WebgpuTab):
         self.colormap_min = Observable(cm[2], "colormap_min", converter=float, formatter=lambda v: f"{v:.4g}")
         self.colormap_max = Observable(cm[3], "colormap_max", converter=float, formatter=lambda v: f"{v:.4g}")
         self.colormap_name = Observable(
-            s.get("colormap_name", "matlab:jet"), "colormap_name"
+            s.get("colormap_name", cb.default_colormap(_usersettings)), "colormap_name"
         )
         self.ncolors_colormap = Observable(
             s.get("ncolors_colormap", 8), "ncolors_colormap", converter=int
@@ -307,7 +308,7 @@ class FunctionComponent(WebgpuTab):
 
     # -- Keybinding support -------------------------------------------------
 
-    _COLORMAPS = ["viridis", "plasma", "cet_l20", "matlab:jet", "matplotlib:coolwarm"]
+    _COLORMAPS = ["rainbow", "turbo", "viridis", "plasma", "cet_l20", "matlab:jet", "matplotlib:coolwarm"]
 
     def get_keybindings(self):
         kb = super().get_keybindings()
@@ -549,7 +550,7 @@ class FunctionComponent(WebgpuTab):
         discrete = self.colormap_discrete.value
         minval = self.colormap_min.value
         maxval = self.colormap_max.value
-        self.colormap = Colormap(minval=minval, maxval=maxval)
+        self.colormap = Colormap(minval=minval, maxval=maxval, colormap=self.colormap_name.value)
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
         self.clipping_vectors = None

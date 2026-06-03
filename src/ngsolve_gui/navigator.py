@@ -1,6 +1,14 @@
 from ngapp.components import *
 
-from .styles import sidebar_nav, nav_item, nav_number_hint, nav_group_header
+from .cerbsim_style import (
+    sidebar_nav,
+    nav_item,
+    nav_item_active,
+    nav_number_hint,
+    nav_group_header,
+    nav_side,
+    avatar_min,
+)
 
 _TYPE_GROUPS = {
     "geometry": ("Geometries", "mdi-cube"),
@@ -17,7 +25,7 @@ class Navigator(Div):
         self._list = QList(ui_dense=True, ui_separator=True)
         super().__init__(
             self._list,
-            ui_class=str(sidebar_nav),
+            ui_class=sidebar_nav,
         )
         self.update()
 
@@ -26,10 +34,10 @@ class Navigator(Div):
             return QItemSection(
                 Div(
                     str(idx),
-                    ui_class=str(nav_number_hint),
+                    ui_class=nav_number_hint,
                 ),
                 ui_side=True,
-                ui_style="min-width: 14px; padding-right: 0;",
+                ui_class=nav_side,
             )
         return None
 
@@ -50,7 +58,7 @@ class Navigator(Div):
             header = QItemLabel(
                 group_label,
                 ui_header=True,
-                ui_class="text-weight-bold text-grey-7 " + str(nav_group_header),
+                ui_class=nav_group_header,
             )
             items.append(header)
             for tab_name, tab in tabs_in_group:
@@ -67,15 +75,9 @@ class Navigator(Div):
                                 ui_color="primary" if is_active else "grey-7",
                             ),
                             ui_avatar=True,
-                            ui_style="min-width: 32px;",
+                            ui_class=avatar_min,
                         ),
-                        QItemSection(
-                            Div(
-                                tab["title"],
-                                ui_style="font-size: 0.85rem;"
-                                + (" font-weight: 600;" if is_active else ""),
-                            ),
-                        ),
+                        QItemSection(Div(tab["title"])),
                         self._build_context_menu(tab_name),
                     ]
                     if c is not None
@@ -84,9 +86,9 @@ class Navigator(Div):
                     *children,
                     ui_clickable=True,
                     ui_active=is_active,
-                    ui_active_class="bg-blue-1 text-primary",
+                    ui_active_class=str(nav_item_active),
                     ui_dense=True,
-                    ui_class=str(nav_item),
+                    ui_class=nav_item,
                 )
                 item.on_click(lambda e=None, n=tab_name: self._on_select(n))
                 item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
@@ -106,9 +108,9 @@ class Navigator(Div):
                         QItemSection(
                             QIcon(ui_name=tab.get("icon", "mdi-help"), ui_size="xs"),
                             ui_avatar=True,
-                            ui_style="min-width: 32px;",
+                            ui_class=avatar_min,
                         ),
-                        QItemSection(Div(tab["title"], ui_style="font-size: 0.85rem;")),
+                        QItemSection(Div(tab["title"])),
                         self._build_context_menu(tab_name),
                     ]
                     if c is not None
@@ -117,9 +119,9 @@ class Navigator(Div):
                     *children,
                     ui_clickable=True,
                     ui_active=is_active,
-                    ui_active_class="bg-blue-1 text-primary",
+                    ui_active_class=nav_item_active,
                     ui_dense=True,
-                    ui_class=str(nav_item),
+                    ui_class=nav_item,
                 )
                 item.on_click(lambda e=None, n=tab_name: self._on_select(n))
                 item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
@@ -141,7 +143,7 @@ class Navigator(Div):
             QItemSection(
                 QIcon(ui_name="mdi-delete", ui_size="xs"),
                 ui_avatar=True,
-                ui_style="min-width: 32px;",
+                ui_class=avatar_min,
             ),
             QItemSection("Delete"),
             ui_clickable=True,
@@ -175,7 +177,7 @@ class Navigator(Div):
             QItemSection(
                 QIcon(ui_name="mdi-pencil", ui_size="xs"),
                 ui_avatar=True,
-                ui_style="min-width: 32px;",
+                ui_class=avatar_min,
             ),
             QItemSection("Rename"),
             rename_dialog,

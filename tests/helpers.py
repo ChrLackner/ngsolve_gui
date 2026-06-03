@@ -122,9 +122,7 @@ def fill_input(page: Page, label: str, value: str) -> None:
 
 def click_curving_checkbox(page: Page) -> None:
     """Click the unlabeled curving checkbox next to the 'Curve Order' text."""
-    # The checkbox and "Curve Order" label are siblings inside a flex row
-    # with flex-wrap: nowrap. Target that specific row.
-    row = page.locator("[style*='flex-wrap']").filter(has_text="Curve Order")
+    row = page.locator(".cb-gap-xs").filter(has_text="Curve Order")
     row.get_by_role("checkbox").click()
     page.wait_for_timeout(500)
 

@@ -13,10 +13,10 @@ class PlotComponent(Div):
         self._figures = []
         self._plots = []
         self.debug = bool(data.get("debug", False)) if isinstance(data, dict) else False
-        self.container = Div(ui_style="width: 100%; height: 100%; overflow: auto;")
+        self.container = Div(ui_class="fit scroll")
         super().__init__(
             self.container,
-            ui_style="width: 100%; height: 100%;",
+            ui_class="fit",
         )
         self.on_mounted(self.draw)  # defer until mounted
 
@@ -85,13 +85,14 @@ class PlotComponent(Div):
                 continue
             self._figures.append(pfig)
             plot = PlotlyComponent(id=f"{self.name}_plot_{idx}")
-            plot.ui_style = f"width: 100%; height: {plot_height};"
+            plot.ui_class = "full-width"
+            plot.ui_style = f"height: {plot_height};"  # height is computed per figure
             plot.on_mounted(lambda _=None, plot=plot, fig=pfig: plot.draw(fig))
             self._plots.append(plot)
 
         if not self._plots:
             self.container.ui_children = [
-                Div("No supported plot data.", ui_class="text-grey-6")
+                Div("No supported plot data.", ui_class="cb-muted")
             ]
         else:
             self.container.ui_children = self._plots

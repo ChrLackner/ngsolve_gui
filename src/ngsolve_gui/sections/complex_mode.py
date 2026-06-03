@@ -6,6 +6,8 @@ real/imag/abs/arg display and controlling phase animation.
 
 from ngapp.components import *
 
+from ..cerbsim_style import label
+
 
 class ComplexSection(QExpansionItem):
     """Complex number visualization controls."""
@@ -35,7 +37,7 @@ class ComplexSection(QExpansionItem):
             ui_dense=True,
         )
 
-        speed_label = Div("Animation Speed", ui_style="font-size: 0.8rem; color: #78909c; padding-top: 4px;")
+        speed_label = Div("Animation Speed", ui_class=label + " q-pt-xs")
         self.speed = QSlider(
             ui_model_value=comp.complex_speed,
             ui_min=0.1,
@@ -43,7 +45,7 @@ class ComplexSection(QExpansionItem):
             ui_step=0.1,
             ui_dense=True,
             ui_label=True,
-            ui_style="padding: 0 4px;",
+            ui_class="q-px-xs",
         )
 
         super().__init__(

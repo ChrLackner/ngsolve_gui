@@ -5,6 +5,8 @@ Uses CSS Grid with auto-fill for responsive column count.
 
 from ngapp.components import *
 
+from ..cerbsim_style import toggle_grid
+
 
 class EntityNumbersSection(QExpansionItem):
     def __init__(self, comp):
@@ -19,11 +21,7 @@ class EntityNumbersSection(QExpansionItem):
             cb = QCheckbox(label, ui_model_value=getattr(comp, f"{entity}_numbers_visible"), ui_dense=True)
             checkboxes.append(cb)
 
-        # Responsive grid: auto-fill columns of min 110px
-        grid = Div(
-            *checkboxes,
-            ui_style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0;",
-        )
+        grid = Div(*checkboxes, ui_class=toggle_grid)
 
         one_based = QCheckbox("1-based indexing", ui_model_value=comp.numbers_one_based, ui_dense=True)
 

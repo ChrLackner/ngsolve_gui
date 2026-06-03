@@ -3,8 +3,7 @@
 from ngapp.components import *
 import math
 
-_LBL = "font-size: 0.72rem; color: #78909c; min-width: 14px;"
-_SECT = "font-size: 0.72rem; font-weight: 600; color: #546e7a; padding: 4px 0 0;"
+from ..cerbsim_style import label, axis_label, gap_xs, gap_sm, input_compact
 
 
 class ClippingSection(QExpansionItem):
@@ -18,7 +17,7 @@ class ClippingSection(QExpansionItem):
         # Toggle row
         enable = QCheckbox("Enable", ui_model_value=comp.clipping_enabled, ui_dense=True)
         use_global = QCheckbox("Global", ui_model_value=comp.use_global_clipping, ui_dense=True)
-        toggle_row = Row(enable, use_global, ui_style="gap: 8px;")
+        toggle_row = Row(enable, use_global, ui_class=gap_sm)
 
         # Normal direction — 3 compact slider rows
         self.dx = QSlider(ui_model_value=clip.normal[0], ui_min=-1, ui_max=1, ui_step=0.1, ui_dense=True)
@@ -32,27 +31,26 @@ class ClippingSection(QExpansionItem):
         self.dz.on("dblclick", lambda e: (setattr(self.dz, "ui_model_value", 0), self._set_nz(0)))
 
         dir_block = Div(
-            Row(Div("x", ui_style=_LBL), self.dx, ui_class="items-center no-wrap", ui_style="gap:4px;"),
-            Row(Div("y", ui_style=_LBL), self.dy, ui_class="items-center no-wrap", ui_style="gap:4px;"),
-            Row(Div("z", ui_style=_LBL), self.dz, ui_class="items-center no-wrap", ui_style="gap:4px;"),
+            Row(Div("x", ui_class=axis_label), self.dx, ui_class="items-center no-wrap " + gap_xs),
+            Row(Div("y", ui_class=axis_label), self.dy, ui_class="items-center no-wrap " + gap_xs),
+            Row(Div("z", ui_class=axis_label), self.dz, ui_class="items-center no-wrap " + gap_xs),
         )
 
         # Center — 3 tight inputs with prefix labels instead of floating labels
-        _pfx = "font-size: 0.7rem; color: #78909c; min-width: 10px;"
         self.cx = QInput(ui_model_value=clip.center[0], ui_debounce=300, ui_dense=True, ui_borderless=True,
-                         ui_style="max-width: 72px; font-size: 0.78rem;")
+                         ui_class=input_compact)
         self.cy = QInput(ui_model_value=clip.center[1], ui_debounce=300, ui_dense=True, ui_borderless=True,
-                         ui_style="max-width: 72px; font-size: 0.78rem;")
+                         ui_class=input_compact)
         self.cz = QInput(ui_model_value=clip.center[2], ui_debounce=300, ui_dense=True, ui_borderless=True,
-                         ui_style="max-width: 72px; font-size: 0.78rem;")
+                         ui_class=input_compact)
         self.cx.on_update_model_value(self._set_cx)
         self.cy.on_update_model_value(self._set_cy)
         self.cz.on_update_model_value(self._set_cz)
         center_row = Row(
-            Div("x", ui_style=_pfx), self.cx,
-            Div("y", ui_style=_pfx), self.cy,
-            Div("z", ui_style=_pfx), self.cz,
-            ui_class="items-center no-wrap", ui_style="gap: 2px;",
+            Div("x", ui_class=axis_label), self.cx,
+            Div("y", ui_class=axis_label), self.cy,
+            Div("z", ui_class=axis_label), self.cz,
+            ui_class="items-center no-wrap " + gap_xs,
         )
 
         # Offset
@@ -62,9 +60,9 @@ class ClippingSection(QExpansionItem):
 
         super().__init__(
             toggle_row,
-            Div("Normal", ui_style=_SECT), dir_block,
-            Div("Center", ui_style=_SECT), center_row,
-            Div("Offset", ui_style=_SECT), self.offset,
+            Div("Normal", ui_class=label), dir_block,
+            Div("Center", ui_class=label), center_row,
+            Div("Offset", ui_class=label), self.offset,
             ui_icon="mdi-box-cutter",
             ui_label="Clipping",
             ui_dense=True,

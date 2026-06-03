@@ -7,6 +7,17 @@ import time
 
 from ngapp.components import Div, QLinearProgress
 
+from .cerbsim_style import (
+    monitor,
+    monitor_label,
+    monitor_value,
+    monitor_subvalue,
+    monitor_stat,
+    monitor_stat_header,
+    monitor_bar,
+    monitor_subbar,
+)
+
 
 # ── Cached constants (set once, never change) ────────────────────────────────
 _pid = os.getpid()
@@ -152,54 +163,43 @@ def _get_stats(include_proc_gpu):
     return stats
 
 
+# Quasar brand color names, resolved by the theme to semantic colors.
 def _color_for_percent(pct):
     if pct < 50:
-        return "teal-4"
+        return "positive"
     if pct < 80:
-        return "amber-5"
-    return "red-5"
+        return "warning"
+    return "negative"
 
 
 def _proc_color_for_percent(pct):
-    """Lighter accent colours for the per-process bar."""
+    """Accent colours for the per-process sub-bar."""
     if pct < 50:
-        return "light-blue-3"
+        return "info"
     if pct < 80:
-        return "orange-3"
-    return "red-3"
+        return "warning"
+    return "negative"
 
 
 class _StatBar(Div):
     """A single labeled mini-bar showing one metric with an optional process sub-bar."""
 
     def __init__(self, label, icon_name):
-        self._label = Div(
-            label,
-            ui_style="font-size:11px; font-weight:600; color:#fff; display:inline;",
-        )
-        self._value = Div(
-            "\u2014",
-            ui_style="font-size:11px; font-weight:400; color:#fff; display:inline;",
-        )
-        self._proc_value = Div(
-            "",
-            ui_style=(
-                "font-size:10px; font-weight:400; "
-                "color:rgba(255,255,255,0.55); display:inline;"
-            ),
-        )
+        self._label = Div(label, ui_class=monitor_label)
+        self._value = Div("\u2014", ui_class=monitor_value)
+        self._proc_value = Div("", ui_class=monitor_subvalue)
         self._bar = QLinearProgress(
             ui_value=0,
-            ui_color="teal-4",
-            ui_track_color="rgba(255,255,255,0.15)",
-            ui_style="width:100%; height:3px; border-radius:2px;",
+            ui_color="positive",
+            ui_track_color="grey-3",
+            ui_class=monitor_bar,
             ui_rounded=True,
         )
         self._proc_bar = QLinearProgress(
             ui_value=0,
-            ui_color="light-blue-3",
-            ui_track_color="rgba(255,255,255,0.08)",
-            ui_style="width:100%; height:2px; border-radius:1px;",
+            ui_color="info",
+            ui_track_color="grey-3",
+            ui_class=monitor_subbar,
             ui_rounded=True,
         )
 
@@ -207,14 +207,14 @@ class _StatBar(Div):
             self._label,
             self._value,
             self._proc_value,
-            ui_style="display:flex; align-items:baseline; gap:5px;",
+            ui_class=monitor_stat_header,
         )
 
         super().__init__(
             header,
             self._bar,
             self._proc_bar,
-            ui_style="display:flex; flex-direction:column; gap:2px; min-width:80px;",
+            ui_class=monitor_stat,
         )
 
     def update(self, value_text, fraction, color,
@@ -236,12 +236,6 @@ class _StatBar(Div):
 class SystemMonitor(Div):
     """Compact system stats display for the toolbar with mini progress bars."""
 
-    _STYLE = (
-        "display: flex; align-items: center; gap: 14px; "
-        "padding: 4px 14px; user-select: none; "
-        "background: rgba(0,0,0,0.25); border-radius: 8px;"
-    )
-
     def __init__(self, update_interval=1.0):
         self._interval = update_interval
         self._cpu_bar = _StatBar("CPU", "mdi-chip")
@@ -254,7 +248,7 @@ class SystemMonitor(Div):
             self._ram_bar,
             self._gpu_bar,
             self._vram_bar,
-            ui_style=self._STYLE,
+            ui_class=monitor,
         )
 
         self._running = True
@@ -298,7 +292,7 @@ class SystemMonitor(Div):
             pct = stats["gpu_util"]
             self._gpu_bar.update(f"{pct}%", pct / 100, _color_for_percent(pct))
         else:
-            self._gpu_bar.update("N/A", 0, "#475569")
+            self._gpu_bar.update("N/A", 0, "grey-5")
 
         if "gpu_used_gb" in stats:
             used = stats["gpu_used_gb"]
@@ -315,7 +309,7 @@ class SystemMonitor(Div):
                 proc_fraction=proc_vram / total if proc_vram is not None and total > 0 else None,
             )
         else:
-            self._vram_bar.update("N/A", 0, "#475569")
+            self._vram_bar.update("N/A", 0, "grey-5")
 
     def stop(self):
         self._running = False

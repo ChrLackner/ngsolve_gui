@@ -6,13 +6,20 @@ Toggles use a compact 2-column grid layout to minimize vertical space.
 
 from ngapp.components import *
 
+from ..cerbsim_style import (
+    toggle_grid,
+    field_label,
+    nowrap,
+    gap_xs,
+    gap_sm,
+    input_tiny,
+    subexpander_header,
+)
+
 
 def _toggle_grid(*checkboxes):
     """Arrange checkboxes in a responsive grid (2-3 columns based on width)."""
-    return Div(
-        *checkboxes,
-        ui_style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0;",
-    )
+    return Div(*checkboxes, ui_class=toggle_grid)
 
 
 class GeometryDisplaySection(QExpansionItem):
@@ -55,25 +62,23 @@ class MeshDisplaySection(QExpansionItem):
 
         # Shrink
         shrink_row = Row(
-            Div("Shrink", ui_style="font-size: 0.8rem; color: #546e7a; min-width: 42px;"),
+            Div("Shrink", ui_class=field_label + " " + nowrap),
             QSlider(
                 ui_model_value=comp.shrink_value,
                 ui_min=0.0, ui_max=1.0, ui_step=0.01,
                 ui_label=True, ui_label_always=True,
                 ui_dense=True,
             ),
-            ui_class="items-center",
-            ui_style="gap: 8px; padding-top: 4px;",
+            ui_class="items-center " + gap_sm + " q-pt-xs",
         )
 
         # Curve order
         curve_enabled = QCheckbox(
-            "", ui_model_value=comp.mesh_curvature_enabled,
-            ui_dense=True, ui_style="transform: scale(0.85);",
+            "", ui_model_value=comp.mesh_curvature_enabled, ui_dense=True,
         )
         curve_order = QInput(
             ui_type="number", ui_model_value=comp.mesh_curvature_order,
-            ui_dense=True, ui_style="max-width: 50px;",
+            ui_dense=True, ui_class=input_tiny,
         )
         curve_order.ui_disable = not comp.mesh_curvature_enabled.value
         comp.mesh_curvature_enabled.on_change(
@@ -81,10 +86,9 @@ class MeshDisplaySection(QExpansionItem):
         )
         curve_row = Row(
             curve_enabled,
-            Div("Curve Order", ui_style="font-size: 0.8rem; white-space: nowrap;"),
+            Div("Curve Order", ui_class=field_label + " " + nowrap),
             curve_order,
-            ui_class="items-center",
-            ui_style="flex-wrap: nowrap; gap: 4px;",
+            ui_class="items-center no-wrap " + gap_xs,
         )
 
         super().__init__(
@@ -140,14 +144,13 @@ class FunctionDisplaySection(QExpansionItem):
             if comp.facet_renderer is not None:
                 adv_items.append(
                     Row(
-                        Div("ElementBND thickness", ui_style="font-size: 0.75rem; color: #546e7a; white-space: nowrap;"),
+                        Div("ElementBND thickness", ui_class=field_label + " " + nowrap),
                         QSlider(
                             ui_model_value=comp.facet_thickness,
                             ui_min=0.001, ui_max=0.05, ui_step=0.001,
                             ui_dense=True, ui_label=True,
                         ),
-                        ui_class="items-center",
-                        ui_style="gap: 6px;",
+                        ui_class="items-center " + gap_xs,
                     )
                 )
             advanced = QExpansionItem(
@@ -155,7 +158,7 @@ class FunctionDisplaySection(QExpansionItem):
                 ui_label="More",
                 ui_dense=True,
                 ui_dense_toggle=True,
-                ui_header_style="font-size: 0.75rem; color: #78909c; min-height: 28px; padding: 0;",
+                ui_header_class=str(subexpander_header),
             )
             items.append(advanced)
 

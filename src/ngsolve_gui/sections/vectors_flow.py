@@ -5,8 +5,9 @@ Compact unified section. Only shown for vector CFs (dim > 1).
 
 from ngapp.components import *
 
-_SECT = "font-size: 0.72rem; font-weight: 600; color: #546e7a; padding: 8px 0 2px;"
-_ROW = "gap: 6px;"
+from ..cerbsim_style import label, field_label, nowrap, gap_xs, grow, input_compact
+
+_ROW = "items-center no-wrap " + str(gap_xs)
 
 
 class VectorsFlowSection(QExpansionItem):
@@ -23,14 +24,14 @@ class VectorsFlowSection(QExpansionItem):
         options = ["Norm"] + [str(i) for i in range(1, comp.cf.dim + 1)]
         self.color_component = QSelect(
             ui_options=options, ui_model_value=options[0],
-            ui_label="Color", ui_dense=True, ui_style="min-width: 70px; max-width: 80px;",
+            ui_label="Color", ui_dense=True, ui_class=input_compact,
         )
         self.color_component.on_update_model_value(self._update_color_component)
 
         self.grid_size = QInput(
             ui_label="Grid", ui_type="number",
             ui_model_value=comp.vector_grid_size.value,
-            ui_dense=True, ui_debounce=500, ui_style="min-width: 64px; max-width: 90px;",
+            ui_dense=True, ui_debounce=500, ui_class=input_compact,
         )
         comp.vector_grid_size.on_change(
             lambda val, _old: setattr(self.grid_size, "ui_model_value", val)
@@ -43,7 +44,7 @@ class VectorsFlowSection(QExpansionItem):
 
         items.append(Row(
             self.color_component, self.grid_size, minus_btn, plus_btn,
-            ui_class="items-center no-wrap", ui_style=_ROW,
+            ui_class=_ROW,
         ))
 
         # Row 2: Scale by magnitude checkbox + Scale slider
@@ -54,38 +55,37 @@ class VectorsFlowSection(QExpansionItem):
             ui_model_value=comp.vector_scale,
             ui_min=0.1, ui_max=5.0, ui_step=0.1,
             ui_dense=True, ui_label=True,
-            ui_style="flex: 1; min-width: 80px;",
+            ui_class=grow,
         )
         items.append(Row(
             self.scale_by_value,
-            Div("Scale", ui_style="font-size: 0.72rem; color: #78909c; padding-left: 4px; flex-shrink: 0;"),
+            Div("Scale", ui_class=field_label + " " + nowrap + " col-auto q-pl-xs"),
             self.vector_scale,
-            ui_class="items-center no-wrap", ui_style=_ROW,
+            ui_class=_ROW,
         ))
 
         # Field Lines (only if applicable)
         if comp.cf.dim == comp.mesh.dim:
-            items.append(Div("Field Lines", ui_style=_SECT))
-            _inp_style = "flex: 1; min-width: 0; width: 0;"
-            self.num_lines = QInput(ui_label="Lines", ui_type="number", ui_model_value=comp.fieldlines_num_lines, ui_dense=True, ui_style=_inp_style)
-            self.length = QInput(ui_label="Length", ui_type="number", ui_model_value=comp.fieldlines_length, ui_dense=True, ui_style=_inp_style)
-            self.thickness = QInput(ui_label="Thick.", ui_type="number", ui_model_value=comp.fieldlines_thickness, ui_dense=True, ui_style=_inp_style)
+            items.append(Div("Field Lines", ui_class=label))
+            self.num_lines = QInput(ui_label="Lines", ui_type="number", ui_model_value=comp.fieldlines_num_lines, ui_dense=True, ui_class=grow)
+            self.length = QInput(ui_label="Length", ui_type="number", ui_model_value=comp.fieldlines_length, ui_dense=True, ui_class=grow)
+            self.thickness = QInput(ui_label="Thick.", ui_type="number", ui_model_value=comp.fieldlines_thickness, ui_dense=True, ui_class=grow)
             direction_map_reverse = {0: "Both", 1: "Forward", -1: "Backward"}
             self.direction = QSelect(
                 ui_options=["Both", "Forward", "Backward"],
                 ui_model_value=direction_map_reverse.get(comp.fieldlines_direction.value, "Both"),
-                ui_label="Dir", ui_dense=True, ui_style="flex: 1; min-width: 0; width: 0;",
+                ui_label="Dir", ui_dense=True, ui_class=grow,
             )
             self.direction.on_update_model_value(self._update_direction)
             self.recalc_btn = QBtn(
                 ui_label="Recalculate", ui_color="primary", ui_outline=True,
                 ui_dense=True, ui_no_caps=True, ui_size="sm",
-                ui_style="flex-shrink: 0;",
+                ui_class="col-auto",
             )
             self.recalc_btn.on_click(self._recalculate)
 
-            items.append(Row(self.num_lines, self.length, self.thickness, ui_class="items-center no-wrap", ui_style=_ROW))
-            items.append(Row(self.direction, self.recalc_btn, ui_class="items-center no-wrap", ui_style=_ROW))
+            items.append(Row(self.num_lines, self.length, self.thickness, ui_class=_ROW))
+            items.append(Row(self.direction, self.recalc_btn, ui_class=_ROW))
 
         super().__init__(
             *items,

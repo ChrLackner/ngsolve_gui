@@ -17,7 +17,6 @@ class MeshingInput(QInput):
             ui_model_value=observable,
             ui_type="number",
             ui_dense=True,
-            ui_style="font-size: 0.85rem;",
             **kwargs,
         )
         self.observable.on_change(self._validate)
@@ -50,7 +49,7 @@ class MeshGenerationSection(QExpansionItem):
             ui_color="primary",
             ui_flat=True,
             ui_no_caps=True,
-            ui_style="margin-top: 8px;",
+            ui_class="q-mt-sm",
         )
         self.create_btn.on_click(self._create_mesh)
 

@@ -5,7 +5,36 @@ from webgpu import Scene, CoordinateAxes, NavigationCube
 _usersettings = UserSettings(app_id="NGSolve GUI")
 from webgpu import Scene
 from ngsolve_webgpu.pick import MeshPickResult
+from webgpu.webgpu_api import Color
+from webgpu import Background
+from webgpu.labels import Labels
 from .pick_overlay import PickOverlay
+from . import cerbsim_style as cb
+from .cerbsim_style import overlay_tr, VIEWPORT_CLEAR, VIEWPORT_TEXT
+
+
+def sync_default_viewport_clear():
+    """Set the webgpu Canvas default clear color from the active theme so a new
+    scene renders the right background on its very first frame (no flash)."""
+    from webgpu.canvas import set_default_clear_color
+    key = "dark" if cb._active_theme == "dark" else "light"
+    set_default_clear_color(Color(*VIEWPORT_CLEAR[key], 1))
+
+
+def _theme_scene(scene, bg_rgb, text_rgb):
+    """Recursively theme a scene's overlays: Background backdrops match the
+    viewport clear color; default-colored Labels (mesh stats, colorbar ticks)
+    use the in-viewport text color. Per-label colored Labels are left alone."""
+    def _walk(ro):
+        if isinstance(ro, Background):
+            ro.bg_color = bg_rgb
+        elif isinstance(ro, Labels) and ro.colors is None:
+            ro.text_color = text_rgb
+        for sub in getattr(ro, "render_objects", []):
+            _walk(sub)
+
+    for ro in getattr(scene, "render_objects", []):
+        _walk(ro)
 
 
 class WebgpuTab(Div):
@@ -15,7 +44,7 @@ class WebgpuTab(Div):
         self.data = data
         self.app_data = app_data
         self.wgpu = WebgpuComponent()
-        self.wgpu.ui_style = "width: 100%; height: 100%;"
+        self.wgpu.ui_class = "fit"
         self.icon = "mdi-vector-triangle"
 
         # -- Gizmo visibility (persisted in user settings) --
@@ -54,7 +83,7 @@ class WebgpuTab(Div):
             QTooltip("Reset Camera"),
             ui_icon="mdi-refresh",
             ui_color="secondary",
-            ui_style="position: absolute; top: 10px; right: 10px;",
+            ui_class=overlay_tr,
             ui_fab=True,
             ui_flat=True,
         )
@@ -66,7 +95,7 @@ class WebgpuTab(Div):
             self.wgpu,
             self.reset_camera_btn,
             self.pick_overlay,
-            ui_style="position: relative; width: 100%; height: 100%;",
+            ui_class="relative-position fit",
         )
 
         self.draw()
@@ -112,10 +141,33 @@ class WebgpuTab(Div):
         self.clipping_enabled.on_change(self._apply_clipping_enabled)
 
         def redraw_if_needed():
+            self.apply_viewport_theme()
             if self._redraw_needed:
                 self.redraw()
 
         self.on_mounted(redraw_if_needed)
+        # The WebGPU canvas is created in the component's own "mounted" handler;
+        # ours runs after it, so the canvas is ready when we set the clear color.
+        self.wgpu.on("mounted", lambda *a: self.apply_viewport_theme())
+
+    def apply_viewport_theme(self):
+        """Set the scene background (clear color + overlays) from the active theme.
+
+        Reads the ``data-theme`` attribute, which ``install``/``set_theme`` set
+        from the stored preference (resolving "system" via the OS) — the single
+        source of truth, available by the time the canvas mounts.
+        """
+        def _apply(js):
+            scene = self.scene
+            canvas = getattr(scene, "canvas", None) if scene is not None else None
+            if canvas is None:
+                return
+            key = "dark" if cb.is_dark(js) else "light"
+            canvas.clear_color = Color(*VIEWPORT_CLEAR[key], 1)
+            _theme_scene(scene, VIEWPORT_CLEAR[key], VIEWPORT_TEXT[key])
+            scene.render()
+
+        self.call_js(_apply)
 
     # -- Gizmo visibility handlers --
 
