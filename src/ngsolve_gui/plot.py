@@ -3,8 +3,10 @@ from __future__ import annotations
 from ngapp.components import *
 from ngapp.components.visualization import PlotlyComponent
 
+from .property_panel import PropertyPanelMixin
 
-class PlotComponent(Div):
+
+class PlotComponent(PropertyPanelMixin, Div):
     def __init__(self, name, data, app_data):
         self.name = name
         self.data = data
@@ -23,6 +25,9 @@ class PlotComponent(Div):
     @property
     def title(self):
         return self.app_data.get_tab(self.name)["title"]
+
+    def property_subtitle(self):
+        return "Plot"
 
     def _normalize_figures(self, obj):
         if obj is None:
@@ -115,5 +120,4 @@ register_component(
     "plot",
     icon="mdi-chart-line",
     component_class=PlotComponent,
-    sections=[],
 )

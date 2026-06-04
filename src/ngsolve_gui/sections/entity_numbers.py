@@ -1,16 +1,15 @@
-"""Entity numbers section — show numeric labels on mesh entities.
-
-Uses CSS Grid with auto-fill for responsive column count.
-"""
+"""Entity numbers section — show numeric labels on mesh entities."""
 
 from ngapp.components import *
 
-from ..cerbsim_style import toggle_grid
+from ..prop_widgets import Section, Chip, chip_row, Toggle
 
 
-class EntityNumbersSection(QExpansionItem):
+class EntityNumbersSection(Section):
+    section_key = "numbers"
+
     def __init__(self, comp):
-        checkboxes = []
+        chips = []
         for entity in comp.entity_number_entities:
             label = entity.replace("_", " ").title()
             label = label.replace("Surface Elements", "Surf. El.") \
@@ -18,17 +17,15 @@ class EntityNumbersSection(QExpansionItem):
                          .replace("Surface Indices", "Surf. Idx") \
                          .replace("Segment Indices", "Seg. Idx") \
                          .replace("Volume Indices", "Vol. Idx")
-            cb = QCheckbox(label, ui_model_value=getattr(comp, f"{entity}_numbers_visible"), ui_dense=True)
-            checkboxes.append(cb)
-
-        grid = Div(*checkboxes, ui_class=toggle_grid)
-
-        one_based = QCheckbox("1-based indexing", ui_model_value=comp.numbers_one_based, ui_dense=True)
+            chips.append(Chip(
+                label, observable=getattr(comp, f"{entity}_numbers_visible"), small=True,
+            ))
 
         super().__init__(
-            grid,
-            one_based,
-            ui_icon="mdi-numeric",
-            ui_label="Numbers",
-            ui_dense=True,
+            chip_row(*chips),
+            Toggle("1-based indexing", comp.numbers_one_based),
+            icon="mdi-numeric",
+            title="Numbers",
+            info="Overlay entity index labels directly in the scene.",
         )
+

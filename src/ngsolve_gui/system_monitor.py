@@ -5,15 +5,18 @@ import subprocess
 import threading
 import time
 
-from ngapp.components import Div, QLinearProgress
+from ngapp.components import Div, QLinearProgress, QIcon, QTooltip
 
 from .cerbsim_style import (
     monitor,
+    monitor_icon,
+    monitor_body,
     monitor_label,
     monitor_value,
     monitor_subvalue,
     monitor_stat,
     monitor_stat_header,
+    monitor_bars,
     monitor_bar,
     monitor_subbar,
 )
@@ -203,17 +206,26 @@ class _StatBar(Div):
             ui_rounded=True,
         )
 
+        icon = QIcon(ui_name=icon_name, ui_size="14px", ui_class=monitor_icon)
+        # value + per-process sub-value share the right side of the header row
+        value_group = Div(
+            self._value, self._proc_value,
+            ui_class="row items-baseline q-gutter-x-xs",
+        )
         header = Div(
             self._label,
-            self._value,
-            self._proc_value,
+            value_group,
             ui_class=monitor_stat_header,
+        )
+        body = Div(
+            header,
+            Div(self._bar, self._proc_bar, ui_class=monitor_bars),
+            ui_class=monitor_body,
         )
 
         super().__init__(
-            header,
-            self._bar,
-            self._proc_bar,
+            icon,
+            body,
             ui_class=monitor_stat,
         )
 

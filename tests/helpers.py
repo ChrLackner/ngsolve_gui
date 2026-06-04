@@ -95,8 +95,13 @@ def make_geometry_named():
 
 
 def expand_section(page: Page, name: str) -> None:
-    """Expand a sidebar section by clicking its expansion item header."""
-    page.locator(".q-expansion-item .q-item__label").get_by_text(name, exact=True).first.click()
+    """Toggle a property section open/closed.
+
+    Works for the designer "psec" sections (banded header) and for the inline
+    "More options" / "Advanced" disclosures.
+    """
+    # Match a section header or an inline disclosure; click auto-waits for it.
+    page.locator(".cb-psec-head, .cb-psec-more").filter(has_text=name).first.click()
     page.wait_for_timeout(300)
 
 
@@ -106,24 +111,41 @@ def collapse_section(page: Page, name: str) -> None:
 
 
 def click_checkbox(page: Page, name: str) -> None:
-    """Click a visible Quasar checkbox by its label text."""
-    page.get_by_role("checkbox", name=name, exact=True).click()
+    """Toggle a boolean control by its label.
+
+    Matches the designer widgets in priority order: option chip, toggle switch,
+    pick pill, then a plain Quasar checkbox.
+    """
+    chip = page.locator(".cb-opt-chip").filter(has_text=name)
+    if chip.count() > 0:
+        chip.first.click()
+    else:
+        tog = page.locator(".cb-toggle").filter(has_text=name)
+        if tog.count() > 0:
+            tog.first.locator(".cb-switch").click()
+        else:
+            pill = page.locator(".cb-chk-pill").filter(has_text=name)
+            if pill.count() > 0:
+                pill.first.click()
+            else:
+                page.get_by_role("checkbox", name=name, exact=True).click()
     page.wait_for_timeout(100)
 
 
 def fill_input(page: Page, label: str, value: str) -> None:
-    """Clear and fill a Quasar input field identified by its label."""
-    field = page.get_by_label(label)
-    field.clear()
-    field.fill(value)
-    field.press("Enter")
+    """Clear and fill a field input identified by its (designer) field label."""
+    fld = page.locator(".cb-field").filter(has_text=label)
+    inp = fld.first.locator("input") if fld.count() > 0 else page.get_by_label(label)
+    inp.clear()
+    inp.fill(value)
+    inp.press("Enter")
     page.wait_for_timeout(100)
 
 
 def click_curving_checkbox(page: Page) -> None:
-    """Click the unlabeled curving checkbox next to the 'Curve Order' text."""
-    row = page.locator(".cb-gap-xs").filter(has_text="Curve Order")
-    row.get_by_role("checkbox").click()
+    """Toggle the 'Curved display' switch in the mesh Display section."""
+    page.locator(".cb-toggle").filter(has_text="Curved display").first \
+        .locator(".cb-switch").click()
     page.wait_for_timeout(500)
 
 
@@ -132,13 +154,14 @@ def set_slider(
 ) -> None:
     """Set a Quasar slider by clicking at the proportional position.
 
-    When *label* is given, targets the slider in the same row as that label
-    text. Otherwise falls back to the first slider on the page.
+    When *label* is given, targets the slider in the same field/row as that
+    label text. Otherwise falls back to the first slider on the page.
     """
     if label:
-        # Find the row containing the label, then locate the slider within it
-        row = page.locator(".row, [class*='row']").filter(has_text=label)
-        slider = row.get_by_role("slider").first
+        container = page.locator(".cb-field").filter(has_text=label)
+        if container.count() == 0:
+            container = page.locator(".row, [class*='row']").filter(has_text=label)
+        slider = container.first.get_by_role("slider").first
     else:
         slider = page.get_by_role("slider").first
     box = slider.bounding_box()

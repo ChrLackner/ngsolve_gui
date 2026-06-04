@@ -1,4 +1,3 @@
-import ctypes
 import os
 import threading
 import time
@@ -10,10 +9,12 @@ from .app_data import AppData
 from .file_loader import load_file
 from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
-from .property_panel import PropertyPanel
+from .property_panel import empty_property_panel
+from .prop_widgets import Segmented
 from . import cerbsim_style as cb
-from .cerbsim_style import theme, flex_fill, panel_full
+from .cerbsim_style import theme, kb_theme, flex_fill, panel_full
 from .system_monitor import SystemMonitor
+from .footer import StatusFooter
 
 
 class Panel(Div):
@@ -54,236 +55,104 @@ class Panel(Div):
 
 
 class Settings(QMenu):
+    """Designer-styled settings dropdown (sections, segmented theme, switches)."""
+
     def __init__(self, app):
         self.app = app
+        us = app.usersettings
 
-        theme_select = QSelect(
-            QTooltip("Choose the color theme. 'System default' follows your OS setting."),
-            ui_label="Appearance",
-            ui_options=[
-                {"label": "System default", "value": "system"},
-                {"label": "Light", "value": "light"},
-                {"label": "Dark", "value": "dark"},
-            ],
-            ui_model_value=self.app.usersettings.get("theme", "system"),
-            ui_dense=True,
-            ui_emit_value=True,
-            ui_map_options=True,
+        theme_seg = Segmented(
+            [("light", "Light"), ("dark", "Dark"), ("system", "System")],
+            us.get("theme", "system"), self._on_theme,
         )
-
-        def _on_theme(event):
-            self.app.usersettings.set("theme", event.value)
-            cb.set_theme(self.app, event.value)
-            self.app._apply_viewport_theme()
-
         colormap_select = QSelect(
-            QTooltip("Default colormap for new field plots. "
-                     "'Auto (theme)' uses rainbow in light mode and turbo in dark mode."),
-            ui_label="Default colormap",
             ui_options=[
                 {"label": "Auto (theme)", "value": ""},
                 "rainbow", "turbo", "viridis", "plasma", "cet_l20",
                 "matlab:jet", "matplotlib:coolwarm",
             ],
-            ui_model_value=self.app.usersettings.get("default_colormap", ""),
-            ui_dense=True,
-            ui_emit_value=True,
-            ui_map_options=True,
+            ui_model_value=us.get("default_colormap", ""),
+            ui_dense=True, ui_options_dense=True, ui_emit_value=True, ui_map_options=True,
+            ui_style="width: 134px;",
         )
-        colormap_select.on_update_model_value(
-            self.app.usersettings.update("default_colormap")
-        )
+        colormap_select.on_update_model_value(us.update("default_colormap"))
 
-        theme_select.on_update_model_value(_on_theme)
-
-        val = self.app.usersettings.get("nthreads", 0)
         nthreads = QInput(
-            QTooltip(
-                "Set number of threads used by NGSolve, 0 for all available cores. Only takes effect after restarting the application."
-            ),
-            ui_label="Number of Threads",
-            ui_type="number",
-            ui_model_value=val,
+            QTooltip("Threads used by NGSolve (0 = all cores). Restart to apply."),
+            ui_type="number", ui_dense=True, ui_model_value=us.get("nthreads", 0),
+            ui_style="width: 72px;",
         )
-        nthreads.on_update_model_value(self.app.usersettings.update("nthreads"))
-
-        show_axes = QCheckbox(
-            ui_label="Show Axes by Default",
-            ui_model_value=self.app.usersettings.get("axes_visible", True),
+        nthreads.on_update_model_value(us.update("nthreads"))
+        redraw = QInput(
+            QTooltip("Min milliseconds between redraws while a script runs (0 = no throttle)."),
+            ui_type="number", ui_dense=True, ui_suffix="ms",
+            ui_model_value=int(us.get("redraw_interval_ms", 50)), ui_style="width: 96px;",
         )
-        show_axes.on_update_model_value(self.app.usersettings.update("axes_visible"))
-
-        show_navcube = QCheckbox(
-            ui_label="Show Navigation Cube by Default",
-            ui_model_value=self.app.usersettings.get("navcube_visible", False),
+        redraw.on_update_model_value(self._on_redraw)
+        gpu = QSelect(
+            QTooltip("Preferred GPU adapter. Restart to apply."),
+            ui_options=["high-performance", "low-power"],
+            ui_model_value=us.get("gpu_power_preference", "high-performance"),
+            ui_dense=True, ui_options_dense=True, ui_emit_value=True,
+            ui_style="width: 134px;",
         )
-        show_navcube.on_update_model_value(self.app.usersettings.update("navcube_visible"))
+        gpu.on_update_model_value(us.update("gpu_power_preference"))
 
-        scale_by_mag = QCheckbox(
-            ui_label="Scale Vectors by Magnitude by Default",
-            ui_model_value=self.app.usersettings.get("scale_by_magnitude", True),
+        timer_item = Div(
+            QIcon(ui_name="mdi-timer-outline"), "Timer / profiling…",
+            Div("diagnostics", ui_class=cb.menu_item_meta), ui_class=cb.menu_item,
         )
-        scale_by_mag.on_update_model_value(self.app.usersettings.update("scale_by_magnitude"))
+        timer_item.on("click", lambda e=None: app._open_timers())
 
-        redraw_interval = QInput(
-            QTooltip(
-                "Minimum time in milliseconds between redraws during script execution. "
-                "Lower values give smoother animation but may slow down the script. "
-                "Set to 0 to redraw on every call (no throttling)."
-            ),
-            ui_label="Redraw Interval (ms)",
-            ui_type="number",
-            ui_model_value=int(self.app.usersettings.get("redraw_interval_ms", 50)),
-        )
-
-        def _on_redraw_interval(event):
-            val = int(event.value)
-            self.app.usersettings.set("redraw_interval_ms", val)
-            self.app._redraw_interval = max(0, val) / 1000.0
-
-        redraw_interval.on_update_model_value(_on_redraw_interval)
-
-        gpu_pref_options = ["high-performance", "low-power"]
-        current_gpu_pref = self.app.usersettings.get("gpu_power_preference", "high-performance")
-        gpu_preference = QSelect(
-            QTooltip(
-                "Select which GPU adapter WebGPU should prefer. "
-                "'high-performance' uses the dedicated GPU, "
-                "'low-power' uses the integrated GPU. "
-                "Only takes effect after restarting the application."
-            ),
-            ui_label="GPU Preference (restart required)",
-            ui_options=gpu_pref_options,
-            ui_model_value=current_gpu_pref,
-            ui_dense=True,
-            ui_emit_value=True,
-        )
-        gpu_preference.on_update_model_value(
-            self.app.usersettings.update("gpu_power_preference")
-        )
-
-        super().__init__(QCard(
-            QCardSection("Settings"),
-            QCardSection(theme_select, colormap_select, nthreads, show_axes, show_navcube, scale_by_mag, redraw_interval, gpu_preference),
+        super().__init__(Div(
+            Div("Appearance", ui_class=cb.menu_h),
+            self._row("Theme", theme_seg),
+            self._row("Default colormap", colormap_select),
+            Div(ui_class=cb.menu_sep),
+            Div("Defaults", ui_class=cb.menu_h),
+            self._row("Show axes", self._switch("axes_visible", True)),
+            self._row("Show navigation cube", self._switch("navcube_visible", False)),
+            self._row("Scale vectors by magnitude", self._switch("scale_by_magnitude", True)),
+            Div(ui_class=cb.menu_sep),
+            Div("Performance", ui_class=cb.menu_h),
+            self._row("Worker threads", nthreads),
+            self._row("Redraw interval", redraw),
+            self._row("GPU preference", gpu),
+            Div(ui_class=cb.menu_sep),
+            timer_item,
+            ui_class=cb.menu_card,
         ))
 
+    def _row(self, label, control):
+        return Div(Div(label, ui_class=cb.menu_label), control, ui_class=cb.menu_row)
 
-class StatusBar(Div):
-    """Floating pill overlay at the bottom of the scene showing loading progress."""
+    def _scls(self, on):
+        return str(cb.prop_switch) + (" " + str(cb.prop_switch_on) if on else "")
 
-    def __init__(self):
-        # Top row: icon + label + cancel
-        self._label = Div("", ui_class="col ellipsis")
-        self._pct_label = Div("", ui_class=cb.mono + cb.hint + " text-right")
-        self._cancel_btn = QBtn(
-            QTooltip("Cancel"),
-            ui_icon="mdi-close",
-            ui_flat=True,
-            ui_dense=True,
-            ui_round=True,
-            ui_size="xs",
-            ui_padding="2px",
-        )
-        self._cancel_btn.on_click(self._on_cancel)
+    def _switch(self, key, default, on_set=None):
+        state = {"v": bool(self.app.usersettings.get(key, default))}
+        sw = Div(ui_class=self._scls(state["v"]))
 
-        top_row = Div(
-            QSpinner(ui_color="primary", ui_size="18px"),
-            self._label,
-            QSpace(),
-            self._pct_label,
-            self._cancel_btn,
-            ui_class="row items-center " + cb.gap_sm,
-        )
+        def toggle(e=None):
+            state["v"] = not state["v"]
+            sw.ui_class = self._scls(state["v"])
+            self.app.usersettings.set(key, state["v"])
+            if on_set:
+                on_set(state["v"])
+        sw.on("click", toggle)
+        return sw
 
-        # Progress bar (track + filled portion)
-        self._bar_fill = Div(ui_class=cb.status_fill)
-        bar_track = Div(self._bar_fill, ui_class=cb.status_track)
+    def _on_theme(self, val):
+        self.app.usersettings.set("theme", val)
+        cb.set_theme(self.app, val)
+        self.app._apply_viewport_theme()
 
-        self._thread = None
-        self._done_event = None
-        self._generation = 0
+    def _on_redraw(self, event):
+        v = int(event.value)
+        self.app.usersettings.set("redraw_interval_ms", v)
+        self.app._redraw_interval = max(0, v) / 1000.0
 
-        super().__init__(top_row, bar_track, ui_class=cb.status_pill)
-        self.ui_hidden = True
 
-    def show(self, filename, thread, done_event):
-        self._generation += 1
-        self._thread = thread
-        self._done_event = done_event
-        self._thread_name = thread.name if thread else ""
-        self._label.ui_children = [f"Running {filename} \u2026"]
-        self._pct_label.ui_children = [""]
-        self._set_indeterminate()
-        self.ui_hidden = False
-        self._start_poll(self._generation)
-
-    def hide(self):
-        self._thread = None
-        self._done_event = None
-        self.ui_hidden = True
-
-    def _set_progress(self, percent):
-        """Set determinate progress (0–100); width is the live value."""
-        w = max(0, min(100, percent))
-        self._bar_fill.ui_class = cb.status_fill
-        self._bar_fill.ui_style = f"width: {w:.1f}%;"
-        self._pct_label.ui_children = [f"{w:.0f}%"]
-
-    def _set_indeterminate(self):
-        self._bar_fill.ui_class = cb.status_fill_indeterminate
-        self._bar_fill.ui_style = ""
-        self._pct_label.ui_children = [""]
-
-    def _start_poll(self, gen):
-        def poll():
-            from netgen.libngpy._meshing import _GetStatus
-
-            while gen == self._generation:
-                time.sleep(0.3)
-                done_event = self._done_event
-                if done_event is None:
-                    break
-                try:
-                    status_text, percent = _GetStatus()
-                except Exception:
-                    status_text, percent = "idle", 0.0
-
-                done = done_event.is_set()
-
-                if status_text and status_text != "idle":
-                    self._label.ui_children = [status_text]
-                    if percent > 0:
-                        self._set_progress(percent)
-                    else:
-                        self._set_indeterminate()
-                    # Script finished but netgen hasn't reset status yet
-                    if done:
-                        self.hide()
-                        break
-                elif done:
-                    self.hide()
-                    break
-
-        threading.Thread(target=poll, daemon=True, name="StatusPoll").start()
-
-    def _on_cancel(self):
-        self._generation += 1
-        thread = self._thread
-        # Only interrupt non-IPython threads; the IPython shell stays
-        # alive for interactive use — just dismiss the pill.
-        if (
-            thread
-            and thread.is_alive()
-            and self._thread_name != "IPythonEmbedder"
-        ):
-            try:
-                ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_ulong(thread.ident),
-                    ctypes.py_object(KeyboardInterrupt),
-                )
-            except Exception:
-                pass
-        self.hide()
 
 
 class NGSolveGui(App):
@@ -291,37 +160,35 @@ class NGSolveGui(App):
         self._local_path = local_path if local_path else os.path.expanduser("~")
         self.app_data = AppData()
 
-        # Toolbar buttons
-        upload_file = QBtn(QTooltip("Load File"), ui_flat=True, ui_icon="mdi-plus")
-        upload_file.on_click(self._load_file)
-        savebtn = QBtn(
-            QTooltip("Save Project"), ui_flat=True, ui_icon="mdi-content-save"
-        )
-        savebtn.on_click(self.save_local)
-        loadbtn = QBtn(
-            QTooltip("Load Project"), ui_flat=True, ui_icon="mdi-folder-open"
-        )
-        loadbtn.on_click(self.load_local)
+        # -- Toolbar buttons (compact flat icon buttons, muted like the designer) --
+        def _tbtn(icon, tip, handler=None):
+            btn = QBtn(
+                QTooltip(tip), ui_flat=True, ui_dense=True, ui_icon=icon,
+                ui_class=str(cb.topbar_icon),
+            )
+            if handler is not None:
+                btn.on_click(handler)
+            return btn
 
-        # Panel toggle buttons
-        self._nav_btn = QBtn(
-            QTooltip("Toggle Navigator"),
-            ui_flat=True,
-            ui_icon="mdi-page-layout-sidebar-left",
+        # File actions
+        upload_file = _tbtn(
+            "mdi-file-plus-outline", "Load file  ·  geometry / mesh / .py", self._load_file
         )
-        self._nav_btn.on_click(self._toggle_navigator)
-        self._prop_btn = QBtn(
-            QTooltip("Toggle Properties"),
-            ui_flat=True,
-            ui_icon="mdi-page-layout-sidebar-right",
-        )
-        self._prop_btn.on_click(self._toggle_property_panel)
+        savebtn = _tbtn("mdi-content-save-outline", "Save Project", self.save_local)
+        loadbtn = _tbtn("mdi-folder-open-outline", "Load Project", self.load_local)
+        file_group = Div(upload_file, savebtn, loadbtn, ui_class=cb.tb_group)
 
+        # Settings + quit (panel toggles removed — sidebars are draggable;
+        # theme lives in the settings menu).
         settings_btn = QBtn(
-            Settings(self), QTooltip("User Settings"), ui_flat=True, ui_icon="mdi-cog"
+            Settings(self), QTooltip("User Settings"),
+            ui_flat=True, ui_dense=True, ui_icon="mdi-cog-outline",
+            ui_class=str(cb.topbar_icon),
         )
-        close_btn = QBtn(QTooltip("Quit"), ui_flat=True, ui_icon="mdi-close")
-        close_btn.on_click(self.quit)
+        close_btn = _tbtn("mdi-close", "Quit", self.quit)
+        close_btn.ui_class = str(cb.topbar_icon) + " " + str(cb.topbar_icon_danger)
+        view_group = Div(settings_btn, close_btn, ui_class=cb.tb_group)
+
         ngs_logo = Div(
             QImg(
                 ui_src=self.load_asset("ngsolve-mark.png"),
@@ -329,8 +196,8 @@ class NGSolveGui(App):
                 ui_width="34px",
                 ui_fit="contain",
             ),
-            Div("Netgen/NGSolve", ui_class=cb.brand_wordmark),
-            ui_class=cb.brand + " " + cb.gap_sm,
+            Div("Netgen / NGSolve", ui_class=cb.brand_wordmark),
+            ui_class=cb.brand,
         )
 
         self.system_monitor = SystemMonitor()
@@ -344,30 +211,28 @@ class NGSolveGui(App):
 
         bar = QBar(
             ngs_logo,
-            upload_file,
-            savebtn,
-            loadbtn,
+            file_group,
             QSpace(),
             self.system_monitor,
-            self._nav_btn,
-            self._prop_btn,
-            settings_btn,
-            close_btn,
+            Div(ui_class=cb.tb_sep),
+            view_group,
             ui_class=cb.app_bar,
         )
 
         # Three-column layout using flex
-        self.navigator = Navigator(self.app_data, self._click_tab)
-        self.property_panel = PropertyPanel()
+        self.navigator = Navigator(self.app_data, self._click_tab, self._load_file)
+        # The property panel is owned by each component; this host swaps in the
+        # active component's own panel (built via comp.build_property_panel()).
+        self.property_host = Div(empty_property_panel(), ui_class=panel_full)
         self.tab_panel = Panel(self.app_data)
-        self.status_bar = StatusBar()
+        self.footer = StatusFooter()
 
         self._nav_visible = self.usersettings.get("nav_visible", True)
         self._prop_visible = self.usersettings.get("prop_visible", True)
         self._nav_width = self.usersettings.get("nav_width", 200)
         self._prop_width = self.usersettings.get("prop_width", 280)
 
-        self.kb = KeybindingManager(self, theme=theme)
+        self.kb = KeybindingManager(self, theme=kb_theme)
 
         # Inner splitter: center | property panel (reverse so model = prop width)
         self._inner_splitter = QSplitter(
@@ -378,7 +243,7 @@ class NGSolveGui(App):
             ui_emit_immediately=True,
             ui_slots={
                 "before": [Div(self.tab_panel, ui_class=flex_fill)],
-                "after": [self.property_panel],
+                "after": [self.property_host],
             },
             ui_class=cb.body_height,
         )
@@ -400,7 +265,26 @@ class NGSolveGui(App):
 
         page = self._outer_splitter
 
-        super().__init__(bar, page, self.status_bar, self.kb.indicator, self.kb.help_overlay)
+        # Timer / profiling diagnostics dialog (opened from the settings menu).
+        self._timer_body = Div()
+        timer_refresh = QBtn(QTooltip("Refresh"), ui_icon="mdi-refresh",
+                             ui_flat=True, ui_dense=True, ui_round=True, ui_size="sm")
+        timer_refresh.on_click(lambda *a: self._refresh_timers())
+        self._timer_dialog = QDialog(QCard(
+            Div(Div("Timer / profiling", ui_class=cb.prop_title_text), timer_refresh,
+                ui_class=cb.prop_title),
+            QSeparator(),
+            self._timer_body,
+            ui_class="cb-timer-card",
+        ))
+
+        super().__init__(
+            bar, page, self.footer, self._timer_dialog,
+            self.kb.indicator, self.kb.help_overlay,
+        )
+
+        # Keep the footer's mode indicator in sync with the keybinding manager.
+        self._wire_footer_mode()
 
         cb.install(self, default_theme=self.usersettings.get("theme", "system"))
         from .webgpu_tab import sync_default_viewport_clear
@@ -456,7 +340,7 @@ class NGSolveGui(App):
         if result:
             thread, done_event = result
             name = os.path.basename(str(filename))
-            self.status_bar.show(name, thread, done_event)
+            self.footer.show(name, thread, done_event)
 
     def __on_before_save(self):
         self.storage.set("app_data", self.app_data.get_save_data(), use_pickle=True)
@@ -475,8 +359,16 @@ class NGSolveGui(App):
         comp = self.tab_panel.comp
         tab = self.app_data.get_tab(tabname)
         type_key = tab.get("type", "") if tab else ""
-        self.property_panel.set_component(comp, type_key)
+        self._show_property_panel(comp)
+        self.footer.set_component(comp, type_key)
         self.kb.set_component(comp)
+
+    def _show_property_panel(self, comp):
+        """Host the active component's own property panel (or a placeholder)."""
+        if comp is not None and hasattr(comp, "build_property_panel"):
+            self.property_host.ui_children = [comp.build_property_panel()]
+        else:
+            self.property_host.ui_children = [empty_property_panel()]
 
     def _toggle_navigator(self):
         self._nav_visible = not self._nav_visible
@@ -487,6 +379,23 @@ class NGSolveGui(App):
         self._prop_visible = not self._prop_visible
         self.usersettings.set("prop_visible", self._prop_visible)
         self._apply_panel_visibility()
+
+    def _wire_footer_mode(self):
+        """Mirror the keybinding manager's active mode into the footer."""
+        kb = self.kb
+        orig_enter = kb._enter_mode
+        orig_exit = kb._exit_mode
+
+        def _enter(name):
+            orig_enter(name)
+            self.footer.set_mode(kb._mode)
+
+        def _exit():
+            orig_exit()
+            self.footer.set_mode(None)
+
+        kb._enter_mode = _enter
+        kb._exit_mode = _exit
 
     def _on_nav_width_change(self, event):
         val = int(event.value)
@@ -515,6 +424,33 @@ class NGSolveGui(App):
         else:
             self._inner_splitter.ui_model_value = 0
             self._inner_splitter.ui_limits = [0, 0]
+
+    def _open_timers(self):
+        self._refresh_timers()
+        self._timer_dialog.ui_model_value = True
+
+    def _refresh_timers(self):
+        try:
+            import ngsolve
+            timers = sorted(ngsolve.Timers(), key=lambda t: -t.get("time", 0.0))[:40]
+        except Exception:
+            timers = []
+        if not timers:
+            rows = [Div("No timing data recorded yet.",
+                        ui_class=cb.hint, ui_style="padding: 12px;")]
+        else:
+            rows = []
+            for t in timers:
+                rows.append(Div(
+                    Div(t.get("name", ""), ui_class="ellipsis", ui_style="flex: 1; min-width: 0;"),
+                    Div(f"{t.get('time', 0.0):.4f} s", ui_class=cb.mono, ui_style="flex: none;"),
+                    ui_class="row items-center no-wrap " + str(cb.gap_sm),
+                    ui_style="padding: 4px 2px; border-bottom: 1px solid var(--border-faint);"
+                             " font-size: 12px;",
+                ))
+        self._timer_body.ui_children = [
+            Div(*rows, ui_style="max-height: 56vh; overflow: auto; min-width: 400px; padding: 4px 14px 12px;")
+        ]
 
     def _apply_viewport_theme(self):
         """Update the scene background of every open 3D tab to the active theme."""
@@ -583,8 +519,10 @@ class NGSolveGui(App):
             comp = self.tab_panel.comp
             tab = self.app_data.get_tab(active)
             type_key = tab.get("type", "") if tab else ""
-            self.property_panel.set_component(comp, type_key)
+            self._show_property_panel(comp)
+            self.footer.set_component(comp, type_key)
             self.kb.set_component(comp)
         else:
-            self.property_panel.set_component(None, "")
+            self._show_property_panel(None)
+            self.footer.set_component(None, "")
             self.kb.set_component(None)

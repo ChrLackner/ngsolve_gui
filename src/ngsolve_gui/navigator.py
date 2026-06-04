@@ -1,13 +1,23 @@
 from ngapp.components import *
 
 from .cerbsim_style import (
-    sidebar_nav,
+    nav_panel,
+    panel_header,
+    panel_header_title,
+    panel_scroll,
+    nav_search,
+    nav_group_row,
+    nav_group_caret,
+    nav_group_caret_collapsed,
+    nav_group_name,
+    nav_count_badge,
     nav_item,
     nav_item_active,
     nav_number_hint,
-    nav_group_header,
     nav_side,
+    nav_empty,
     avatar_min,
+    grow,
 )
 
 _TYPE_GROUPS = {
@@ -19,116 +29,67 @@ _TYPE_GROUPS = {
 
 
 class Navigator(Div):
-    def __init__(self, app_data, on_select):
+    def __init__(self, app_data, on_select, on_load_file=None):
         self.app_data = app_data
         self._on_select = on_select
-        self._list = QList(ui_dense=True, ui_separator=True)
+        self._on_load_file = on_load_file
+        self._collapsed = {}   # group label -> bool
+        self._query = ""
+        self._index_to_name = {}
+
+        load_btn = QBtn(
+            QTooltip("Load file  ·  geometry / mesh / .py"),
+            ui_flat=True, ui_dense=True, ui_round=True, ui_size="sm",
+            ui_icon="mdi-plus", ui_color="grey-7",
+        )
+        if on_load_file is not None:
+            load_btn.on_click(lambda *a: on_load_file())
+
+        header = Div(
+            Div("Navigator", ui_class=panel_header_title),
+            load_btn,
+            ui_class=panel_header,
+        )
+
+        self._search = QInput(
+            ui_model_value="",
+            ui_dense=True,
+            ui_borderless=True,
+            ui_clearable=True,
+            ui_debounce=150,
+            ui_label="Filter objects…",
+            ui_class=str(grow),
+        )
+        self._search.on_update_model_value(self._on_search)
+        search_box = Div(
+            QIcon(ui_name="mdi-magnify", ui_size="16px"),
+            self._search,
+            ui_class=nav_search,
+        )
+
+        self._scroll = Div(ui_class=panel_scroll)
+
         super().__init__(
-            self._list,
-            ui_class=sidebar_nav,
+            header,
+            search_box,
+            self._scroll,
+            ui_class=nav_panel,
         )
         self.update()
 
-    def _number_hint(self, idx):
-        if idx <= 9:
-            return QItemSection(
-                Div(
-                    str(idx),
-                    ui_class=nav_number_hint,
-                ),
-                ui_side=True,
-                ui_class=nav_side,
-            )
-        return None
+    # -- search ---------------------------------------------------------
+    def _on_search(self, event):
+        self._query = (event.value or "").strip().lower()
+        self._render()
 
+    # -- collapse -------------------------------------------------------
+    def _toggle_group(self, label):
+        self._collapsed[label] = not self._collapsed.get(label, False)
+        self._render()
+
+    # -- public ---------------------------------------------------------
     def update(self):
-        self._index_to_name = {}
-        groups = {}
-        for name, tab in self.app_data.get_tabs().items():
-            tab_type = tab.get("type", "unknown")
-            groups.setdefault(tab_type, []).append((name, tab))
-
-        items = []
-        idx = 1
-        active = self.app_data.active_tab
-        for type_key, (group_label, group_icon) in _TYPE_GROUPS.items():
-            tabs_in_group = groups.get(type_key, [])
-            if not tabs_in_group:
-                continue
-            header = QItemLabel(
-                group_label,
-                ui_header=True,
-                ui_class=nav_group_header,
-            )
-            items.append(header)
-            for tab_name, tab in tabs_in_group:
-                is_active = tab_name == active
-                self._index_to_name[idx] = tab_name
-                children = [
-                    c
-                    for c in [
-                        self._number_hint(idx),
-                        QItemSection(
-                            QIcon(
-                                ui_name=tab.get("icon", group_icon),
-                                ui_size="xs",
-                                ui_color="primary" if is_active else "grey-7",
-                            ),
-                            ui_avatar=True,
-                            ui_class=avatar_min,
-                        ),
-                        QItemSection(Div(tab["title"])),
-                        self._build_context_menu(tab_name),
-                    ]
-                    if c is not None
-                ]
-                item = QItem(
-                    *children,
-                    ui_clickable=True,
-                    ui_active=is_active,
-                    ui_active_class=str(nav_item_active),
-                    ui_dense=True,
-                    ui_class=nav_item,
-                )
-                item.on_click(lambda e=None, n=tab_name: self._on_select(n))
-                item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
-                items.append(item)
-                idx += 1
-
-        for type_key, tab_list in groups.items():
-            if type_key in _TYPE_GROUPS:
-                continue
-            for tab_name, tab in tab_list:
-                is_active = tab_name == active
-                self._index_to_name[idx] = tab_name
-                children = [
-                    c
-                    for c in [
-                        self._number_hint(idx),
-                        QItemSection(
-                            QIcon(ui_name=tab.get("icon", "mdi-help"), ui_size="xs"),
-                            ui_avatar=True,
-                            ui_class=avatar_min,
-                        ),
-                        QItemSection(Div(tab["title"])),
-                        self._build_context_menu(tab_name),
-                    ]
-                    if c is not None
-                ]
-                item = QItem(
-                    *children,
-                    ui_clickable=True,
-                    ui_active=is_active,
-                    ui_active_class=nav_item_active,
-                    ui_dense=True,
-                    ui_class=nav_item,
-                )
-                item.on_click(lambda e=None, n=tab_name: self._on_select(n))
-                item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
-                items.append(item)
-                idx += 1
-
-        self._list.ui_children = items
+        self._render()
 
     def select_by_index(self, n):
         """Select the nth item (1-based). Returns True if valid."""
@@ -138,6 +99,109 @@ class Navigator(Div):
             return True
         return False
 
+    # -- rendering ------------------------------------------------------
+    def _ordered_groups(self):
+        """Yield (label, icon, [(name, tab), ...]) in canonical order."""
+        groups = {}
+        for name, tab in self.app_data.get_tabs().items():
+            groups.setdefault(tab.get("type", "unknown"), []).append((name, tab))
+
+        for type_key, (label, icon) in _TYPE_GROUPS.items():
+            if groups.get(type_key):
+                yield label, icon, groups[type_key]
+        for type_key, tab_list in groups.items():
+            if type_key in _TYPE_GROUPS:
+                continue
+            yield type_key.title(), "mdi-help", tab_list
+
+    def _render(self):
+        # Assign keyboard number hints (1-9) across ALL tabs, in display order,
+        # independent of filtering/collapse so the shortcuts stay stable.
+        self._index_to_name = {}
+        idx = 1
+        numbers = {}
+        for _label, _icon, tabs in self._ordered_groups():
+            for tab_name, _tab in tabs:
+                if idx <= 9:
+                    numbers[tab_name] = idx
+                    self._index_to_name[idx] = tab_name
+                idx += 1
+
+        active = self.app_data.active_tab
+        q = self._query
+        children = []
+        for label, icon, tabs in self._ordered_groups():
+            matches = [
+                (n, t) for n, t in tabs
+                if not q or q in t["title"].lower()
+            ]
+            if q and not matches:
+                continue
+            collapsed = self._collapsed.get(label, False)
+            children.append(self._group_header(label, icon, len(tabs), collapsed))
+            if collapsed:
+                continue
+            if not matches:
+                children.append(Div("empty", ui_class=nav_empty))
+                continue
+            for tab_name, tab in matches:
+                children.append(
+                    self._item(tab_name, tab, tab_name == active,
+                               numbers.get(tab_name), icon)
+                )
+        children.append(Div(ui_style="height: 12px;"))
+        self._scroll.ui_children = children
+
+    def _group_header(self, label, icon, count, collapsed):
+        caret_cls = str(nav_group_caret)
+        if collapsed:
+            caret_cls += " " + str(nav_group_caret_collapsed)
+        row = Div(
+            QIcon(ui_name="mdi-chevron-down", ui_size="16px", ui_class=caret_cls),
+            QIcon(ui_name=icon, ui_size="15px"),
+            Div(label, ui_class=nav_group_name),
+            Div(str(count), ui_class=nav_count_badge),
+            ui_class=nav_group_row,
+        )
+        row.on("click", lambda e=None, l=label: self._toggle_group(l))
+        return row
+
+    def _item(self, tab_name, tab, is_active, number, group_icon):
+        sections = []
+        sections.append(
+            QItemSection(
+                Div(str(number) if number else "", ui_class=nav_number_hint),
+                ui_side=True,
+                ui_class=nav_side,
+            )
+        )
+        sections.append(
+            QItemSection(
+                QIcon(
+                    ui_name=tab.get("icon", group_icon),
+                    ui_size="xs",
+                    ui_color="primary" if is_active else "grey-7",
+                ),
+                ui_avatar=True,
+                ui_class=avatar_min,
+            )
+        )
+        sections.append(QItemSection(Div(tab["title"])))
+        sections.append(self._build_context_menu(tab_name))
+
+        item = QItem(
+            *sections,
+            ui_clickable=True,
+            ui_active=is_active,
+            ui_active_class=str(nav_item_active),
+            ui_dense=True,
+            ui_class=nav_item,
+        )
+        item.on_click(lambda e=None, n=tab_name: self._on_select(n))
+        item.on("mousedown", lambda e, n=tab_name: self._on_middle_click(e, n))
+        return item
+
+    # -- context menu / actions -----------------------------------------
     def _build_context_menu(self, tab_name):
         delete_item = QItem(
             QItemSection(
@@ -189,7 +253,7 @@ class Navigator(Div):
         )
 
         return QMenu(
-            QList(delete_item, rename_item, ui_dense=True),
+            QList(rename_item, delete_item, ui_dense=True),
             ui_context_menu=True,
         )
 

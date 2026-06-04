@@ -1,19 +1,27 @@
+"""Reusable, component-owned property panel.
+
+A component carries its own property panel: set ``property_sections`` (a list of
+``QExpansionItem`` subclasses) on the component class and optionally override
+``property_actions()`` for header buttons, then call ``build_property_panel()``.
+This lets another package reuse a component (e.g. ``GeometryComponent``) and get
+its property panel for free, without going through the app or the registry.
+"""
+
 from ngapp.components import *
 
+from . import cerbsim_style as cb
 from .cerbsim_style import (
     sidebar_props,
     prop_title,
     prop_title_text,
-    section_content,
-    section_border,
-    section_header,
     field_label,
     gap_xs,
-    SECTION_COLORS,
 )
 
 
-# Section key → accent color mapping (for left-border on headers)
+# Section class name → stable key (used for the header accent color *and* for
+# include/exclude filtering by other apps). A section class may also set its own
+# ``section_key`` attribute (preferred for sections defined outside this package).
 _SECTION_KEY_MAP = {
     "GeometryDisplaySection": "display",
     "MeshDisplaySection": "display",
@@ -30,128 +38,159 @@ _SECTION_KEY_MAP = {
 }
 
 
-def _section_header_border(section_cls):
-    """Per-section accent color for the header left-border (data-driven)."""
-    key = _SECTION_KEY_MAP.get(section_cls.__name__, "")
-    color = SECTION_COLORS.get(key, "var(--fg-subtle)")
-    return f"border-left: 3px solid {color};"
+def section_key(section_cls):
+    """Stable string key for a section class.
+
+    Other apps use these keys to hide sections, e.g.
+    ``comp.build_property_panel(exclude=["selection"])``. A section can override
+    its key with a ``section_key`` class attribute; otherwise it falls back to
+    the built-in map, then to a lowercased class name.
+    """
+    return (
+        getattr(section_cls, "section_key", None)
+        or _SECTION_KEY_MAP.get(section_cls.__name__)
+        or section_cls.__name__.lower()
+    )
+
+
+def _excluded_keys(comp, exclude):
+    """Collect the set of section keys to hide for this panel build.
+
+    Sources: the component's ``hidden_sections`` and the ``exclude`` argument.
+    Each entry may be a key string or a section class.
+    """
+    items = list(getattr(comp, "hidden_sections", ()) or ())
+    if exclude:
+        items += list(exclude)
+    return {it if isinstance(it, str) else section_key(it) for it in items}
 
 
 class PropertyPanel(Div):
-    def __init__(self):
-        self._title_text = Div("Properties", ui_class=prop_title_text)
-        self._actions = Div(ui_class="row items-center " + gap_xs)
-        self._title = Div(
-            self._title_text,
-            self._actions,
+    """Self-contained property panel for a single component.
+
+    Renders the component's title, its header actions, and the sections it
+    declares in ``property_sections``. Build one via
+    ``component.build_property_panel()``.
+    """
+
+    def __init__(self, comp, exclude=None):
+        self._comp = comp
+        header = Div(
+            Div("Properties", ui_class=prop_title_text),
+            Div(*self._actions(comp), ui_class="row items-center " + gap_xs),
             ui_class=prop_title,
         )
-        self._sections = Div()
-        super().__init__(
-            self._title,
-            QSeparator(),
-            self._sections,
-            ui_class=sidebar_props,
+
+        children = [header, QSeparator()]
+        try:
+            summary = comp.property_summary()
+        except Exception as e:
+            print(f"Error building property summary: {e}")
+            summary = None
+        if summary is not None:
+            children.append(summary)
+        children.append(Div(*self._build_sections(comp, exclude)))
+        super().__init__(*children, ui_class=sidebar_props)
+
+    def _actions(self, comp):
+        """Header action buttons — the cross-reference (Open as mesh/geometry)."""
+        try:
+            xref = comp.property_xref()
+        except Exception:
+            xref = None
+        if not xref:
+            return []
+        btn = QBtn(
+            QTooltip(xref.get("label", "Open")),
+            ui_icon=xref.get("icon", "mdi-open-in-new"),
+            ui_flat=True, ui_dense=True, ui_round=True, ui_size="sm",
+            ui_class=str(cb.topbar_icon),
         )
+        callback = xref.get("callback")
+        if callback is not None:
+            btn.on_click(lambda e=None: callback())
+        return [btn]
 
-    def set_component(self, comp, type_key):
-        """Rebuild the panel for the given component and type."""
-        from .registry import get_sections_for
-
-        if comp is None:
-            self._title_text.ui_children = ["Properties"]
-            self._actions.ui_children = []
-            self._sections.ui_children = [
-                Div("No item selected.", ui_class=field_label + " q-pa-md")
-            ]
-            return
-
-        # Show the component title
-        title = getattr(comp, "title", type_key)
-        self._title_text.ui_children = [title]
-
-        # Action buttons in header (Draw Mesh / Draw Geometry)
-        self._actions.ui_children = self._build_actions(comp, type_key)
-
-        section_classes = get_sections_for(type_key)
+    def _build_sections(self, comp, exclude=None):
+        section_classes = getattr(comp, "property_sections", []) or []
+        excluded = _excluded_keys(comp, exclude)
         sections = []
         for cls in section_classes:
+            if section_key(cls) in excluded:
+                continue
             try:
-                section = cls(comp)
-                # Apply consistent styling to every section
-                section.ui_dense = True
-                section.ui_expand_separator = True
-                section.ui_class = section_border
-                section.ui_header_class = str(section_header)
-                section.ui_header_style = _section_header_border(cls)
-                # Wrap section content children in padded container
-                _apply_section_padding(section)
-                sections.append(section)
+                sections.append(cls(comp))
             except ValueError:
-                pass
+                pass  # section opted out (e.g. not applicable for this object)
             except Exception as e:
                 print(f"Error building section {cls.__name__}: {e}")
-
-        if sections:
-            self._sections.ui_children = sections
-        else:
-            self._sections.ui_children = [
-                Div("No settings available.", ui_class=field_label + " q-pa-md")
-            ]
-
-    def _build_actions(self, comp, type_key):
-        """Build header action buttons based on component type."""
-        buttons = []
-        if type_key == "function":
-            btn = QBtn(
-                QTooltip("Open as Mesh"),
-                ui_icon="mdi-vector-triangle",
-                ui_flat=True,
-                ui_dense=True,
-                ui_round=True,
-                ui_size="sm",
-                ui_color="grey-7",
-            )
-            btn.on_click(lambda *a: self._draw_mesh(comp))
-            buttons.append(btn)
-        elif type_key == "mesh":
-            btn = QBtn(
-                QTooltip("Open Geometry"),
-                ui_icon="mdi-cube-outline",
-                ui_flat=True,
-                ui_dense=True,
-                ui_round=True,
-                ui_size="sm",
-                ui_color="grey-7",
-            )
-            btn.on_click(lambda *a: self._draw_geometry(comp))
-            buttons.append(btn)
-        return buttons
-
-    def _draw_mesh(self, comp):
-        from .mesh import MeshComponent
-        comp.app_data.add_tab(
-            "Mesh_" + comp.name, MeshComponent, {"obj": comp.mesh}, comp.app_data
-        )
-
-    def _draw_geometry(self, comp):
-        try:
-            geo = comp.mesh.ngmesh.GetGeometry()
-            from .geometry import GeometryComponent
-            comp.app_data.add_tab(
-                "Geo_" + comp.title, GeometryComponent, {"obj": geo}, comp.app_data
-            )
-        except Exception as e:
-            print(f"Could not extract geometry from mesh: {e}")
+        if not sections:
+            return [Div("No settings available.", ui_class=field_label + " q-pa-md")]
+        return sections
 
 
-def _apply_section_padding(section):
-    """Wrap the section's positional children in a padded Div.
+def empty_property_panel():
+    """Placeholder panel shown when no component is selected."""
+    return Div(
+        Div(Div("Properties", ui_class=prop_title_text), ui_class=prop_title),
+        QSeparator(),
+        Div("No item selected.", ui_class=field_label + " q-pa-md"),
+        ui_class=sidebar_props,
+    )
 
-    QExpansionItem children are the expansion body. We wrap them so every
-    section automatically gets consistent inner padding without the section
-    author having to think about it.
+
+class PropertyPanelMixin:
+    """Mix into a component to give it its own property panel.
+
+    Set ``property_sections`` (a list of ``QExpansionItem`` subclasses) on the
+    component class, and optionally override ``property_actions()`` to add header
+    buttons. ``build_property_panel()`` returns a ready-to-mount panel.
+
+    Other apps can hide sections by key, without importing section classes::
+
+        # one-off:
+        panel = geo.build_property_panel(exclude=["selection"])
+
+        # or persistently for an instance / subclass:
+        geo.hidden_sections = {"selection"}
+        panel = geo.build_property_panel()
+
+    Use :meth:`available_section_keys` to discover the keys a component offers.
     """
-    children = list(section.ui_children) if section.ui_children else []
-    if children:
-        section.ui_children = [Div(*children, ui_class=section_content)]
+
+    #: Sections shown in this component's property panel (override per class).
+    property_sections: list = []
+
+    #: Section keys hidden for this component (strings or section classes).
+    #: Set per-instance or override per-subclass; merged with build-time excludes.
+    hidden_sections = ()
+
+    def property_subtitle(self):
+        """Type subtitle shown under the object name (e.g. 'Mesh · 3D')."""
+        return ""
+
+    def property_xref(self):
+        """Cross-reference link row, or None.
+
+        Return a dict ``{"label", "icon", "callback"}`` (e.g. open the mesh's
+        geometry, or a function's mesh).
+        """
+        return None
+
+    def property_summary(self):
+        """An always-visible summary block above the sections, or None
+        (e.g. a function's colorbar / field summary)."""
+        return None
+
+    def build_property_panel(self, exclude=None):
+        """Build a self-contained property panel for this component.
+
+        ``exclude`` is an optional iterable of section keys (or section classes)
+        to hide, merged with the component's ``hidden_sections``.
+        """
+        return PropertyPanel(self, exclude=exclude)
+
+    @classmethod
+    def available_section_keys(cls):
+        """List the section keys this component offers (for use with ``exclude``)."""
+        return [section_key(s) for s in cls.property_sections]

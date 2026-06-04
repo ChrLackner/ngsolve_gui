@@ -276,20 +276,26 @@ class FunctionComponent(WebgpuTab):
                 self.clippingcf.set_needs_update()
             self.wgpu.scene.render()
 
-    def _format_pick_result(self, result):
-        """Show element, region, position, and solution value."""
-        pos = result.world_pos
-        val = result.evaluate(self.cf, self.mesh)
-        label = f"{result.kind_label} El {result.element_nr}"
-        region = result.region_name or ""
-        coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
-        text = f"{label:<14s} {region:<12s} {coords}"
+    def _pick_info(self, result):
+        """Element / region / position / value — value uses the *undeformed*
+        point so it stays correct when deformation is on."""
+        header, rows, _ = super()._pick_info(result)
+        val = self._eval_cf(self._probe_mesh_point(result.world_pos))
         if val is not None:
             if val.size == 1:
-                text += f"  val={float(val):>12.6f}"
+                rows.append(("value", f"{float(val):.5g}"))
             else:
-                text += f"  val=[{', '.join(f'{v:>9.4f}' for v in val.flat)}]"
-        return text
+                rows.append(("value", "[" + ", ".join(f"{float(v):.3g}" for v in val.flat) + "]"))
+            return ("Picked value", rows, True)
+        return ("Picked value", rows, False)
+
+    def _eval_cf(self, P):
+        try:
+            import numpy as np
+            mip = self.mesh(*[float(P[i]) for i in range(self.mesh.dim)])
+            return np.real(np.asarray(self.cf(mip)))
+        except Exception:
+            return None
 
     def _apply_contact(self, val, _old):
         if self.contact_pairs is not None:
@@ -523,6 +529,26 @@ class FunctionComponent(WebgpuTab):
     def cycle_colormap_prev(self):
         self._cycle_colormap(-1)
 
+    def property_subtitle(self):
+        kind = "Vector" if self.cf.dim > 1 else "Scalar"
+        return f"Function · {self.mesh.dim}D · {kind}"
+
+    def property_xref(self):
+        return {"label": "Open as mesh", "icon": "mdi-vector-triangle",
+                "callback": self._open_as_mesh}
+
+    def _build_viewport_legend(self):
+        # The colorbar (colormap, range, autoscale, component) lives entirely in
+        # the in-viewport legend now — not in the side panel.
+        from .prop_widgets import ColorbarLegend
+        return ColorbarLegend(self)
+
+    def _open_as_mesh(self):
+        from .mesh import MeshComponent
+        self.app_data.add_tab(
+            "Mesh_" + self.name, MeshComponent, {"obj": self.mesh}, self.app_data
+        )
+
     def draw(self):
         func_data = self.app_data.get_function_gpu_data(
             self.cf, self.region_or_mesh, order=self.order
@@ -680,7 +706,7 @@ class FunctionComponent(WebgpuTab):
                 self.elements2d,
                 self.facet_renderer,
                 self.wireframe,
-                self.colorbar,
+                # colorbar is shown in the UI (FieldSummary), not in the scene
                 self.contact_pairs,
                 self.clipping_vectors,
                 self.surface_vectors,
@@ -717,7 +743,6 @@ class FunctionComponent(WebgpuTab):
 from .registry import register_component
 from .sections import (
     FunctionDisplaySection,
-    ColorbarSection,
     ClippingSection,
     DeformationSection,
     VectorsFlowSection,
@@ -725,17 +750,18 @@ from .sections import (
     EntityNumbersSection,
 )
 
+# Colormap/colorbar lives in the always-visible FieldSummary (property_summary),
+# not as a section — matching the designer's function panel.
+FunctionComponent.property_sections = [
+    FunctionDisplaySection,
+    DeformationSection,
+    VectorsFlowSection,
+    ComplexSection,
+    EntityNumbersSection,
+]
+
 register_component(
     "function",
     icon="mdi-function-variant",
     component_class=FunctionComponent,
-    sections=[
-        FunctionDisplaySection,
-        ColorbarSection,
-        ClippingSection,
-        DeformationSection,
-        VectorsFlowSection,
-        ComplexSection,
-        EntityNumbersSection,
-    ],
 )

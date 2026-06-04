@@ -3,10 +3,13 @@
 from ngapp.components import *
 import math
 
+from ..prop_widgets import Section, Chip, chip_row
 from ..cerbsim_style import label, axis_label, gap_xs, gap_sm, input_compact
 
 
-class ClippingSection(QExpansionItem):
+class ClippingSection(Section):
+    section_key = "clipping"
+
     def __init__(self, comp):
         self.comp = comp
         if hasattr(comp, "mesh") and comp.mesh.dim < 3:
@@ -15,9 +18,10 @@ class ClippingSection(QExpansionItem):
         clip = comp.clipping
 
         # Toggle row
-        enable = QCheckbox("Enable", ui_model_value=comp.clipping_enabled, ui_dense=True)
-        use_global = QCheckbox("Global", ui_model_value=comp.use_global_clipping, ui_dense=True)
-        toggle_row = Row(enable, use_global, ui_class=gap_sm)
+        toggle_row = chip_row(
+            Chip("Enable", "mdi-box-cutter", comp.clipping_enabled),
+            Chip("Global", "mdi-earth", comp.use_global_clipping),
+        )
 
         # Normal direction — 3 compact slider rows
         self.dx = QSlider(ui_model_value=clip.normal[0], ui_min=-1, ui_max=1, ui_step=0.1, ui_dense=True)
@@ -63,9 +67,8 @@ class ClippingSection(QExpansionItem):
             Div("Normal", ui_class=label), dir_block,
             Div("Center", ui_class=label), center_row,
             Div("Offset", ui_class=label), self.offset,
-            ui_icon="mdi-box-cutter",
-            ui_label="Clipping",
-            ui_dense=True,
+            icon="mdi-box-cutter",
+            title="Clipping",
         )
         self.on_mounted(self._update_fields)
 

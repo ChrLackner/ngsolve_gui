@@ -6,11 +6,13 @@ real/imag/abs/arg display and controlling phase animation.
 
 from ngapp.components import *
 
-from ..cerbsim_style import label
+from ..prop_widgets import Section, Toggle, field
 
 
-class ComplexSection(QExpansionItem):
+class ComplexSection(Section):
     """Complex number visualization controls."""
+
+    section_key = "complex"
 
     def __init__(self, comp):
         self.comp = comp
@@ -18,7 +20,6 @@ class ComplexSection(QExpansionItem):
             raise ValueError("Not a complex function")
 
         self.mode_select = QSelect(
-            ui_label="Display Mode",
             ui_options=[
                 {"label": "Real", "value": "real"},
                 {"label": "Imaginary", "value": "imag"},
@@ -31,29 +32,16 @@ class ComplexSection(QExpansionItem):
             ui_dense=True,
         )
 
-        self.animate = QCheckbox(
-            "Animate Phase",
-            ui_model_value=comp.complex_animate,
-            ui_dense=True,
-        )
-
-        speed_label = Div("Animation Speed", ui_class=label + " q-pt-xs")
         self.speed = QSlider(
             ui_model_value=comp.complex_speed,
-            ui_min=0.1,
-            ui_max=5.0,
-            ui_step=0.1,
-            ui_dense=True,
-            ui_label=True,
-            ui_class="q-px-xs",
+            ui_min=0.1, ui_max=5.0, ui_step=0.1,
+            ui_dense=True, ui_label=True,
         )
 
         super().__init__(
-            self.mode_select,
-            self.animate,
-            speed_label,
-            self.speed,
-            ui_icon="mdi-sine-wave",
-            ui_label="Complex",
-            ui_dense=True,
+            field("Display mode", self.mode_select),
+            Toggle("Animate phase", comp.complex_animate),
+            field("Animation speed", self.speed),
+            icon="mdi-sine-wave",
+            title="Complex",
         )

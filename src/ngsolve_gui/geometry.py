@@ -293,6 +293,9 @@ class GeometryComponent(WebgpuTab):
         self._update_selection_panel()
         self.scene.render()
 
+    def property_subtitle(self):
+        return "Geometry"
+
     def draw(self):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.edges.active = self.show_edges.value
@@ -493,9 +496,12 @@ class GeometryComponent(WebgpuTab):
 from .registry import register_component
 from .sections import GeometryDisplaySection, GeometrySelectionSection, ClippingSection, MeshGenerationSection
 
+GeometryComponent.property_sections = [
+    GeometryDisplaySection, GeometrySelectionSection, MeshGenerationSection,
+]
+
 register_component(
     "geometry",
     icon="mdi-cube",
     component_class=GeometryComponent,
-    sections=[GeometryDisplaySection, GeometrySelectionSection, ClippingSection, MeshGenerationSection],
 )

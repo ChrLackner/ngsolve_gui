@@ -8,7 +8,12 @@ from ngsolve_webgpu.pick import MeshPickResult
 from webgpu.webgpu_api import Color
 from webgpu import Background
 from webgpu.labels import Labels
+import copy
+import math
+
 from .pick_overlay import PickOverlay
+from .property_panel import PropertyPanelMixin
+from .prop_widgets import Segmented
 from . import cerbsim_style as cb
 from .cerbsim_style import overlay_tr, VIEWPORT_CLEAR, VIEWPORT_TEXT
 
@@ -37,7 +42,7 @@ def _theme_scene(scene, bg_rgb, text_rgb):
         _walk(ro)
 
 
-class WebgpuTab(Div):
+class WebgpuTab(PropertyPanelMixin, Div):
     def __init__(self, name, data, app_data):
         self.name = name
         self._redraw_needed = False
@@ -79,27 +84,33 @@ class WebgpuTab(Div):
                 saved.get("use_global_clipping", True), "use_global_clipping"
             )
 
-        self.reset_camera_btn = QBtn(
-            QTooltip("Reset Camera"),
-            ui_icon="mdi-refresh",
-            ui_color="secondary",
-            ui_class=overlay_tr,
-            ui_fab=True,
-            ui_flat=True,
-        )
-        self.reset_camera_btn.on_click(self.reset_camera)
-
         self.pick_overlay = PickOverlay()
 
-        super().__init__(
-            self.wgpu,
-            self.reset_camera_btn,
-            self.pick_overlay,
-            ui_class="relative-position fit",
-        )
+        # -- Floating viewport overlays (designer): tool dock, clip toolbar,
+        #    camera cluster (reset + bookmarks), and the field probe panel. --
+        self._probe_active = False
+        self._probe_mode = "points"   # or "line"
+        self._probe_points = []       # list of (np.array point, value-or-None)
+        self._probe_screen = []       # parallel screen (x, y) for the line preview
+        self._tool_dock = self._build_tool_dock()
+        self._clip_toolbar = self._build_clip_toolbar()  # None if not 3D
+        self._probe_panel = self._build_probe_panel()  # None if no field
+        self._probe_preview = Div(ui_class=str(cb.vp_preview)) if self._supports_probe() else None
+        self._legend = self._build_viewport_legend()  # None except for fields
+
+        overlays = [self.wgpu, self._tool_dock, self.pick_overlay]
+        if self._clip_toolbar is not None:
+            overlays.insert(2, self._clip_toolbar)
+        if self._legend is not None:
+            overlays.append(self._legend)
+        if self._probe_panel is not None:
+            overlays.append(self._probe_preview)
+            overlays.append(self._probe_panel)
+        super().__init__(*overlays, ui_class="relative-position fit")
 
         self.draw()
         self.reset_camera()
+        self._sync_clip_ui(self.clipping_enabled.value, None)
 
         # Enable selection on right-click (needed for nav cube)
         def _on_click_select(event):
@@ -128,6 +139,8 @@ class WebgpuTab(Div):
         self.scene.input_handler.on_dblclick(self._on_dblclick, ctrl=True)
         self.scene.input_handler.on_drag(self._on_mousemove, ctrl=True)
         self.scene.input_handler.on_wheel(self._on_wheel, ctrl=True)
+        if self._supports_probe():
+            self.scene.input_handler.on_click(self._on_probe_click)
 
         # Wire gizmo visibility
         self.axes_visible.on_change(self._apply_axes_visible)
@@ -139,6 +152,15 @@ class WebgpuTab(Div):
 
         # Wire clipping observable after scene is ready
         self.clipping_enabled.on_change(self._apply_clipping_enabled)
+        # Keep the viewport tool dock / clip toolbar in sync.
+        self.clipping_enabled.on_change(self._sync_clip_ui)
+        self.use_global_clipping.on_change(
+            lambda v, _o: self._set_tool_active(self._clip_global_tool, v)
+        )
+        if hasattr(self, "wireframe_visible") and self._wf_tool is not None:
+            self.wireframe_visible.on_change(
+                lambda v, _o: self._set_tool_active(self._wf_tool, v)
+            )
 
         def redraw_if_needed():
             self.apply_viewport_theme()
@@ -318,9 +340,9 @@ class WebgpuTab(Div):
     def _on_pick_select(self, event, kind="surface"):
         try:
             result = MeshPickResult(event, self._pick_mesh, self.scene.options, kind=kind)
-            text = self._format_pick_result(result)
-            if text:
-                self.pick_overlay.show_text(text)
+            header, rows, accent = self._pick_info(result)
+            if rows:
+                self.pick_overlay.show_info(header, rows, accent_last=accent)
             else:
                 self.pick_overlay.hide()
             if not self.picking_enabled.value:
@@ -348,13 +370,63 @@ class WebgpuTab(Div):
 
 
 
-    def _format_pick_result(self, result):
-        """Format pick result for display. Override in subclasses."""
+    def _kind_label(self, result):
+        """Element kind label. The 'surface' renderer draws codim-0 (VOL)
+        elements on a 2D mesh, but boundary (BND) elements on a 3D mesh."""
+        dim = getattr(getattr(self, "mesh", None), "dim", 3)
+        if result.kind == "surface":
+            return "vol el." if dim == 2 else "surf el."
+        if result.kind == "volume":
+            return "vol el."
+        if result.kind == "clipping":
+            return "clip"
+        return f"{result.kind} el."
+
+    def _pick_info(self, result):
+        """Structured pick info: (header, [(label, value), ...], accent_last)."""
         pos = result.world_pos
-        label = f"{result.kind_label} El {result.element_nr}"
-        region = result.region_name or ""
-        coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
-        return f"{label:<14s} {region:<12s} {coords}"
+        rows = [
+            ("kind", self._kind_label(result)),
+            ("element", f"#{result.element_nr}"),
+            ("region", result.region_name or "—"),
+            ("xyz", f"{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}"),
+        ]
+        return ("Picked element", rows, False)
+
+    def _probe_mesh_point(self, Q):
+        """Map a picked world point back to the *undeformed* mesh point.
+
+        With deformation on, picking returns the deformed surface position; the
+        coefficient function lives on the undeformed mesh. Recover the original
+        point P with Q = P + scale·deform(P) via fixed-point iteration.
+        """
+        import numpy as np
+        Q = np.array([float(Q[0]), float(Q[1]), float(Q[2])], dtype=float)
+        deform = getattr(self, "deformation", None)
+        enabled = getattr(self, "deformation_enabled", None)
+        if deform is None or enabled is None or not enabled.value:
+            return Q
+        try:
+            scale = float(self.deformation_scale.value) * float(self.deformation_scale2.value)
+        except Exception:
+            return Q
+        if scale == 0.0:
+            return Q
+        P = Q.copy()
+        for _ in range(12):
+            try:
+                mip = self.mesh(*[float(P[i]) for i in range(self.mesh.dim)])
+                d = np.asarray(deform(mip), dtype=float).ravel()
+            except Exception:
+                return Q
+            dv = np.zeros(3)
+            dv[:min(3, d.size)] = d[:3]
+            newP = Q - scale * dv
+            if np.linalg.norm(newP - P) < 1e-10:
+                P = newP
+                break
+            P = newP
+        return P
 
     @property
     def clipping(self):
@@ -419,6 +491,340 @@ class WebgpuTab(Div):
 
     def toggle_clipping(self):
         self.clipping_enabled.toggle()
+
+    # -- Viewport tool dock + inline clipping toolbar ----------------------
+
+    def _vtool(self, icon, tip, handler):
+        """A single floating viewport tool button."""
+        btn = Div(QIcon(ui_name=icon), QTooltip(tip), ui_class=str(cb.vp_tool))
+        btn.on("click", lambda e=None: handler())
+        return btn
+
+    def _set_tool_active(self, btn, on):
+        if btn is not None:
+            btn.ui_class = str(cb.vp_tool) + (" " + str(cb.vp_tool_on) if on else "")
+
+    def _supports_clipping(self):
+        return not hasattr(self, "mesh") or self.mesh.dim == 3
+
+    def toggle_wireframe(self):
+        if hasattr(self, "wireframe_visible"):
+            self.wireframe_visible.toggle()
+
+    def _build_tool_dock(self):
+        self._wf_tool = None
+        self._clip_tool = None
+        tools = [self._vtool("mdi-overscan", "Fit view  ·  r", self.reset_camera)]
+        if hasattr(self, "wireframe_visible"):
+            self._wf_tool = self._vtool("mdi-grid", "Wireframe  ·  w", self.toggle_wireframe)
+            self._set_tool_active(self._wf_tool, self.wireframe_visible.value)
+            tools.append(self._wf_tool)
+        if self._supports_clipping():
+            tools.append(Div(ui_class=str(cb.vp_sep)))
+            self._clip_tool = self._vtool("mdi-content-cut", "Clipping plane  ·  c",
+                                          self.toggle_clipping)
+            tools.append(self._clip_tool)
+        self._probe_tool = None
+        if self._supports_probe():
+            tools.append(Div(ui_class=str(cb.vp_sep)))
+            self._probe_tool = self._vtool(
+                "mdi-crosshairs-gps", "Line / point probe  →  plot", self.toggle_probe)
+            tools.append(self._probe_tool)
+        # View tools: fullscreen + view bookmarks.
+        tools.append(Div(ui_class=str(cb.vp_sep)))
+        tools.append(self._vtool("mdi-fullscreen", "Fullscreen viewport",
+                                  self._toggle_fullscreen))
+        tools.append(self._build_bookmark_tool())
+        return Div(*tools, ui_class=str(cb.vp_dock))
+
+    def _build_bookmark_tool(self):
+        self._bookmarks = []  # list of (name, camera-transform snapshot)
+        self._bm_pop = Div(ui_class=str(cb.bm_pop))
+        self._bm_pop.ui_hidden = True
+        self._bm_pop.on("mouseleave", lambda e=None: self._close_bookmarks())
+        btn = Div(
+            QIcon(ui_name="mdi-bookmark-outline"), QTooltip("Saved views"), self._bm_pop,
+            ui_class=str(cb.vp_tool) + " relative-position",
+        )
+        btn.on("click", lambda e=None: self._toggle_bookmarks())
+        self._rebuild_bookmark_menu()
+        return btn
+
+    def _build_clip_toolbar(self):
+        if not self._supports_clipping():
+            self._clip_global_tool = None
+            return None
+        axis = self._current_clip_axis()
+        self._clip_axis_seg = Segmented(
+            [("0", "X"), ("1", "Y"), ("2", "Z")], str(axis), self._on_clip_axis)
+        flip = self._vtool("mdi-flip-horizontal", "Flip side", self._flip_clip)
+        self._clip_offset = QSlider(
+            ui_min=-1, ui_max=1, ui_step=0.01, ui_model_value=0.0,
+            ui_dense=True, ui_class=str(cb.vc_slider))
+        self._clip_offset.on_update_model_value(self._on_clip_offset)
+        self._clip_offset_val = Div("0.00", ui_class=str(cb.vc_o_val))
+        self._clip_global_tool = self._vtool(
+            "mdi-earth", "Clip all objects (global)", self.use_global_clipping.toggle)
+        self._set_tool_active(self._clip_global_tool, self.use_global_clipping.value)
+        close = self._vtool("mdi-close", "Close clipping  ·  esc",
+                            lambda: setattr(self.clipping_enabled, "value", False))
+        toolbar = Div(
+            Div(QIcon(ui_name="mdi-content-cut"), "Clip", ui_class=str(cb.vc_lab)),
+            Div(self._clip_axis_seg, ui_class=str(cb.vc_axis)),
+            flip,
+            Div(self._clip_offset, self._clip_offset_val, ui_class=str(cb.vc_offset)),
+            self._clip_global_tool,
+            close,
+            ui_class=str(cb.vp_clip),
+        )
+        toolbar.ui_hidden = True
+        return toolbar
+
+    def _sync_clip_ui(self, val, _old):
+        """Reflect clipping_enabled on the dock button + toolbar visibility."""
+        self._set_tool_active(self._clip_tool, val)
+        if self._clip_toolbar is not None:
+            self._clip_toolbar.ui_hidden = not val
+
+    def _current_clip_axis(self):
+        n = [abs(self.clipping.normal[i]) for i in range(3)]
+        return n.index(max(n))
+
+    def _on_clip_axis(self, val):
+        self.clip_along_axis(int(val))
+
+    def _flip_clip(self):
+        self.clip_along_axis(self._current_clip_axis())
+
+    def _clip_factor(self):
+        try:
+            bb = self.wgpu.scene.bounding_box
+        except Exception:
+            bb = ((0, 0, 0), (1, 1, 1))
+        d = [bb[1][i] - bb[0][i] for i in range(3)]
+        return math.sqrt(sum(x * x for x in d)) / 2.0 or 1.0
+
+    def _on_clip_offset(self, ev):
+        v = ev.value if hasattr(ev, "value") else ev
+        try:
+            v = float(v)
+        except (ValueError, TypeError):
+            return
+        self._clip_offset_val.ui_children = [f"{v:.2f}"]
+        self.clipping.set_offset(v * self._clip_factor())
+        self.wgpu.scene.render()
+
+    # -- Fullscreen + view bookmarks (in the tool dock) --------------------
+
+    def _toggle_fullscreen(self):
+        """Toggle browser fullscreen on the viewport container."""
+        def _go(js):
+            try:
+                el = self.scene.canvas.canvas.parentElement
+                doc = js.document
+                if doc.fullscreenElement is not None:
+                    doc.exitFullscreen()
+                else:
+                    el.requestFullscreen()
+            except Exception:
+                pass
+        self.call_js(_go)
+
+    def _toggle_bookmarks(self):
+        if self._bm_pop.ui_hidden:
+            self._rebuild_bookmark_menu()
+            self._bm_pop.ui_hidden = False
+        else:
+            self._bm_pop.ui_hidden = True
+
+    def _close_bookmarks(self):
+        self._bm_pop.ui_hidden = True
+
+    def _rebuild_bookmark_menu(self):
+        rows = [Div("Saved views", ui_class=str(cb.bm_title))]
+        if not self._bookmarks:
+            rows.append(Div("No saved views", ui_class=str(cb.bm_empty)))
+        for name, snap in self._bookmarks:
+            row = Div(QIcon(ui_name="mdi-camera-outline"), name, ui_class=str(cb.bm_row))
+            row.on("click", lambda e=None, s=snap: self._recall_bookmark(s))
+            rows.append(row)
+        add = Div(QIcon(ui_name="mdi-plus"), "Save current view", ui_class=str(cb.bm_add))
+        add.on("click", lambda e=None: self._save_bookmark())
+        rows.append(add)
+        self._bm_pop.ui_children = rows
+
+    def _save_bookmark(self):
+        cam = self.scene.options.camera
+        self._bookmarks.append((f"View {len(self._bookmarks) + 1}", cam.transform.copy()))
+        self._rebuild_bookmark_menu()
+
+    def _recall_bookmark(self, snap):
+        cam = self.scene.options.camera
+        cam.transform = snap.copy()
+        cam._notify_observers()   # push the new camera uniform (as reset() does)
+        self.scene.render()
+        self._close_bookmarks()
+
+    # -- Field probe: click points → values, ≥2 points → 1D line plot ------
+
+    def _supports_probe(self):
+        return hasattr(self, "cf")
+
+    def _build_viewport_legend(self):
+        """Override to return an in-viewport colorbar legend (fields only)."""
+        return None
+
+    def toggle_probe(self):
+        self._probe_active = not self._probe_active
+        self._set_tool_active(self._probe_tool, self._probe_active)
+        if self._probe_panel is not None:
+            self._probe_panel.ui_hidden = not self._probe_active
+
+    def _build_probe_panel(self):
+        if not self._supports_probe():
+            return None
+        panel = Div(ui_class=str(cb.vp_probe))
+        panel.ui_hidden = True
+        self._probe_panel = panel
+        self._rebuild_probe_panel()
+        return panel
+
+    def _set_probe_mode(self, mode):
+        self._probe_mode = mode
+        self._clear_probe()
+
+    def _on_probe_click(self, event):
+        if not self._probe_active or event.get("button", 0) != 0:
+            return
+        p = self.scene.get_position(event["canvasX"], event["canvasY"])
+        if p is None:
+            return
+        import numpy as np
+        pt = np.array([float(p[0]), float(p[1]), float(p[2])])
+        # CSS client coords (event x/y) for fixed-position overlay markers.
+        screen = (float(event.get("x", 0)), float(event.get("y", 0)))
+        # In line mode, a 3rd click starts a fresh segment.
+        if self._probe_mode == "line" and len(self._probe_points) >= 2:
+            self._probe_points = []
+            self._probe_screen = []
+        self._probe_points.append((pt, self._probe_value(pt)))
+        self._probe_screen.append(screen)
+        self._update_preview()
+        self._rebuild_probe_panel()
+
+    def _update_preview(self):
+        """Draw screen-space marker dots + connecting segment for the probe points."""
+        if self._probe_preview is None:
+            return
+        import math
+        children = []
+        pts = self._probe_screen
+        for i in range(len(pts) - 1):
+            (ax, ay), (bx, by) = pts[i], pts[i + 1]
+            length = math.hypot(bx - ax, by - ay)
+            angle = math.degrees(math.atan2(by - ay, bx - ax))
+            children.append(Div(ui_class=str(cb.vp_preview_line),
+                                ui_style=f"left:{ax}px;top:{ay}px;width:{length}px;"
+                                         f"transform:rotate({angle}deg);"))
+        for (x, y) in pts:
+            children.append(Div(ui_class=str(cb.vp_preview_dot),
+                                ui_style=f"left:{x}px;top:{y}px;"))
+        self._probe_preview.ui_children = children
+
+    def _probe_value(self, pt):
+        """Evaluate the field at a picked world point (norm for vectors), mapping
+        back through any active deformation. None if outside the mesh."""
+        try:
+            import numpy as np
+            P = self._probe_mesh_point(pt)
+            mip = self.mesh(*[float(P[i]) for i in range(self.mesh.dim)])
+            v = self.cf(mip)
+            if isinstance(v, (tuple, list, np.ndarray)):
+                return float(np.linalg.norm(np.real(np.asarray(v, dtype=complex))))
+            return float(np.real(v))
+        except Exception:
+            return None
+
+    def _rebuild_probe_panel(self):
+        rows = [Div(QIcon(ui_name="mdi-crosshairs-gps"), "Field probe",
+                    ui_class=str(cb.vp_probe_head))]
+        rows.append(Segmented(
+            [("points", "Points"), ("line", "Line")], self._probe_mode, self._set_probe_mode))
+        if not self._probe_points:
+            hint = ("Click two points to define a cut line." if self._probe_mode == "line"
+                    else "Click points on the field. Add 2 or more for a line plot.")
+            rows.append(Div(hint, ui_class=str(cb.vp_probe_hint)))
+        for i, (pt, val) in enumerate(self._probe_points):
+            vtxt = "—" if val is None else f"{val:.4g}"
+            label = ("AB"[i] if self._probe_mode == "line" and i < 2 else f"P{i+1}")
+            delx = Div(QIcon(ui_name="mdi-close"), ui_class=str(cb.probe_del))
+            delx.on("click", lambda e=None, idx=i: self._remove_probe_point(idx))
+            rows.append(Div(
+                Div(f"{label}  ({pt[0]:.2f}, {pt[1]:.2f}, {pt[2]:.2f})", ui_class=str(cb.grow)),
+                Div(vtxt, ui_class=str(cb.vp_probe_val)),
+                delx,
+                ui_class=str(cb.vp_probe_pt),
+            ))
+        plot_btn = QBtn(
+            ui_label="Plot line", ui_icon="mdi-chart-line", ui_color="primary",
+            ui_dense=True, ui_no_caps=True, ui_size="sm", ui_class="full-width")
+        plot_btn.ui_disable = len(self._probe_points) < 2
+        plot_btn.on_click(lambda e=None: self._plot_probe_line())
+        clear_btn = QBtn(ui_label="Clear", ui_flat=True, ui_dense=True,
+                         ui_no_caps=True, ui_size="sm")
+        clear_btn.on_click(lambda e=None: self._clear_probe())
+        rows.append(Div(plot_btn, clear_btn, ui_class="row items-center " + str(cb.gap_sm)))
+        self._probe_panel.ui_children = rows
+
+    def _remove_probe_point(self, i):
+        if 0 <= i < len(self._probe_points):
+            del self._probe_points[i]
+            if i < len(self._probe_screen):
+                del self._probe_screen[i]
+            self._update_preview()
+            self._rebuild_probe_panel()
+
+    def _clear_probe(self):
+        self._probe_points = []
+        self._probe_screen = []
+        if self._probe_preview is not None:
+            self._probe_preview.ui_children = []
+        self._rebuild_probe_panel()
+
+    def _plot_probe_line(self):
+        if len(self._probe_points) < 2:
+            return
+        import numpy as np
+        pts = [p for p, _ in self._probe_points]
+        xs, ys = [], []
+        total, per_seg = 0.0, 48
+        for a, b in zip(pts[:-1], pts[1:]):
+            seg = float(np.linalg.norm(b - a))
+            for k in range(per_seg + 1):
+                t = k / per_seg
+                v = self._probe_value(a + (b - a) * t)
+                xs.append(total + seg * t)
+                ys.append(float("nan") if v is None else v)
+            total += seg
+        fig = self._probe_figure(xs, ys)
+        if fig is None:
+            return
+        from .plot import PlotComponent
+        self.app_data.add_tab(
+            f"{self.title} — line probe", PlotComponent, {"obj": fig}, self.app_data)
+
+    def _probe_figure(self, xs, ys):
+        try:
+            import plotly.graph_objects as go
+        except Exception:
+            return None
+        fig = go.Figure(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color="#2f6fe5", width=2)))
+        fig.update_layout(
+            title=f"Line probe — {self.title}",
+            xaxis_title="arc length", yaxis_title="value",
+            template="plotly_white", margin=dict(l=55, r=20, t=44, b=44),
+        )
+        return fig
 
     def clip_along_axis(self, axis):
         clip = self.clipping

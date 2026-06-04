@@ -8,63 +8,52 @@ Advanced settings (colormap choice, discrete, ncolors) behind nested expander.
 
 from ngapp.components import *
 
-from ..cerbsim_style import gap_xs, input_compact, subexpander_header
+from ..prop_widgets import Section, Toggle, Chip, chip_row, field, MoreDisclosure, ColormapBar
+from ..cerbsim_style import gap_xs, input_compact, row2
 
 
-class ColorbarSection(QExpansionItem):
+class ColorbarSection(Section):
+    section_key = "colormap"
+
     def __init__(self, comp):
         self.comp = comp
 
-        # -- Auto + Min + Max in one row --
+        # -- Colormap gradient swatch + Auto + Min/Max --
+        self.bar = ColormapBar(comp)
         # The observables have a formatter, so QInput shows e.g. "7.957e-06"
-        self.autoscale = QCheckbox(
-            "Auto", ui_model_value=comp.colormap_autoscale, ui_dense=True,
-        )
         self.minval = QInput(
-            ui_type="number", ui_dense=True,
-            ui_model_value=comp.colormap_min,
-            ui_stack_label=True, ui_label="Min",
+            ui_type="number", ui_dense=True, ui_filled=True, ui_model_value=comp.colormap_min,
         )
         self.maxval = QInput(
-            ui_type="number", ui_dense=True,
-            ui_model_value=comp.colormap_max,
-            ui_stack_label=True, ui_label="Max",
+            ui_type="number", ui_dense=True, ui_filled=True, ui_model_value=comp.colormap_max,
         )
-        range_row = Row(
-            self.autoscale, self.minval, self.maxval,
-            ui_class="items-center no-wrap " + gap_xs,
+        range_row = Div(
+            field("Min", self.minval), field("Max", self.maxval), ui_class=row2,
         )
 
         # -- Advanced (colormap choice, discrete, ncolors) --
         self.colormap_select = QSelect(
-            ui_label="Colormap",
             ui_options=[
                 "rainbow", "turbo", "viridis", "plasma", "cet_l20",
                 "matlab:jet", "matplotlib:coolwarm",
             ],
             ui_model_value=comp.colormap_name,
-            ui_dense=True,
+            ui_dense=True, ui_filled=True,
         )
-        self.discrete = QCheckbox(
-            "Discrete", ui_model_value=comp.colormap_discrete, ui_dense=True,
-        )
+        self.discrete = Chip("Discrete", "mdi-grid", comp.colormap_discrete)
         self.ncolors = QInput(
-            ui_label="N colors", ui_type="number",
-            ui_model_value=comp.ncolors_colormap, ui_dense=True,
-            ui_class=input_compact,
+            ui_type="number", ui_model_value=comp.ncolors_colormap, ui_dense=True,
+            ui_filled=True, ui_class=input_compact,
         )
         self.ncolors.on_change(self._update_ncolors)
         discrete_row = Row(
-            self.discrete, self.ncolors,
-            ui_class="items-center " + gap_xs,
+            self.discrete, field("N colors", self.ncolors),
+            ui_class="items-end " + gap_xs,
         )
-        advanced = QExpansionItem(
-            self.colormap_select,
+        advanced = MoreDisclosure(
+            field("Colormap", self.colormap_select),
             discrete_row,
-            ui_label="Advanced",
-            ui_dense=True,
-            ui_dense_toggle=True,
-            ui_header_class=str(subexpander_header),
+            label_more="Advanced", label_less="Advanced",
         )
 
         # Min/max user edits → disable autoscale
@@ -72,12 +61,13 @@ class ColorbarSection(QExpansionItem):
         self.maxval.on_change(self._update_max)
 
         super().__init__(
+            self.bar,
+            Toggle("Autoscale to data", comp.colormap_autoscale),
             range_row,
             advanced,
-            ui_icon="mdi-palette",
-            ui_label="Colormap",
-            ui_default_opened=True,
-            ui_dense=True,
+            icon="mdi-palette",
+            title="Colormap",
+            opened=True,
         )
         self.on_mounted(self._update)
 
@@ -110,7 +100,9 @@ class ColorbarSection(QExpansionItem):
             pass
 
     def _update(self):
-        self.autoscale.ui_model_value = self.comp.colormap.autoscale
+        # Sync observables to the live colormap state (no-op when already equal,
+        # so this won't re-trigger autoscale on mount).
+        self.comp.colormap_autoscale.value = self.comp.colormap.autoscale
+        self.comp.colormap_discrete.value = bool(self.comp.colormap.discrete)
         self.minval.ui_model_value = self.comp.colormap_min.display_value
         self.maxval.ui_model_value = self.comp.colormap_max.display_value
-        self.discrete.ui_model_value = bool(self.comp.colormap.discrete)

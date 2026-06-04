@@ -1,19 +1,21 @@
 _registry = {}
 
 
-def register_component(type_key, *, icon, component_class, sections):
-    """Register a component type with its property panel sections.
+def register_component(type_key, *, icon, component_class):
+    """Register a component type.
 
     Args:
         type_key: e.g. "mesh", "geometry", "function", "plot"
         icon: MDI icon name, e.g. "mdi-vector-triangle"
         component_class: the component class (WebgpuTab subclass or similar)
-        sections: list of QExpansionItem subclasses to show in the property panel
+
+    The property panel for a type lives on the component itself (see
+    ``PropertyPanelMixin.property_sections`` / ``build_property_panel``), so it
+    is not part of the registry.
     """
     _registry[type_key] = {
         "icon": icon,
         "cls": component_class,
-        "sections": sections,
     }
 
 
@@ -23,7 +25,3 @@ def get_registry():
 
 def get_component_info(type_key):
     return _registry.get(type_key, None)
-
-
-def get_sections_for(type_key):
-    return _registry.get(type_key, {}).get("sections", [])

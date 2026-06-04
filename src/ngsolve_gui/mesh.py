@@ -20,8 +20,17 @@ class MeshComponent(WebgpuTab):
             self.region_or_mesh = mesh
 
         self.elements3d = None
-        self.el2d_bitarray = data.get("el2d_bitarray", None)
-        self.el3d_bitarray = data.get("el3d_bitarray", None)
+        # Base bitarrays (e.g. from DrawBadElements); the effective el2d/el3d
+        # bitarrays are the base AND-ed with the active named visibility filters.
+        self._base_el2d = data.get("el2d_bitarray", None)
+        self._base_el3d = data.get("el3d_bitarray", None)
+        self.el2d_bitarray = self._base_el2d
+        self.el3d_bitarray = self._base_el3d
+        self._vis_filters = {}          # name -> (kind, bool mask); kind in {vol, surf}
+        self._el_types_arr = None       # cached per-VOL-element type list
+        self._visible_el_types = None   # None = all types visible
+        self._quality_arr = None        # cached per-element badness (Jacobian cond.)
+        self._quality_threshold = None  # None = no quality isolation
 
         # -- Observable properties (restored from saved settings) -----------
         tab = app_data.get_tab(name)
@@ -173,6 +182,113 @@ class MeshComponent(WebgpuTab):
         self.mesh = mesh
         self.draw()
 
+    def property_subtitle(self):
+        return f"Mesh · {self.mesh.dim}D"
+
+    def property_xref(self):
+        return {"label": "Open geometry", "icon": "mdi-cube-outline",
+                "callback": self._open_geometry}
+
+    def _open_geometry(self):
+        try:
+            geo = self.mesh.ngmesh.GetGeometry()
+            from .geometry import GeometryComponent
+            self.app_data.add_tab(
+                "Geo_" + self.title, GeometryComponent, {"obj": geo}, self.app_data
+            )
+        except Exception as e:
+            print(f"Could not extract geometry from mesh: {e}")
+
+    # -- Element-type visibility (3D): isolate boundary-layer prisms etc. --
+
+    def _el_types_array(self):
+        if self._el_types_arr is None:
+            import ngsolve as ngs
+            self._el_types_arr = [el.type for el in self.mesh.Elements(ngs.VOL)]
+        return self._el_types_arr
+
+    def element_types_3d(self):
+        """{element_type: count} over the 3D (VOL) elements (empty for 2D)."""
+        if self.mesh.dim != 3:
+            return {}
+        from collections import Counter
+        return dict(Counter(self._el_types_array()))
+
+    def set_visible_element_types(self, visible):
+        """Show only the given 3D element types (one composing volume filter)."""
+        import numpy as np
+        visible = set(visible)
+        self._visible_el_types = visible
+        all_types = set(self.element_types_3d().keys())
+        if not all_types or visible >= all_types:
+            mask = None
+        else:
+            mask = np.array([t in visible for t in self._el_types_array()], dtype=bool)
+        self._set_visibility_filter("eltype", "vol", mask)
+
+    # -- Composable visibility filters -------------------------------------
+    # Each mode contributes a named bool mask; the effective bitarray is the
+    # base AND of all active masks, so region/type/quality combine instead of
+    # overriding one another. (Region visibility itself is alpha-based and so
+    # composes independently of the bitarrays.)
+
+    def _set_visibility_filter(self, key, kind, mask):
+        """Register (mask) or clear (None) a named visibility filter and
+        rebuild. ``kind`` is 'vol' (VOL elements) or 'surf' (2D elements)."""
+        if mask is None:
+            if key not in self._vis_filters:
+                return
+            self._vis_filters.pop(key, None)
+        else:
+            self._vis_filters[key] = (kind, mask)
+        self._recompute_visibility()
+
+    def _recompute_visibility(self):
+        vol = self._base_el3d
+        surf = self._base_el2d
+        for kind, mask in self._vis_filters.values():
+            if kind == "vol":
+                vol = mask if vol is None else (vol & mask)
+            else:
+                surf = mask if surf is None else (surf & mask)
+        self.el3d_bitarray = vol
+        self.el2d_bitarray = surf
+        self.draw()
+        self.wgpu.scene.render()
+
+    # -- Element quality (Jacobian condition number): isolate bad elements -
+
+    def element_quality(self):
+        """Per-element badness = max over the element of Norm(J)*Norm(J^-1)
+        (Jacobian condition number; ~dim for ideal elements, large for bad
+        ones). Computed over the codim-0 elements (VOL) and cached."""
+        if self._quality_arr is None:
+            import numpy as np
+            from ngsolve import Norm, Inv, specialcf
+            dim = self.mesh.dim
+            cf = Norm(specialcf.JacobianMatrix(dim, dim)) * Norm(
+                Inv(specialcf.JacobianMatrix(dim, dim))
+            )
+            et = ngs.ET.TET if dim == 3 else ngs.ET.TRIG
+            intrule = ngs.IntegrationRule(et, 4)
+            pnts = self.mesh.MapToAllElements(intrule, ngs.VOL).flatten()
+            vals = cf(pnts).reshape((-1, len(intrule)))
+            self._quality_arr = np.max(vals, axis=1)
+        return self._quality_arr
+
+    def set_quality_threshold(self, threshold):
+        """Show only elements whose badness exceeds ``threshold`` (the worst
+        ones); ``None`` clears the quality isolation."""
+        import numpy as np
+        self._quality_threshold = threshold
+        if threshold is None:
+            mask = None
+        else:
+            mask = self.element_quality() > threshold
+        # 3D meshes filter the volume elements, 2D meshes the area elements.
+        kind = "vol" if self.mesh.dim == 3 else "surf"
+        self._set_visibility_filter("quality", kind, mask)
+
     def draw(self):
         curve_enabled = self.mesh_curvature_enabled.value
         curve_order = int(self.mesh_curvature_order.value)
@@ -211,13 +327,8 @@ class MeshComponent(WebgpuTab):
         if self.elements3d_visible.value:
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
             self.elements3d.shrink = self.shrink_value.value
-        self.mesh_info = Labels(
-            [
-                f"VOL: {self.mesh.GetNE(ngs.VOL)} BND: {self.mesh.GetNE(ngs.BND)} CD2: {self.mesh.GetNE(ngs.BBND)} CD3: {self.mesh.GetNE(ngs.BBBND)}"
-            ],
-            [(-0.99, -0.99)],
-            font_size=14,
-        )
+        # Element counts are shown in the footer (VOL / BND / Points / Dim),
+        # so no in-scene stats label is rendered.
 
         self._entity_number_renderers = {}
         for entity in self.entity_number_entities:
@@ -232,7 +343,6 @@ class MeshComponent(WebgpuTab):
                 self.wireframe,
                 self.elements3d,
                 self.elements1d,
-                self.mesh_info,
                 self.coordinate_axes,
                 self.navigation_cube,
             ]
@@ -252,9 +362,12 @@ class MeshComponent(WebgpuTab):
 from .registry import register_component
 from .sections import MeshDisplaySection, MeshColorSection, ClippingSection, EntityNumbersSection
 
+MeshComponent.property_sections = [
+    MeshDisplaySection, MeshColorSection, EntityNumbersSection,
+]
+
 register_component(
     "mesh",
     icon="mdi-vector-triangle",
     component_class=MeshComponent,
-    sections=[MeshDisplaySection, MeshColorSection, ClippingSection, EntityNumbersSection],
 )
