@@ -88,15 +88,50 @@ class VectorsFlowSection(Section):
         else:
             items = [self._arrows]
 
+        self._has_streamlines = has_streamlines
+        self._mode = "arrows"
+
         super().__init__(
             *items,
             icon="mdi-arrow-top-right-thin",
             title="Vectors & Flow",
+            switchable=True,
+            info="Show the vector field as arrow glyphs, or as streamlines for a "
+                 "flow field. The header toggle activates the selected mode.",
         )
 
+        # The section toggle drives the active mode's renderer; keep it in sync
+        # with the underlying observables (also toggled by the display chips).
+        self._sync_open()
+        comp.surface_vectors_visible.on_change(lambda v, _o: self._sync_open())
+        comp.field_lines_visible.on_change(lambda v, _o: self._sync_open())
+
+    # -- switchable behaviour (mode-aware activation) ---------------------
+    def _active_obs(self):
+        if self._mode == "streamlines":
+            return self.comp.field_lines_visible
+        return self.comp.surface_vectors_visible
+
+    def _sync_open(self):
+        self._set_open(bool(self._active_obs().value))
+
+    def _on_head_click(self):
+        obs = self._active_obs()
+        obs.value = not obs.value  # → on_change → _sync_open → _render
+
     def _set_mode(self, val):
+        was_on = self._open
+        old_obs = self._active_obs()
+        self._mode = val
         self._arrows.ui_hidden = val != "arrows"
-        self._streams.ui_hidden = val != "streamlines"
+        if self._has_streamlines:
+            self._streams.ui_hidden = val != "streamlines"
+        new_obs = self._active_obs()
+        # Moving modes while active swaps which renderer is shown.
+        if was_on and old_obs is not new_obs:
+            old_obs.value = False
+            new_obs.value = True
+        self._sync_open()
 
     def _update_grid_size(self, event):
         try:
