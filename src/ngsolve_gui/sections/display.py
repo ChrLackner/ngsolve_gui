@@ -79,10 +79,6 @@ class FunctionDisplaySection(Section):
             primary.append(Chip("Surface", "mdi-square-outline", comp.elements2d_visible))
         if comp.mesh.dim == 3 and comp.clippingcf is not None:
             primary.append(Chip("Clipping Fn", "mdi-box-cutter", comp.clipping_visible))
-        if comp.surface_vectors is not None:
-            primary.append(Chip("Surf. Vectors", "mdi-arrow-top-right-thin", comp.surface_vectors_visible))
-        if comp.clipping_vectors is not None:
-            primary.append(Chip("Clip. Vectors", "mdi-arrow-top-right-thin", comp.clipping_vectors_visible))
         primary.append(Chip("Highlight", "mdi-cursor-default-click", comp.picking_enabled))
 
         items = [chip_row(*primary)]
@@ -91,8 +87,6 @@ class FunctionDisplaySection(Section):
         advanced = []
         if comp.facet_renderer is not None:
             advanced.append(Chip("ElementBND", "mdi-vector-polyline", comp.facet_visible))
-        if comp.fieldlines is not None:
-            advanced.append(Chip("Field Lines", "mdi-vector-curve", comp.field_lines_visible))
         if comp.contact is not None:
             advanced.append(Chip("Contact Pairs", "mdi-vector-intersection", comp.contact_enabled))
 

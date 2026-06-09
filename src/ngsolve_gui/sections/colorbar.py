@@ -20,6 +20,16 @@ class ColorbarSection(Section):
 
         # -- Colormap gradient swatch + Auto + Min/Max --
         self.bar = ColormapBar(comp)
+
+        self.color_component = None
+        component_field = None
+        if getattr(comp.cf, "dim", 1) > 1:
+            opts = ["|u|"] + [str(i) for i in range(1, comp.cf.dim + 1)]
+            self.color_component = QSelect(
+                ui_options=opts, ui_model_value=opts[0], ui_dense=True, ui_filled=True,
+            )
+            self.color_component.on_update_model_value(self._update_color_component)
+            component_field = field("Color by", self.color_component)
         # The observables have a formatter, so QInput shows e.g. "7.957e-06"
         self.minval = QInput(
             ui_type="number", ui_dense=True, ui_filled=True, ui_model_value=comp.colormap_min,
@@ -60,16 +70,31 @@ class ColorbarSection(Section):
         self.minval.on_change(self._update_min)
         self.maxval.on_change(self._update_max)
 
-        super().__init__(
-            self.bar,
+        body = [self.bar]
+        if component_field is not None:
+            body.append(component_field)
+        body += [
             Toggle("Autoscale to data", comp.colormap_autoscale),
             range_row,
             advanced,
+        ]
+        super().__init__(
+            *body,
             icon="mdi-palette",
             title="Colormap",
             opened=True,
         )
         self.on_mounted(self._update)
+
+    def _update_color_component(self, event):
+        idx = self.color_component.ui_options.index(self.color_component.ui_model_value)
+        comp = self.comp
+        if comp.elements2d is not None:
+            comp.elements2d.set_component(idx - 1)   # idx 0 (|u|) → -1 = magnitude
+        if comp.clippingcf is not None:
+            comp.clippingcf.set_component(idx - 1)
+        comp.colorbar.set_needs_update()
+        comp.wgpu.scene.render()
 
     def _update_ncolors(self, event):
         try:

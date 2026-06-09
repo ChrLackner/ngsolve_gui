@@ -574,12 +574,23 @@ css.add_rule(".cb-psec:first-of-type", Style(border_top="none"))
 
 psec_head = _cls(
     "cb-psec-head",
-    display="flex", align_items="center", gap="9px", height="40px",
-    padding="0 12px", cursor="pointer", user_select="none",
+    display="flex", align_items="center", gap="8px", height="40px",
+    padding="0 12px", user_select="none",
     background="var(--panel-header)",
     transition="background var(--dur-1) var(--ease)",
 )
 css.add_rule(".cb-psec-head:hover", Style(background="var(--bg-muted)"))
+# The clickable toggle area (caret + icon + title); actions sit beside it and
+# handle their own clicks without opening/closing the section.
+psec_head_main = _cls(
+    "cb-psec-head-main",
+    display="flex", align_items="center", gap="9px", flex="1", min_width="0",
+    height="100%", cursor="pointer",
+)
+# Right-aligned header action buttons (e.g. vector target toggles).
+psec_head_actions = _cls(
+    "cb-psec-head-actions", display="flex", align_items="center", gap="4px", flex="none",
+)
 css.add_rule(".cb-psec-head.cb-open", Style(border_bottom="1px solid var(--border)"))
 
 psec_caret = _cls(

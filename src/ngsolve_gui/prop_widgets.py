@@ -26,27 +26,33 @@ class Section(Div):
     section_key = "display"
 
     def __init__(self, *body, icon, title, opened=False,
-                 switchable=False, observable=None, info=None):
+                 switchable=False, observable=None, info=None, head_actions=None):
         self._switchable = switchable
         self._obs = observable
 
         self._ico = Div(QIcon(ui_name=icon), ui_class=cb.psec_ico)
-        head = []
+        main = []
         if not switchable:
-            head.append(Div(QIcon(ui_name="mdi-chevron-down"), ui_class=cb.psec_caret))
-        head.append(self._ico)
-        head.append(Div(title, ui_class=cb.psec_title))
+            main.append(Div(QIcon(ui_name="mdi-chevron-down"), ui_class=cb.psec_caret))
+        main.append(self._ico)
+        main.append(Div(title, ui_class=cb.psec_title))
         if info:
-            head.append(Div(
+            main.append(Div(
                 QIcon(ui_name="mdi-information-outline"), QTooltip(info),
                 ui_class=cb.htip,
             ))
         if switchable:
             self._switch = Div(ui_class=cb.prop_switch)
-            head.append(self._switch)
+            main.append(self._switch)
 
-        self._head = Div(*head, ui_class=cb.psec_head)
-        self._head.on("click", lambda e=None: self._on_head_click())
+        # Only the main area toggles the section; header actions handle their own
+        # clicks (and live to the right of the title).
+        self._head_main = Div(*main, ui_class=cb.psec_head_main)
+        self._head_main.on("click", lambda e=None: self._on_head_click())
+        head_children = [self._head_main]
+        if head_actions:
+            head_children.append(Div(*head_actions, ui_class=cb.psec_head_actions))
+        self._head = Div(*head_children, ui_class=cb.psec_head)
         self._body = Div(*body, ui_class=cb.psec_body)
 
         super().__init__(self._head, self._body, ui_class=cb.psec)

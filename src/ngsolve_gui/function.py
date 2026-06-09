@@ -475,7 +475,6 @@ class FunctionComponent(WebgpuTab):
 
     def _apply_colormap_name(self, val, _old):
         self.colormap.set_colormap(val)
-        self.redraw()
         self.wgpu.scene.render()
 
     @property
