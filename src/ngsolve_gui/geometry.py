@@ -304,23 +304,27 @@ class GeometryComponent(WebgpuTab):
 
         # Hover picking: overlay + highlight on mousemove
         self._geo_click_pending = False
+        self._last_pick = None  # (event, kind) of the most recent hover pick
         self.setup_picking(
             [(self.geo_renderer.faces, "face"), (self.geo_renderer.edges, "edge"), (self.geo_renderer.vertices, "vertex")],
             None,
         )
         self._update_pick_modes()
 
-        # Left-click for selection, Ctrl+click for multi-select
         def on_click(event):
-            if event["button"] == 0:
-                self._geo_click_pending = True
-                self._click_ctrl = event.get("ctrlKey", False)
-                # Bypass debounce — scene.select is rate-limited and here we dont want that.
-                self.scene.select._original(event["canvasX"], event["canvasY"])
+            if event["button"] != 0:
+                return
+            self._geo_click_pending = True
+            self._click_ctrl = event.get("ctrlKey", False)
+            if self._last_pick is not None:
+                self._on_pick_select(self._last_pick[0], self._last_pick[1])
+            else:
+                self._on_pick_background(event)
         scene.input_handler.on_click(on_click)
 
     def _on_pick_select(self, event, kind="face"):
         try:
+            self._last_pick = (event, kind)  # remember for click-to-commit
             result = GeoPickResult(event, self.geo, self.scene.options)
             pos = result.world_pos
             coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"
