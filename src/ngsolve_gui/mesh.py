@@ -47,6 +47,9 @@ class MeshComponent(WebgpuTab):
         self.elements3d_visible = Observable(
             saved.get("elements3d_visible", False), "elements3d_visible"
         )
+        self.identifications_visible = Observable(
+            saved.get("identifications_visible", False), "identifications_visible"
+        )
         self.shrink_value = Observable(
             saved.get("shrink", 1.0), "shrink", converter=float
         )
@@ -81,6 +84,7 @@ class MeshComponent(WebgpuTab):
         self.elements1d_visible.on_change(self._apply_elements1d)
         self.elements2d_visible.on_change(self._apply_elements2d)
         self.elements3d_visible.on_change(self._apply_elements3d)
+        self.identifications_visible.on_change(self._apply_identifications)
         self.shrink_value.on_change(self._apply_shrink)
         self.mesh_curvature_enabled.on_change(self._apply_curvature)
         self.mesh_curvature_order.on_change(self._apply_curvature_order)
@@ -107,6 +111,10 @@ class MeshComponent(WebgpuTab):
         if self.elements3d is None:
             self.draw()
         self.elements3d.active = val
+        self.wgpu.scene.render()
+
+    def _apply_identifications(self, val, _old):
+        self.identifications.active = val
         self.wgpu.scene.render()
 
     def _apply_shrink(self, val, _old):
@@ -141,6 +149,7 @@ class MeshComponent(WebgpuTab):
             ("w", self.toggle_wireframe, "Toggle wireframe"),
             ("2", self.toggle_elements_2d, "Toggle elements 2D"),
             ("1", self.toggle_elements_1d, "Toggle elements 1D"),
+            ("i", self.toggle_identifications, "Toggle identifications"),
         ]
         if self.mesh.dim == 3:
             show.append(("3", self.toggle_elements_3d, "Toggle elements 3D"))
@@ -171,6 +180,9 @@ class MeshComponent(WebgpuTab):
 
     def toggle_elements_3d(self):
         self.elements3d_visible.toggle()
+
+    def toggle_identifications(self):
+        self.identifications_visible.toggle()
 
     def _toggle_numbers(self, entity):
         getattr(self, f"{entity}_numbers_visible").toggle()
@@ -322,6 +334,8 @@ class MeshComponent(WebgpuTab):
             edge_colors = None
         self.elements1d = MeshSegments(self.mdata, clipping=self.clipping, colors=edge_colors)
         self.elements1d.active = self.elements1d_visible.value
+        self.identifications = MeshIdentifications(self.mdata, clipping=self.clipping)
+        self.identifications.active = self.identifications_visible.value
         self.elements2d = MeshElements2d(self.mdata, clipping=self.clipping)
         self.elements2d.active = self.elements2d_visible.value
         if self.elements3d_visible.value:
@@ -343,6 +357,7 @@ class MeshComponent(WebgpuTab):
                 self.wireframe,
                 self.elements3d,
                 self.elements1d,
+                self.identifications,
                 self.coordinate_axes,
                 self.navigation_cube,
             ]

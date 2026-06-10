@@ -40,6 +40,7 @@ class MeshDisplaySection(Section):
         if comp.mesh.dim == 3:
             chips.append(Chip("Elements 3D", "mdi-cube-outline", comp.elements3d_visible))
         chips.append(Chip("Elements 1D", "mdi-vector-line", comp.elements1d_visible))
+        chips.append(Chip("Identifications", "mdi-link-variant", comp.identifications_visible))
         chips.append(Chip("Hover", "mdi-cursor-default-click", comp.picking_enabled))
 
         shrink = QSlider(
