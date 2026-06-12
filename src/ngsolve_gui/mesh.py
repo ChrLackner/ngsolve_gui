@@ -109,7 +109,10 @@ class MeshComponent(WebgpuTab):
 
     def _apply_elements3d(self, val, _old):
         if self.elements3d is None:
-            self.draw()
+            self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
+            self.elements3d.shrink = self.shrink_value.value
+            self.scene.render_objects.append(self.elements3d)
+            self._add_pickable(self.elements3d, "volume")
         self.elements3d.active = val
         self.wgpu.scene.render()
 
@@ -341,8 +344,8 @@ class MeshComponent(WebgpuTab):
         if self.elements3d_visible.value:
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
             self.elements3d.shrink = self.shrink_value.value
-        # Element counts are shown in the footer (VOL / BND / Points / Dim),
-        # so no in-scene stats label is rendered.
+        else:
+            self.elements3d = None
 
         self._entity_number_renderers = {}
         for entity in self.entity_number_entities:
