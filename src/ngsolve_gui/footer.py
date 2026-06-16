@@ -85,6 +85,7 @@ class StatusFooter(Div):
         self._thread_name = ""
         self._done_event = None
         self._generation = 0
+        self._task_label = None
 
         super().__init__(
             self._status_section,
@@ -170,16 +171,23 @@ class StatusFooter(Div):
         self._thread = thread
         self._done_event = done_event
         self._thread_name = thread.name if thread else ""
+        self._task_label = None
         self._status_text.ui_children = [f"Running {filename} …"]
         self._set_indeterminate()
         self._idle.ui_hidden = True
         self._busy.ui_hidden = False
         self._start_poll(self._generation)
 
+    def set_task(self, label):
+        """Set a high-level task label shown in preference to the kernel status
+        (e.g. 'Merging into the neighbouring face…'). Cleared on the next op."""
+        self._task_label = label or None
+
     def hide(self):
         """Return to the idle 'Ready' state."""
         self._thread = None
         self._done_event = None
+        self._task_label = None
         self._busy.ui_hidden = True
         self._idle.ui_hidden = False
 
@@ -210,7 +218,17 @@ class StatusFooter(Div):
 
                 done = done_event.is_set()
 
-                if status_text and status_text != "idle":
+                task = self._task_label
+                if task:
+                    self._status_text.ui_children = [task]
+                    if percent > 0:
+                        self._set_progress(percent)
+                    else:
+                        self._set_indeterminate()
+                    if done:
+                        self.hide()
+                        break
+                elif status_text and status_text != "idle":
                     self._status_text.ui_children = [status_text]
                     if percent > 0:
                         self._set_progress(percent)
