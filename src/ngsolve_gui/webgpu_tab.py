@@ -397,7 +397,7 @@ class WebgpuTab(PropertyPanelMixin, Div):
             ("kind", self._kind_label(result)),
             ("element", f"#{result.element_nr}"),
             ("region", result.region_name or "—"),
-            ("xyz", f"{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}"),
+            ("xyz", f"{pos[0]:.5f}, {pos[1]:.5f}, {pos[2]:.5f}"),
         ]
         return ("Picked element", rows, False)
 
