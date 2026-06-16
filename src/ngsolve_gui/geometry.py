@@ -99,11 +99,13 @@ class GeometryComponent(WebgpuTab):
         print("Generate mesh...")
         geo = self._create_meshing_geo()
         import netgen.meshing as ngm
+        import ngsolve as ngs
 
         mesh = ngm.Mesh()
         try:
-            geo.GenerateMesh(mesh=mesh, **self._meshing_options())
-            mesh.Curve(5)
+            with ngs.TaskManager():
+                geo.GenerateMesh(mesh=mesh, **self._meshing_options())
+            # mesh.Curve(5)
         except Exception as e:
             self.quasar.dialog(
                 {
