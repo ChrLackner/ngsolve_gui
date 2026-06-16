@@ -204,6 +204,21 @@ class MeshComponent(WebgpuTab):
         return {"label": "Open geometry", "icon": "mdi-cube-outline",
                 "callback": self._open_geometry}
 
+    def property_actions(self):
+        return [{"label": "Download mesh (.vol.gz)", "icon": "mdi-download",
+                 "callback": self._download_mesh}]
+
+    def _download_mesh(self):
+        import os, tempfile
+        from .file_saver import save_file_dialog
+        filename = (self.title or "mesh") + ".vol.gz"
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, filename)
+            self.mesh.ngmesh.Save(path)
+            with open(path, "rb") as f:
+                data = f.read()
+        save_file_dialog(data, filename)
+
     def _open_geometry(self):
         try:
             geo = self.mesh.ngmesh.GetGeometry()

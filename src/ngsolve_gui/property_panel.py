@@ -93,23 +93,53 @@ class PropertyPanel(Div):
         super().__init__(*children, ui_class=sidebar_props)
 
     def _actions(self, comp):
-        """Header action buttons — the cross-reference (Open as mesh/geometry)."""
+        """Header action buttons — the cross-reference (Open as mesh/geometry)
+        followed by any extra actions the component declares (e.g. downloads)."""
+        specs = []
         try:
             xref = comp.property_xref()
         except Exception:
             xref = None
-        if not xref:
-            return []
+        if xref:
+            specs.append(xref)
+        try:
+            specs += list(comp.property_actions() or [])
+        except Exception:
+            pass
+        return [self._action_button(spec) for spec in specs]
+
+    @staticmethod
+    def _action_button(spec):
+        children = [QTooltip(spec.get("label", "Action"))]
+        menu = spec.get("menu")
+        if menu:
+            children.append(PropertyPanel._action_menu(menu))
         btn = QBtn(
-            QTooltip(xref.get("label", "Open")),
-            ui_icon=xref.get("icon", "mdi-open-in-new"),
+            *children,
+            ui_icon=spec.get("icon", "mdi-open-in-new"),
             ui_flat=True, ui_dense=True, ui_round=True, ui_size="sm",
             ui_class=str(cb.topbar_icon),
         )
-        callback = xref.get("callback")
-        if callback is not None:
+        callback = spec.get("callback")
+        if callback is not None and not menu:
             btn.on_click(lambda e=None: callback())
-        return [btn]
+        return btn
+
+    @staticmethod
+    def _action_menu(items):
+        rows = []
+        for item in items:
+            sections = []
+            if item.get("icon"):
+                sections.append(QItemSection(
+                    QIcon(ui_name=item["icon"], ui_size="xs"), ui_avatar=True))
+            sections.append(QItemSection(item.get("label", "")))
+            row = QItem(*sections, ui_clickable=True, ui_dense=True)
+            cb_ = item.get("callback")
+            if cb_ is not None:
+                row.on_click(lambda e=None, c=cb_: c())
+            rows.append(row)
+        return QMenu(QList(*rows, ui_dense=True))
 
     def _build_sections(self, comp, exclude=None):
         section_classes = getattr(comp, "property_sections", []) or []
@@ -176,6 +206,14 @@ class PropertyPanelMixin:
         geometry, or a function's mesh).
         """
         return None
+
+    def property_actions(self):
+        """Extra header action buttons, rendered after the cross-reference.
+
+        Return a list of dicts ``{"label", "icon", "callback"}`` (e.g. download
+        the mesh or geometry to a file).
+        """
+        return []
 
     def property_summary(self):
         """An always-visible summary block above the sections, or None

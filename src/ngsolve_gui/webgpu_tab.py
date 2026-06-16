@@ -317,6 +317,18 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self.scene.input_handler.on_mousemove(self._on_pick_hover)
         self.scene.input_handler.on_mouseout(self._on_pick_out)
 
+    def _add_pickable(self, renderer, kind):
+        """Register one more pickable renderer on the already-set-up live scene
+        (used when a renderer is spliced in without a full draw()/setup_picking).
+        Only the per-renderer select + highlight are added; the scene-level
+        hover/background handlers are already wired."""
+        if not hasattr(self, "_pick_renderers"):
+            return
+        self._pick_renderers.append((renderer, kind))
+        if hasattr(renderer, "_highlight_uniforms"):
+            self._highlights.append(renderer._highlight_uniforms)
+        renderer.on_select(lambda ev, k=kind: self._on_pick_select(ev, k))
+
     def _on_pick_hover(self, ev):
         if ev["buttons"] == 0 and self.scene.canvas is not None and self.scene.canvas.select_texture is not None:
             self._shift_hover = ev.get("shiftKey", False)

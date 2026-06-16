@@ -298,6 +298,37 @@ class GeometryComponent(WebgpuTab):
     def property_subtitle(self):
         return "Geometry"
 
+    def property_actions(self):
+        return [{
+            "label": "Download geometry", "icon": "mdi-download",
+            "menu": [
+                {"label": "STEP file (.step)", "icon": "mdi-file-outline",
+                 "callback": lambda: self._download_geo("step")},
+                {"label": "BREP file (.brep)", "icon": "mdi-file-outline",
+                 "callback": lambda: self._download_geo("brep")},
+                {"label": "Pickle file (.pkl)", "icon": "mdi-file-outline",
+                 "callback": lambda: self._download_geo("pkl")},
+            ],
+        }]
+
+    def _download_geo(self, fmt):
+        import os, pickle, tempfile
+        from .file_saver import save_file_dialog
+        filename = (self.title or "geometry") + "." + fmt
+        shape = self.geo.shape
+        if fmt == "pkl":
+            data = pickle.dumps(self.geo)
+        else:
+            with tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, filename)
+                if fmt == "step":
+                    shape.WriteStep(path)
+                else:
+                    shape.WriteBrep(path)
+                with open(path, "rb") as f:
+                    data = f.read()
+        save_file_dialog(data, filename)
+
     def draw(self):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.edges.active = self.show_edges.value
@@ -387,6 +418,7 @@ class GeometryComponent(WebgpuTab):
             self.pick_overlay.hide()
 
     def _on_pick_out(self, ev):
+        self._last_pick = None
         self._clear_highlight()
         if self._selected_items:
             n = len(self._selected_items)
@@ -398,6 +430,7 @@ class GeometryComponent(WebgpuTab):
         self.scene.render()
 
     def _on_pick_background(self, ev):
+        self._last_pick = None
         if self._geo_click_pending:
             self._geo_click_pending = False
             self._selected_items = []
