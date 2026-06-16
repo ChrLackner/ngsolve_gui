@@ -157,7 +157,7 @@ class Settings(QMenu):
 
 class NGSolveGui(App):
     def __init__(self, filename=None, local_path=None):
-        self._local_path = local_path if local_path else os.path.expanduser("~")
+        self._local_path = local_path
         self.app_data = AppData()
 
         # -- Toolbar buttons (compact flat icon buttons, muted like the designer) --
@@ -315,23 +315,43 @@ class NGSolveGui(App):
                 self._load_with_status(f)
 
     def _load_file(self):
-        from tkinter import Tk, filedialog
+        from ngapp.utils import EnvironmentType, get_environment
 
-        root = Tk()
-        root.withdraw()
-        file_path = filedialog.askopenfilename(
-            title="Select a file",
-            initialdir=self._local_path,
-            filetypes=[
-                ("All Files", "*.*"),
-                ("Mesh Files", "*.vol *.vol.gz"),
-                ("Geometry Files", "*.step *.iges *.stp"),
-            ],
-        )
-        root.destroy()
-        if file_path:
-            self._local_path = os.path.dirname(file_path)
+        if get_environment().type == EnvironmentType.LOCAL_APP:
+            from .native_dialog import open_file_dialog
+
+            initialdir = (
+                self._local_path
+                or self.usersettings.get("load_dir", "")
+                or os.path.expanduser("~")
+            )
+            file_path = open_file_dialog(initialdir=initialdir)
+            if file_path:
+                self._local_path = os.path.dirname(file_path)
+                self.usersettings.set("load_dir", self._local_path)
+        else:
+            file_path = self._pick_file_to_temp()
         self._load_with_status(file_path)
+
+    def _pick_file_to_temp(self):
+        """Browser-picker fallback: the File System Access API only hands us the
+        file's content and name (never a real path), so materialise it in a temp
+        dir keeping the original name (preserves multi-part suffixes like
+        .vol.gz that the loader dispatches on)."""
+        import tempfile
+
+        try:
+            handles = self.js.showOpenFilePicker({"multiple": False})
+        except Exception:
+            return None
+        if not handles:
+            return None
+        js_file = handles[0].getFile()
+        tmpdir = tempfile.mkdtemp(prefix="ngsolve_gui_")
+        file_path = os.path.join(tmpdir, js_file.name)
+        with open(file_path, "wb") as f:
+            f.write(js_file.arrayBuffer())
+        return file_path
 
     def _load_with_status(self, filename):
         if not filename:
