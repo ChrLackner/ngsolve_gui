@@ -18,7 +18,7 @@ __all__ = ["theme", "kb_theme", "css", "install", "set_theme", "is_dark", "VIEWP
 
 VIEWPORT_CLEAR = {
     "light": (0.933, 0.945, 0.961),
-    "dark": (0.086, 0.106, 0.133),
+    "dark": (0.290, 0.333, 0.400),  # #4a5566 slate
 }
 
 VIEWPORT_TEXT = {
