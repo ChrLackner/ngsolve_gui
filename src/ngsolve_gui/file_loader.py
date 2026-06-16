@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 from pathlib import Path
 import numpy as np
@@ -6,6 +7,8 @@ from typing import Any, Callable, Iterable
 
 import netgen.occ as ngocc
 import ngsolve as ngs
+
+os.environ.setdefault("MPLBACKEND", "Agg")
 
 from .app_data import AppData
 from .function import FunctionComponent
@@ -72,6 +75,7 @@ def _launch_interactive_shell(
 
     def launch_shell():
         _lower_thread_priority()
+        _force_headless_matplotlib()
         ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
         try:
             asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
@@ -125,6 +129,17 @@ def _lower_thread_priority():
         pass
 
 
+def _force_headless_matplotlib():
+    """Force matplotlib onto the headless ``Agg`` backend.
+    """
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg", force=True)
+    except Exception:
+        pass
+
+
 def _run_script(
     code: str, script_globals: dict, app
 ) -> tuple[threading.Thread, threading.Event]:
@@ -141,6 +156,7 @@ def _run_script(
 
         def _run_and_signal():
             _lower_thread_priority()
+            _force_headless_matplotlib()
             try:
                 exec(code, script_globals)
             except (SystemExit, KeyboardInterrupt):
