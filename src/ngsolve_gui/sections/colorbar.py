@@ -107,20 +107,22 @@ class ColorbarSection(Section):
     def _update_min(self, event):
         try:
             val = float(event.value)
-            self.comp.colormap_min.value = val
             self.comp.colormap.set_min(val)
             self.comp.colormap_autoscale.value = False
+            self.comp.colormap_min.value = val
             self.comp.wgpu.scene.render()
+            self.minval.ui_model_value = self.comp.colormap_min.display_value
         except (ValueError, TypeError):
             pass
 
     def _update_max(self, event):
         try:
             val = float(event.value)
-            self.comp.colormap_max.value = val
             self.comp.colormap.set_max(val)
             self.comp.colormap_autoscale.value = False
+            self.comp.colormap_max.value = val
             self.comp.wgpu.scene.render()
+            self.maxval.ui_model_value = self.comp.colormap_max.display_value
         except (ValueError, TypeError):
             pass
 
