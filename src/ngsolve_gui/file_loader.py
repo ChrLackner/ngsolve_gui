@@ -1,6 +1,6 @@
-import asyncio
 import os
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
 from typing import Any, Callable, Iterable
@@ -57,6 +57,52 @@ ngsolve.Draw(obj, name='{name}')"""
     raise ValueError(f"Unsupported file type: {ext.lstrip('.')}")
 
 
+def _build_progress_stdout():
+    """Build a ``sys.stdout`` proxy that renders ``\\r`` progress in place.
+    """
+    from prompt_toolkit.patch_stdout import StdoutProxy
+
+    class _ProgressStdoutProxy(StdoutProxy):
+        _OVERWRITE = "\x1b[1A\r\x1b[2K"
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._cur = ""  # text accumulated since the last \n or \r
+            self._progress_active = False
+
+        def _emit(self, text, is_progress):
+            prefix = self._OVERWRITE if is_progress and self._progress_active else ""
+            self._flush_queue.put(prefix + text + "\n")
+            self._progress_active = is_progress
+
+        def _write(self, data):
+            self._cur += data
+            while "\n" in self._cur:
+                before, self._cur = self._cur.split("\n", 1)
+                self._emit(before.rsplit("\r", 1)[-1], is_progress=False)
+            if "\r" in self._cur:
+                *_segments, self._cur = self._cur.split("\r")
+                self._emit(_segments[-1], is_progress=True)
+
+    return _ProgressStdoutProxy(raw=True)
+
+
+@contextmanager
+def _progress_patch_stdout(raw: bool = True):
+    """Drop-in replacement for prompt_toolkit's ``patch_stdout``.
+    """
+    import sys
+
+    proxy = _build_progress_stdout()
+    old_out, old_err = sys.stdout, sys.stderr
+    sys.stdout = sys.stderr = proxy
+    try:
+        yield
+    finally:
+        sys.stdout, sys.stderr = old_out, old_err
+        proxy.close()
+
+
 def _launch_interactive_shell(
     code: str, script_globals: dict, app, done_event: threading.Event
 ) -> threading.Thread:
@@ -73,14 +119,29 @@ def _launch_interactive_shell(
 
     ipshell = [None]
 
-    def launch_shell():
+    def run_script():
         _lower_thread_priority()
         _force_headless_matplotlib()
-        ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
         try:
-            asyncio.run(ipshell[0].run_code(compile(code, "<embedded>", "exec")))
+            exec(compile(code, "<embedded>", "exec"), script_globals)
+        except (SystemExit, KeyboardInterrupt):
+            pass
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
         finally:
             done_event.set()
+
+    worker = threading.Thread(target=run_script, name="PythonRunner", daemon=True)
+    worker.start()
+
+    def launch_shell():
+        import IPython.terminal.interactiveshell as ipt
+
+        ipt.patch_stdout = _progress_patch_stdout
+        _force_headless_matplotlib()
+        ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
         ipshell[0].mainloop()
 
     t = threading.Thread(target=launch_shell, name="IPythonEmbedder", daemon=True)
@@ -96,7 +157,7 @@ def _launch_interactive_shell(
         ipshell[0].run_cell("import os; os._exit(0)")
 
     app.on_exit(exit_shell)
-    return t
+    return worker
 
 
 def _lower_thread_priority():
