@@ -39,7 +39,9 @@ class FunctionComponent(WebgpuTab):
         autoscale = not ("min" in data or "max" in data) and not data.get(
             "autoscale", False
         )
-        discrete_colormap = data.get("discrete_colormap", False)
+        discrete_colormap = data.get(
+            "discrete_colormap", _usersettings.get("default_discrete_colormap", False)
+        )
         if any([v in data for v in ("min", "max", "discrete_colormap", "autoscale")]):
             saved["colormap"] = (autoscale, discrete_colormap, minval, maxval)
 
@@ -118,7 +120,8 @@ class FunctionComponent(WebgpuTab):
             s.get("colormap_name", cb.default_colormap(_usersettings)), "colormap_name"
         )
         self.ncolors_colormap = Observable(
-            s.get("ncolors_colormap", 8), "ncolors_colormap", converter=int
+            s.get("ncolors_colormap", int(_usersettings.get("default_ncolors", 8))),
+            "ncolors_colormap", converter=int,
         )
         self.contact_enabled = Observable(
             s.get("contact_enabled", True), "contact_enabled"

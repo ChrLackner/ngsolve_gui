@@ -77,6 +77,13 @@ class Settings(QMenu):
         )
         colormap_select.on_update_model_value(us.update("default_colormap"))
 
+        ncolors = QInput(
+            QTooltip("Number of color bands when colorbars are discrete."),
+            ui_type="number", ui_dense=True,
+            ui_model_value=int(us.get("default_ncolors", 8)), ui_style="width: 72px;",
+        )
+        ncolors.on_update_model_value(us.update("default_ncolors"))
+
         nthreads = QInput(
             QTooltip("Threads used by NGSolve (0 = all cores). Restart to apply."),
             ui_type="number", ui_dense=True, ui_model_value=us.get("nthreads", 0),
@@ -108,6 +115,8 @@ class Settings(QMenu):
             Div("Appearance", ui_class=cb.menu_h),
             self._row("Theme", theme_seg),
             self._row("Default colormap", colormap_select),
+            self._row("Discrete colormap", self._switch("default_discrete_colormap", False)),
+            self._row("Default N colors", ncolors),
             Div(ui_class=cb.menu_sep),
             Div("Defaults", ui_class=cb.menu_h),
             self._row("Show axes", self._switch("axes_visible", True)),
