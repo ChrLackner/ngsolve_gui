@@ -175,6 +175,7 @@ SECTION_COLORS = {
     "clipping": "var(--warning)",
     "deformation": "var(--success)",
     "vectors": "var(--info)",
+    "lic": "#00838F",
     "complex": "#673AB7",
     "selection": "#FFC107",
     "meshing": "#795548",

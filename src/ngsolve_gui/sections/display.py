@@ -81,6 +81,8 @@ class FunctionDisplaySection(Section):
             primary.append(Chip("Surface", "mdi-square-outline", comp.elements2d_visible))
         if comp.mesh.dim == 3 and comp.clippingcf is not None:
             primary.append(Chip("Clipping Fn", "mdi-box-cutter", comp.clipping_visible))
+        if getattr(comp, "lic", None) is not None:
+            primary.append(Chip("LIC", "mdi-blur", comp.lic_visible))
         primary.append(Chip("Highlight", "mdi-cursor-default-click", comp.picking_enabled))
 
         items = [chip_row(*primary)]

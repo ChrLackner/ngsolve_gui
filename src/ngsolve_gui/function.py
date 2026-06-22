@@ -4,6 +4,67 @@ from .webgpu_tab import WebgpuTab, _usersettings
 from . import cerbsim_style as cb
 import ngsolve as ngs
 import copy
+import math
+import threading
+import time
+
+
+class _LicKernelAnimation:
+    """Animate a LIC renderer by looping its kernel length.
+
+    Runs a daemon thread that sweeps the kernel length up and down with a smooth
+    cosine and re-renders the scene. The frame rate is hard-capped (``fps`` is
+    clamped to ``<= 10``) so the animation stays calm and the per-frame LIC
+    re-dispatch stays affordable. The renderer's kernel length is driven directly
+    and the configured value (slider / Observable) is left untouched, so stopping
+    restores it.
+    """
+
+    #: never render faster than this, regardless of the requested fps.
+    MAX_FPS = 10
+
+    def __init__(self, lic, scene, get_kernel_length, fps=10, period=3.0, low=5, high=80):
+        self.lic = lic
+        self.scene = scene
+        self._get_kl = get_kernel_length   # callable -> configured kernel length
+        self._fps = max(1, min(int(fps), self.MAX_FPS))
+        self.period = float(period)
+        self.low = int(low)
+        self.high = int(high)
+        self._running = False
+        self._thread = None
+
+    def start(self):
+        if self._running:
+            return
+        self._running = True
+        self._t0 = time.time()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+        self._thread = None
+
+    @property
+    def running(self):
+        return self._running
+
+    def _loop(self):
+        while self._running:
+            t = time.time() - self._t0
+            frac = t / self.period
+            kl = int(round(self.low + (self.high - self.low) * (frac - int(frac))))
+            try:
+                if self.lic.active:
+                    print("set lic kernel length", kl)
+                    self.lic.set_kernel_length(kl)
+                    self.scene.render()
+            except Exception:
+                # Scene torn down (e.g. tab closed) — stop quietly.
+                self._running = False
+                break
+            time.sleep(1.0 / self._fps)
 
 
 class FunctionComponent(WebgpuTab):
@@ -59,6 +120,7 @@ class FunctionComponent(WebgpuTab):
         cv = data.get("clipping_vectors", False)
         sv = data.get("surface_vectors", False)
         fl = data.get("field_lines", False)
+        lic = data.get("lic", False)
 
         # -- Observable properties ------------------------------------------
         s = saved
@@ -88,6 +150,27 @@ class FunctionComponent(WebgpuTab):
             data.get("clipping_function", s.get("clipping_visible", True)),
             "clipping_visible",
         )
+        # -- LIC (line integral convolution) on the clipping plane --
+        self.lic_visible = Observable(
+            bool(lic) if lic else s.get("lic_visible", False), "lic_visible"
+        )
+        self.lic_kernel_length = Observable(
+            s.get("lic_kernel_length", 30), "lic_kernel_length", converter=int
+        )
+        self.lic_oriented = Observable(
+            s.get("lic_oriented", False), "lic_oriented"
+        )
+        self.lic_thickness = Observable(
+            s.get("lic_thickness", 10), "lic_thickness", converter=int
+        )
+        self.lic_contrast = Observable(
+            s.get("lic_contrast", 1.0), "lic_contrast", converter=float
+        )
+        self.lic_resolution = Observable(
+            s.get("lic_resolution", 256), "lic_resolution", converter=int
+        )
+        # Animation is transient: always starts off (never restored on reload).
+        self.lic_animate = Observable(False, "lic_animate")
         self.vector_grid_size = Observable(
             (cv if not isinstance(cv, bool) else None)
             or (sv if not isinstance(sv, bool) else None)
@@ -173,6 +256,13 @@ class FunctionComponent(WebgpuTab):
         self.surface_vectors_visible.on_change(self._apply_surface_vectors)
         self.field_lines_visible.on_change(self._apply_fieldlines)
         self.clipping_visible.on_change(self._apply_clipping_function)
+        self.lic_visible.on_change(self._apply_lic)
+        self.lic_kernel_length.on_change(self._apply_lic_kernel_length)
+        self.lic_oriented.on_change(self._apply_lic_oriented)
+        self.lic_thickness.on_change(self._apply_lic_thickness)
+        self.lic_contrast.on_change(self._apply_lic_contrast)
+        self.lic_resolution.on_change(self._apply_lic_resolution)
+        self.lic_animate.on_change(self._apply_lic_animate)
         self.vector_grid_size.on_change(self._apply_vector_grid_size)
         self.vector_scale.on_change(self._apply_vector_scale)
         self.vector_scale_by_value.on_change(self._apply_vector_scale_by_value)
@@ -234,6 +324,54 @@ class FunctionComponent(WebgpuTab):
             self.clippingcf.active = val
         self.wgpu.scene.render()
 
+    def _apply_lic(self, val, _old):
+        if self.lic is not None:
+            self.lic.active = val
+        self.wgpu.scene.render()
+
+    def _apply_lic_kernel_length(self, val, _old):
+        if self.lic is not None:
+            self.lic.set_kernel_length(val)
+        self.wgpu.scene.render()
+
+    def _apply_lic_oriented(self, val, _old):
+        if self.lic is not None:
+            self.lic.set_oriented(val)
+        self.wgpu.scene.render()
+
+    def _apply_lic_thickness(self, val, _old):
+        if self.lic is not None:
+            self.lic.set_thickness(val)
+        self.wgpu.scene.render()
+
+    def _apply_lic_contrast(self, val, _old):
+        if self.lic is not None:
+            self.lic.set_contrast(val)
+        self.wgpu.scene.render()
+
+    def _apply_lic_resolution(self, val, _old):
+        if self.lic is not None:
+            self.lic.set_resolution(val)
+        self.wgpu.scene.render()
+
+    def _apply_lic_animate(self, val, _old):
+        if self.lic is None:
+            return
+        if val:
+            if self._lic_animation is None:
+                self._lic_animation = _LicKernelAnimation(
+                    self.lic, self.wgpu.scene,
+                    get_kernel_length=lambda: self.lic_kernel_length.value,
+                    low = 5, high=80,
+                )
+            self._lic_animation.start()
+        else:
+            if self._lic_animation is not None:
+                self._lic_animation.stop()
+            # Restore the configured kernel length the animation was overriding.
+            self.lic.set_kernel_length(self.lic_kernel_length.value)
+            self.wgpu.scene.render()
+
     def _apply_vector_grid_size(self, val, _old):
         if self.clipping_vectors is not None:
             self.clipping_vectors.set_grid_size(val)
@@ -250,6 +388,7 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     def _apply_vector_scale_by_value(self, val, _old):
+        print("apply vector scale by value", val, _old)
         for r in self._vector_renderers:
             r.scale_by_value = val
             r.set_needs_update()
@@ -333,6 +472,8 @@ class FunctionComponent(WebgpuTab):
             show.append(("v", self.toggle_surface_vectors, "Toggle surface vectors"))
         if self.clipping_vectors is not None:
             show.append(("c", self.toggle_clipping_vectors, "Toggle clipping vectors"))
+        if self.lic is not None:
+            show.append(("l", self.toggle_lic, "Toggle LIC"))
         if self.fieldlines is not None:
             show.append(("f", self.toggle_fieldlines, "Toggle field lines"))
         if self.surface_vectors is not None or self.clipping_vectors is not None:
@@ -348,6 +489,8 @@ class FunctionComponent(WebgpuTab):
                 clip.append(
                     ("f", self.toggle_clipping_function, "Toggle clipping function")
                 )
+            if self.lic is not None:
+                clip.append(("l", self.toggle_lic, "Toggle LIC"))
             kb["modes"].append(("c", "Clipping", clip))
 
         # d → Deformation
@@ -429,6 +572,9 @@ class FunctionComponent(WebgpuTab):
     def toggle_clipping_function(self):
         self.clipping_visible.toggle()
 
+    def toggle_lic(self):
+        self.lic_visible.toggle()
+
     def _toggle_numbers(self, entity):
         getattr(self, f"{entity}_numbers_visible").toggle()
 
@@ -482,7 +628,7 @@ class FunctionComponent(WebgpuTab):
 
     @property
     def _complex_renderers(self):
-        return [r for r in [self.elements2d, self.clippingcf, self.clipping_vectors, self.surface_vectors] if r is not None]
+        return [r for r in [self.elements2d, self.clippingcf, self.clipping_vectors, self.surface_vectors, self.lic] if r is not None]
 
     @property
     def _vector_renderers(self):
@@ -582,6 +728,11 @@ class FunctionComponent(WebgpuTab):
         self.colormap.autoscale = autoscale
         self.colormap.discrete = discrete
         self.clipping_vectors = None
+        self.lic = None
+        # Stop any animation from a previous draw() before dropping the renderer.
+        if getattr(self, "_lic_animation", None) is not None:
+            self._lic_animation.stop()
+        self._lic_animation = None
         if self.cf.dim == self.mesh.dim:
             vec3 = self.cf
             if self.cf.dim == 2:
@@ -630,6 +781,17 @@ class FunctionComponent(WebgpuTab):
                 )
                 self.clipping_vectors.user_scale = self.vector_scale.value
                 self.clipping_vectors.active = self.clipping_vectors_visible.value
+                self.lic = ClippingLIC(
+                    func_data,
+                    clipping=self.clipping,
+                    colormap=self.colormap,
+                    kernel_length=self.lic_kernel_length.value,
+                    oriented=self.lic_oriented.value,
+                    thickness=self.lic_thickness.value,
+                    contrast=self.lic_contrast.value,
+                    resolution=self.lic_resolution.value,
+                )
+                self.lic.active = self.lic_visible.value
         else:
             self.clippingcf = None
         if self.draw_surf:
@@ -705,6 +867,7 @@ class FunctionComponent(WebgpuTab):
             obj
             for obj in [
                 self.clippingcf,
+                self.lic,
                 self.elements2d,
                 self.facet_renderer,
                 self.wireframe,
@@ -748,6 +911,7 @@ from .sections import (
     ClippingSection,
     DeformationSection,
     VectorsFlowSection,
+    LicSection,
     ComplexSection,
     EntityNumbersSection,
 )
@@ -758,6 +922,7 @@ FunctionComponent.property_sections = [
     FunctionDisplaySection,
     DeformationSection,
     VectorsFlowSection,
+    LicSection,
     ComplexSection,
     EntityNumbersSection,
 ]

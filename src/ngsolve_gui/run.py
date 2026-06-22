@@ -42,11 +42,21 @@ def main():
     parser.add_argument(
         "--dev-frontend", action="store_true", help="Run frontend in development mode"
     )
+    parser.add_argument(
+        "-m",
+        dest="module",
+        metavar="MODULE",
+        nargs=argparse.REMAINDER,
+        help="Run a module as `python -m MODULE ...`; remaining args are passed to it",
+    )
     # get absolute path of file from command line
     args = parser.parse_args()
     app_args = {}
     if args.filename:
         app_args["filename"] = [Path(f).resolve() for f in args.filename]
+    if args.module:
+        app_args["module"] = args.module[0]
+        app_args["module_args"] = args.module[1:]
     _apply_gpu_preference()
     _apply_nthreads()
     from ngsolve import TaskManager

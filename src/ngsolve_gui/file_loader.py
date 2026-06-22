@@ -46,7 +46,12 @@ ngsolve.Draw(geometry, name='{name}')"""
     if ext == ".pkl":
         return f"""import netgen.occ
 import ngsolve, pickle
+import netgen.occ
 obj = pickle.load(open("{filename}", "rb"))
+print("Loaded object of type", type(obj))
+if isinstance(obj, netgen.occ.TopoDS_Shape):
+    obj = netgen.occ.OCCGeometry(obj)
+print("Loaded object of type", type(obj))
 ngsolve.Draw(obj, name='{name}')"""
 
     if ext == ".py":

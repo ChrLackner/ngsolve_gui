@@ -31,6 +31,7 @@ _SECTION_KEY_MAP = {
     "ClippingSection": "clipping",
     "DeformationSection": "deformation",
     "VectorsFlowSection": "vectors",
+    "LicSection": "lic",
     "ComplexSection": "complex",
     "GeometrySelectionSection": "selection",
     "MeshGenerationSection": "meshing",
