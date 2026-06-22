@@ -130,7 +130,6 @@ class Settings(QMenu):
             Div("Defaults", ui_class=cb.menu_h),
             self._row("Show axes", self._switch("axes_visible", True)),
             self._row("Show navigation cube", self._switch("navcube_visible", False)),
-            self._row("Scale vectors by magnitude", self._switch("scale_by_magnitude", True)),
             self._row("Default vector density", vecdensity),
             Div(ui_class=cb.menu_sep),
             Div("Performance", ui_class=cb.menu_h),

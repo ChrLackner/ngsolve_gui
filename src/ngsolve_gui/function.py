@@ -98,7 +98,7 @@ class FunctionComponent(WebgpuTab):
             s.get("vector_scale", 1.0), "vector_scale", converter=float
         )
         self.vector_scale_by_value = Observable(
-            s.get("vector_scale_by_value", _usersettings.get("scale_by_magnitude", True)), "vector_scale_by_value",
+            s.get("vector_scale_by_value", False), "vector_scale_by_value",
         )
         self.deformation_enabled = Observable(
             data.get("deformation", None) is not None

@@ -50,12 +50,12 @@ class VectorsFlowSection(Section):
             ui_model_value=comp.vector_scale, ui_min=0.1, ui_max=5.0, ui_step=0.1,
             ui_dense=True, ui_label=True, ui_class=grow,
         )
-        self.scale_by_value = Chip("Scale by magnitude", "mdi-ruler", comp.vector_scale_by_value)
+        # "Scale by magnitude" temporarily removed from the UI (not yet correct);
+        # the field defaults to off (comp.vector_scale_by_value).
 
         body = [
             field("Density", self.grid_size),
             field("Arrow scale", self.vector_scale),
-            self.scale_by_value,
         ]
 
         # -- Streamlines (field lines) — own toggle + settings. --
