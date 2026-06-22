@@ -91,7 +91,7 @@ class FunctionComponent(WebgpuTab):
         self.vector_grid_size = Observable(
             (cv if not isinstance(cv, bool) else None)
             or (sv if not isinstance(sv, bool) else None)
-            or s.get("vector_grid_size", 200),
+            or s.get("vector_grid_size", int(_usersettings.get("default_vector_grid_size", 20))),
             "vector_grid_size",
         )
         self.vector_scale = Observable(

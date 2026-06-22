@@ -84,6 +84,15 @@ class Settings(QMenu):
         )
         ncolors.on_update_model_value(us.update("default_ncolors"))
 
+        vecdensity = QInput(
+            QTooltip("Default arrow grid density for vector fields "
+                     "(cells across the longest domain side)."),
+            ui_type="number", ui_dense=True,
+            ui_model_value=int(us.get("default_vector_grid_size", 20)),
+            ui_style="width: 72px;",
+        )
+        vecdensity.on_update_model_value(us.update("default_vector_grid_size"))
+
         nthreads = QInput(
             QTooltip("Threads used by NGSolve (0 = all cores). Restart to apply."),
             ui_type="number", ui_dense=True, ui_model_value=us.get("nthreads", 0),
@@ -122,6 +131,7 @@ class Settings(QMenu):
             self._row("Show axes", self._switch("axes_visible", True)),
             self._row("Show navigation cube", self._switch("navcube_visible", False)),
             self._row("Scale vectors by magnitude", self._switch("scale_by_magnitude", True)),
+            self._row("Default vector density", vecdensity),
             Div(ui_class=cb.menu_sep),
             Div("Performance", ui_class=cb.menu_h),
             self._row("Worker threads", nthreads),
