@@ -175,9 +175,15 @@ class ColorbarLegend(Div):
 
     def __init__(self, comp):
         self._comp = comp
-        # -- title (quantity) --
+        # -- title (quantity) + component selector (|u| / ux / uy / uz) --
         self._quantity = Div(comp.title, ui_class=cb.legend_quantity)
-        title_row = Div(self._quantity, ui_class=cb.legend_title)
+        self._norm_pill = None
+        self._comp_select = None
+        selector = self._build_component_selector(comp)
+        title_children = [self._quantity]
+        if selector is not None:
+            title_children.append(selector)
+        title_row = Div(*title_children, ui_class=cb.legend_title)
 
         # -- gradient bar (click → colormap picker) + editable max/min ticks --
         # Inputs are not bound to the observable: driven by _refresh, committed on change.
@@ -229,10 +235,6 @@ class ColorbarLegend(Div):
         rows = [Div(Div("Colormap options", ui_class=cb.ps_lab),
                     _close_x(lambda: self._toggle_pop(False)),
                     ui_class="row items-center justify-between")]
-        if comp.cf.dim > 1:
-            names = ["x", "y", "z"] if comp.cf.dim <= 3 else [str(i + 1) for i in range(comp.cf.dim)]
-            opts = [("norm", "|u|")] + [(str(i), f"u_{names[i]}") for i in range(comp.cf.dim)]
-            rows.append(field("Showing", Segmented(opts, "norm", self._set_component)))
 
         self._opts = {}
         opt_rows = []
@@ -269,6 +271,45 @@ class ColorbarLegend(Div):
             self._comp.wgpu.scene.render()
         except (ValueError, TypeError):
             pass
+
+    # -- component selector (next to the legend title) --------------------
+    def _build_component_selector(self, comp):
+        """Build the |u| / component picker shown beside the legend title.
+
+        Scalar fields get nothing. Fields with up to 3 components get an inline
+        segmented control (|u| ux uy uz). Fields with more than 3 components get
+        a |u| pill plus a dropdown to pick the component (keeps the legend narrow)."""
+        dim = getattr(comp.cf, "dim", 1)
+        if dim <= 1:
+            return None
+        if dim <= 3:
+            names = ["x", "y", "z"][:dim]
+            opts = [("norm", "|u|")] + [(str(i), names[i]) for i in range(dim)]
+            return Div(Segmented(opts, "norm", self._set_component), ui_class=cb.legend_comp)
+        # >3 components: |u| pill + dropdown (1..dim).
+        self._norm_pill = Div("|u|", ui_class=self._norm_cls(True))
+        self._norm_pill.on("click", lambda e=None: self._select_component("norm"))
+        self._comp_select = QSelect(
+            QTooltip("Component"),
+            ui_options=[str(i + 1) for i in range(dim)],
+            ui_dense=True, ui_borderless=True,
+            ui_class=cb.legend_comp_select,
+        )
+        self._comp_select.on_update_model_value(
+            lambda e=None: self._select_component(str(int(self._comp_select.ui_model_value) - 1)))
+        return Div(self._norm_pill, self._comp_select, ui_class=cb.legend_comp)
+
+    def _norm_cls(self, on):
+        return str(cb.legend_pill) + (" " + str(cb.seg_btn_on) if on else "")
+
+    def _select_component(self, val):
+        """Combined handler for the >3-component pill+dropdown selector."""
+        is_norm = val == "norm"
+        if self._norm_pill is not None:
+            self._norm_pill.ui_class = self._norm_cls(is_norm)
+        if self._comp_select is not None and is_norm:
+            self._comp_select.ui_model_value = None
+        self._set_component(val)
 
     def _set_component(self, val):
         comp = self._comp

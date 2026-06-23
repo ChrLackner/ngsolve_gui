@@ -401,7 +401,8 @@ def colormap_gradient_vertical(name):
 # In-viewport colorbar legend — top-right corner; click the bar to edit.
 vp_legend = _cls(
     "cb-vp-legend",
-    position="absolute", top="14px", right="14px", z_index="10", width="142px",
+    position="absolute", top="14px", right="14px", z_index="10",
+    width="max-content", min_width="142px", max_width="232px",
     background="color-mix(in srgb, var(--surface) 88%, transparent)",
     backdrop_filter="blur(8px)", border="1px solid var(--border)",
     border_radius="var(--r-md)", padding="9px 11px", box_shadow="var(--shadow-sm)",
@@ -413,6 +414,26 @@ legend_quantity = _cls(
     "cb-legend-quantity", flex="1", font_size="11.5px", font_weight="600", color="var(--fg)",
     overflow="hidden", text_overflow="ellipsis", white_space="nowrap",
 )
+# Component selector (|u| / ux / uy / uz) sitting beside the legend title.
+legend_comp = _cls(
+    "cb-legend-comp", display="flex", align_items="center", gap="4px", flex="none",
+)
+css.add_rule(".cb-legend-comp .cb-seg-btn",
+             Style(height="19px", padding="0 5px", font_size="10.5px"))
+# Standalone |u| pill (shown beside the component dropdown for >3-component fields).
+legend_pill = _cls(
+    "cb-legend-pill",
+    display="flex", align_items="center", justify_content="center",
+    height="19px", padding="0 6px", font_size="10.5px", font_weight="500",
+    color="var(--fg-muted)", cursor="pointer", user_select="none",
+    border="1px solid var(--border-strong)", border_radius="var(--r-sm)",
+    background="var(--surface)", white_space="nowrap", flex="none",
+)
+css.add_rule(".cb-legend-pill.cb-seg-btn-on", Style(border_color="var(--accent)"))
+# The component-number dropdown for >3-component fields.
+legend_comp_select = _cls("cb-legend-comp-select", flex="none")
+css.add_rule(".cb-legend-comp .cb-legend-comp-select.q-field",
+             Style(max_width="46px", min_width="44px"))
 # Editable min/max value boxes inside the legend ticks (borderless, mono).
 css.add_rule(".cb-vp-legend .q-field__control", Style(
     background="transparent", border="none", min_height="18px", height="18px", padding="0"))
