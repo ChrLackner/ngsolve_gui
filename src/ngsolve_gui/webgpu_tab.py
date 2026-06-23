@@ -45,7 +45,6 @@ def _theme_scene(scene, bg_rgb, text_rgb):
 class WebgpuTab(PropertyPanelMixin, Div):
     def __init__(self, name, data, app_data):
         self.name = name
-        self._redraw_needed = False
         self.data = data
         self.app_data = app_data
         self.wgpu = WebgpuComponent()
@@ -164,8 +163,6 @@ class WebgpuTab(PropertyPanelMixin, Div):
 
         def redraw_if_needed():
             self.apply_viewport_theme()
-            if self._redraw_needed:
-                self.redraw()
 
         self.on_mounted(redraw_if_needed)
         # The WebGPU canvas is created in the component's own "mounted" handler;
@@ -234,7 +231,6 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self.scene.render()
 
     def redraw(self):
-        self._redraw_needed = False
         self.wgpu.scene.redraw()
 
     def _on_dblclick(self, ev):

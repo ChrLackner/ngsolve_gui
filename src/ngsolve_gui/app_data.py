@@ -38,8 +38,14 @@ class AppData:
 
     def set_needs_redraw(self):
         for tab in self._data["tabs"].values():
-            if "component" in tab:
-                tab["component"]._redraw_needed = True
+            if "component" not in tab:
+                continue
+            comp = tab["component"]
+            scene = getattr(comp, "scene", None)  # PlotComponent has no scene
+            if scene is None:
+                continue
+            for obj in getattr(scene, "render_objects", []):
+                obj.set_needs_update()
 
     def get_save_data(self):
         from ngapp.observable import snapshot

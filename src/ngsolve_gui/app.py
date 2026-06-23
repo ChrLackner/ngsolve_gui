@@ -513,8 +513,6 @@ class NGSolveGui(App):
 
         When a Python script calls ngs.Redraw() in a tight loop (e.g. time-stepping),
         this avoids blocking the script thread and flooding the GPU with renders.
-        Only the *active* tab is redrawn; other tabs pick up `_redraw_needed` when
-        they are next switched to (via `redraw_if_needed` on mount).
 
         The trailing-edge timer guarantees the *last* requested redraw is always
         rendered, even if no further calls arrive.
