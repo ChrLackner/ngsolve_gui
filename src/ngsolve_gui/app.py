@@ -245,6 +245,10 @@ class NGSolveGui(App):
         self.tab_panel = Panel(self.app_data)
         self.footer = StatusFooter()
 
+        from .meshing_preview import install as _install_meshing_preview
+
+        _install_meshing_preview(self)
+
         self._nav_visible = self.usersettings.get("nav_visible", True)
         self._prop_visible = self.usersettings.get("prop_visible", True)
         self._nav_width = self.usersettings.get("nav_width", 200)

@@ -245,9 +245,13 @@ class StatusFooter(Div):
 
     def _on_cancel(self):
         self._generation += 1
+        try:
+            from .meshing_preview import set_terminate
+
+            set_terminate(True)
+        except Exception:
+            pass
         thread = self._thread
-        # Only interrupt non-IPython threads; the IPython shell stays alive for
-        # interactive use — just dismiss the indicator in that case.
         if thread and thread.is_alive() and self._thread_name != "IPythonEmbedder":
             try:
                 ctypes.pythonapi.PyThreadState_SetAsyncExc(

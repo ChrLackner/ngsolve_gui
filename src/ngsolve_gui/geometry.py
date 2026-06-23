@@ -1,3 +1,4 @@
+import threading
 from collections import defaultdict
 
 from ngapp.components import *
@@ -19,6 +20,7 @@ class GeometryComponent(WebgpuTab):
         tab = app_data.get_tab(name)
         s = tab.get("settings", {}) if tab else {}
         self.show_edges = Observable(s.get("show_edges", True), "show_edges")
+        self.show_faces = Observable(s.get("show_faces", True), "show_faces")
         self.show_vertices = Observable(s.get("show_vertices", False), "show_vertices")
         self.maxh = Observable(s.get("maxh", 1000), "maxh", converter=float)
         self.segments_per_edge = Observable(s.get("segments_per_edge", 0.2), "segments_per_edge", converter=float)
@@ -32,6 +34,7 @@ class GeometryComponent(WebgpuTab):
         self._face_to_solids = defaultdict(set)  # face_idx -> set of solid indices
         super().__init__(name, data, app_data)
         self.show_edges.on_change(self._apply_show_edges)
+        self.show_faces.on_change(self._apply_show_faces)
         self.show_vertices.on_change(self._apply_show_vertices)
         self._updating_pick_modes = False
         self.pick_solid.on_change(self._on_pick_solid_change)
@@ -77,6 +80,13 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer.edges.active = val
         self.scene.render()
 
+    def toggle_faces(self):
+        self.show_faces.toggle()
+
+    def _apply_show_faces(self, val, _old):
+        self.geo_renderer.faces.active = val
+        self.scene.render()
+
     def toggle_vertices(self):
         self.show_vertices.toggle()
 
@@ -95,30 +105,60 @@ class GeometryComponent(WebgpuTab):
             "closeedgefac": self.closeedgefac.value,
         }
 
-    def create_mesh(self):
+    def create_mesh(self, on_done=None):
+        """Generate a volume mesh from this geometry.
+        """
         print("Generate mesh...")
-        geo = self._create_meshing_geo()
         import netgen.meshing as ngm
         import ngsolve as ngs
+        from .meshing_preview import set_terminate, get_terminate, get_app
 
-        mesh = ngm.Mesh()
-        try:
-            with ngs.TaskManager():
-                geo.GenerateMesh(mesh=mesh, **self._meshing_options())
-            # mesh.Curve(5)
-        except Exception as e:
-            self.quasar.dialog(
-                {
-                    "title": "Error generating mesh",
-                    "message": str(e),
-                }
-            )
-        mesh = ngs.Mesh(mesh)
-        from .mesh import MeshComponent
+        geo = self._create_meshing_geo()
+        opts = self._meshing_options()
+        done = threading.Event()
 
-        self.app_data.add_tab(
-            "Mesh_" + self.title, MeshComponent, {"obj": mesh}, self.app_data
-        )
+        def work():
+            error = None
+            ng_mesh = ngm.Mesh()
+            try:
+                set_terminate(False)
+                with ngs.TaskManager():
+                    geo.GenerateMesh(mesh=ng_mesh, **opts)
+            except Exception as e:  # noqa: BLE001 — surface to dialog below
+                error = e
+            finally:
+                done.set()
+
+            aborted = get_terminate()
+            set_terminate(False)
+
+            try:
+                if error is not None:
+                    msg = str(error)
+                    aborted = aborted or isinstance(error, KeyboardInterrupt) or "stop" in msg.lower()
+                    if not aborted:
+                        self.quasar.dialog(
+                            {"title": "Error generating mesh", "message": msg}
+                        )
+                elif aborted:
+                    pass
+                else:
+                    mesh = ngs.Mesh(ng_mesh)
+                    from .mesh import MeshComponent
+
+                    self.app_data.add_tab(
+                        "Mesh_" + self.title, MeshComponent, {"obj": mesh}, self.app_data
+                    )
+            finally:
+                if on_done is not None:
+                    on_done()
+
+        thread = threading.Thread(target=work, name="Meshing", daemon=True)
+        thread.start()
+
+        app = get_app()
+        if app is not None:
+            app.footer.show("mesh generation", thread, done)
 
     @property
     def clipping(self):
@@ -332,6 +372,7 @@ class GeometryComponent(WebgpuTab):
     def draw(self):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.edges.active = self.show_edges.value
+        self.geo_renderer.faces.active = self.show_faces.value
         scene = self.wgpu.draw([self.geo_renderer, self.coordinate_axes, self.navigation_cube], camera=self.app_data.camera)
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
 
@@ -358,6 +399,8 @@ class GeometryComponent(WebgpuTab):
     def _on_pick_select(self, event, kind="face"):
         try:
             self._last_pick = (event, kind)  # remember for click-to-commit
+            if not self._geo_click_pending and not self.picking_enabled.value:
+                return
             result = GeoPickResult(event, self.geo, self.scene.options)
             pos = result.world_pos
             coords = f"({pos[0]:>9.4f}, {pos[1]:>9.4f}, {pos[2]:>9.4f})"

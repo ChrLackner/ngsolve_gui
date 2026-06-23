@@ -18,6 +18,7 @@ class GeometryDisplaySection(Section):
     def __init__(self, comp):
         self.comp = comp
         chips = chip_row(
+            Chip("Faces", "mdi-vector-square", comp.show_faces),
             Chip("Edges", "mdi-vector-line", comp.show_edges),
             Chip("Vertices", "mdi-vector-point", comp.show_vertices),
             Chip("Hover", "mdi-cursor-default-click", comp.picking_enabled),

@@ -75,7 +75,12 @@ class MeshGenerationSection(Section):
 
     def _create_mesh(self, *args):
         self.create_btn.ui_loading = True
-        try:
-            self.comp.create_mesh()
-        finally:
+
+        def _done():
             self.create_btn.ui_loading = False
+
+        try:
+            self.comp.create_mesh(on_done=_done)
+        except Exception:
+            self.create_btn.ui_loading = False
+            raise
