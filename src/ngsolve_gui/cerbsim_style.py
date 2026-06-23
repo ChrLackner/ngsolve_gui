@@ -311,7 +311,7 @@ for _panel_cls in (sidebar_nav, sidebar_props):
         .rule(".q-checkbox__label", font_size="var(--t-small)", line_height="1.4", color="var(--fg)") \
         .rule(".q-field--dense .q-field__control", min_height="32px") \
         .rule(".q-field--dense .q-field__label", font_size="var(--t-micro)", color="var(--fg-subtle)") \
-        .rule(".q-field--dense .q-field__native", font_size="var(--t-small)", padding_top="12px",
+        .rule(".q-field--dense .q-field__native", font_size="var(--t-small)", padding_top="0",
               font_family="var(--font-mono)", color="var(--fg)") \
         .rule(".q-field--dense .q-field__marginal", height="32px") \
         .rule(".q-slider", margin="4px 0") \
