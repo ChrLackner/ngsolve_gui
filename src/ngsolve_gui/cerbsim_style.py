@@ -1167,6 +1167,22 @@ pk_v = _cls("cb-pk-v", color="var(--fg)", font_weight="500")
 pk_v_accent = _cls("cb-pk-v-accent", color="var(--accent)", font_weight="600")
 
 
+# Tables (QTable / QMarkupTable) — follow the theme tokens so they look right
+# in both light and dark mode (Quasar's defaults are light-only).
+for _table in (".q-table", ".q-markup-table"):
+    css.add_rule(_table, Style(color="var(--fg)", background="var(--panel)"))
+css.add_rule(".q-table__card", Style(color="var(--fg)", background="var(--panel)"))
+css.add_rule(".q-table thead th", Style(
+    color="var(--fg-muted)", background="var(--panel-header)",
+    border_bottom="1px solid var(--border)"))
+css.add_rule(".q-table tbody td", Style(
+    color="var(--fg)", border_bottom="1px solid var(--border-faint)"))
+css.add_rule(".q-table tbody tr:hover td", Style(background="var(--bg-muted)"))
+css.add_rule(".q-table__bottom", Style(
+    color="var(--fg-muted)", border_top="1px solid var(--border)"))
+css.add_rule(".q-table--bordered", Style(border="1px solid var(--border)"))
+
+
 # Token variables and base typography.
 css.add_rule(":root", Style(**RAW, **SCALE, **LIGHT))
 css.add_rule('[data-theme="dark"]', Style(**DARK))
