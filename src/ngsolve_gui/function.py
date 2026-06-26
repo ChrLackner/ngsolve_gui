@@ -73,7 +73,6 @@ class _LicKernelAnimation:
             kl = int(round(self.low + (self.high - self.low) * (frac - int(frac))))
             try:
                 if self.lic.active:
-                    print("set lic kernel length", kl)
                     self.lic.set_kernel_length(kl)
                     self.scene.render()
             except Exception:
@@ -305,9 +304,23 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     def _apply_elements2d(self, val, _old):
-        if self.elements2d is not None:
-            self.elements2d.active = val
+        self._sync_surface_elements()
         self.wgpu.scene.render()
+
+    def _sync_surface_elements(self):
+        """Show the flat surface field unless a surface LIC is replacing it.
+
+        A SurfaceLIC is itself the surface renderer, so drawing elements2d on top
+        of it z-fights; hide elements2d while the surface LIC is visible (the 3D
+        ClippingLIC, by contrast, is independent of elements2d)."""
+        if self.elements2d is None:
+            return
+        hide_for_lic = (
+            self._lic_is_surface
+            and self.lic is not None
+            and self.lic_visible.value
+        )
+        self.elements2d.active = self.elements2d_visible.value and not hide_for_lic
 
     def _apply_facet(self, visible, _old):
         if self.facet_renderer is not None:
@@ -343,6 +356,7 @@ class FunctionComponent(WebgpuTab):
     def _apply_lic(self, val, _old):
         if self.lic is not None:
             self.lic.active = val
+        self._sync_surface_elements()
         self.wgpu.scene.render()
 
     def _apply_lic_kernel_length(self, val, _old):
@@ -745,6 +759,9 @@ class FunctionComponent(WebgpuTab):
         self.colormap.discrete = discrete
         self.clipping_vectors = None
         self.lic = None
+        # True when self.lic is a SurfaceLIC (2D) that REPLACES the flat surface
+        # field, vs a ClippingLIC (3D) that overlays the cutting plane.
+        self._lic_is_surface = False
         # Stop any animation from a previous draw() before dropping the renderer.
         if getattr(self, "_lic_animation", None) is not None:
             self._lic_animation.stop()
@@ -765,6 +782,23 @@ class FunctionComponent(WebgpuTab):
             )
             self.surface_vectors.user_scale = self.vector_scale.value
             self.surface_vectors.active = self.surface_vectors_visible.value
+            # Surface LIC: paint the 2D vector field's flow as streamlines on the
+            # mesh itself (replaces the flat surface field, like the 3D LIC
+            # replaces the clip-plane field). Only for a 2D vector field on a 2D
+            # mesh; the 3D case below uses ClippingLIC on the cutting plane.
+            if self.mesh.dim == 2:
+                self.lic = SurfaceLIC(
+                    vec_data,
+                    clipping=self.clipping,
+                    colormap=self.colormap,
+                    kernel_length=self.lic_kernel_length.value,
+                    oriented=self.lic_oriented.value,
+                    thickness=self.lic_thickness.value,
+                    contrast=self.lic_contrast.value,
+                    resolution=self.lic_resolution.value,
+                )
+                self.lic.active = self.lic_visible.value
+                self._lic_is_surface = True
         else:
             self.surface_vectors = None
         self.fieldlines = None
@@ -816,6 +850,8 @@ class FunctionComponent(WebgpuTab):
                 clipping=self.clipping, colormap=self.colormap
             )
             self.elements2d.active = self.elements2d_visible.value
+            # Hide the flat field if a surface LIC is replacing it.
+            self._sync_surface_elements()
         else:
             self.elements2d = None
 
@@ -907,6 +943,9 @@ class FunctionComponent(WebgpuTab):
 
         pickable = [(r, k) for r, k in [
             (self.elements2d, "surface"),
+            # The surface LIC replaces elements2d while visible, so keep picking
+            # working on it too (it's a CFRenderer with a select pipeline).
+            (self.lic if self._lic_is_surface else None, "surface"),
             (self.clippingcf, "clipping"),
         ] if r is not None]
         self.setup_picking(pickable, self.mesh)

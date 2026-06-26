@@ -1,11 +1,13 @@
-"""LIC section — Line Integral Convolution on the clipping plane.
+"""LIC section — Line Integral Convolution of a vector field.
 
-LIC paints the (3D vector) field's flow as a dense streamline texture on the
-cutting plane — a 3D-only, vector-only clipping-plane overlay, sibling to the
-clipping function and clipping vectors. The header switch is bound to
-``lic_visible``; the body holds the convolution parameters.
+LIC paints the vector field's flow as a dense streamline texture. For a 3D vector
+field on a 3D mesh it overlays the cutting plane (``ClippingLIC``); for a 2D
+vector field on a 2D mesh it replaces the flat surface field (``SurfaceLIC``). The
+header switch is bound to ``lic_visible``; the body holds the convolution
+parameters.
 
-Only applicable when ``comp.lic`` exists (3D vector field on a 3D mesh).
+Only applicable when ``comp.lic`` exists (a vector field whose dim matches the
+mesh dim, i.e. 2D-on-2D or 3D-on-3D).
 """
 
 from ngapp.components import *
@@ -19,7 +21,7 @@ class LicSection(Section):
     def __init__(self, comp):
         self.comp = comp
         if getattr(comp, "lic", None) is None:
-            raise ValueError("LIC not applicable (needs a 3D vector field)")
+            raise ValueError("LIC not applicable (needs a vector field whose dim matches the mesh)")
 
         # Sliders two-way bind to the Observables; the component's on_change
         # handlers push the change to the GPU renderer.
@@ -56,7 +58,8 @@ class LicSection(Section):
             switchable=True,
             observable=comp.lic_visible,
             info="Line Integral Convolution: paints the vector field's flow as a "
-                 "dense streamline texture on the clipping plane.",
+                 "dense streamline texture — on the clipping plane (3D) or the "
+                 "surface itself (2D).",
         )
 
     def _update_resolution(self, event):
