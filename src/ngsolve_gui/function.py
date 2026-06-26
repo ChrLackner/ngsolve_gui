@@ -5,8 +5,6 @@ from . import cerbsim_style as cb
 import ngsolve as ngs
 import copy
 import math
-import threading
-import time
 
 
 def _fmt_value(v):
@@ -23,63 +21,6 @@ def _fmt_value(v):
     else:
         s = f"{v: .5f}"   # e.g. ' 12.34567'
     return s.rjust(11)
-
-
-class _LicKernelAnimation:
-    """Animate a LIC renderer by looping its kernel length.
-
-    Runs a daemon thread that sweeps the kernel length up and down with a smooth
-    cosine and re-renders the scene. The frame rate is hard-capped (``fps`` is
-    clamped to ``<= 10``) so the animation stays calm and the per-frame LIC
-    re-dispatch stays affordable. The renderer's kernel length is driven directly
-    and the configured value (slider / Observable) is left untouched, so stopping
-    restores it.
-    """
-
-    #: never render faster than this, regardless of the requested fps.
-    MAX_FPS = 10
-
-    def __init__(self, lic, scene, get_kernel_length, fps=10, period=3.0, low=5, high=80):
-        self.lic = lic
-        self.scene = scene
-        self._get_kl = get_kernel_length   # callable -> configured kernel length
-        self._fps = max(1, min(int(fps), self.MAX_FPS))
-        self.period = float(period)
-        self.low = int(low)
-        self.high = int(high)
-        self._running = False
-        self._thread = None
-
-    def start(self):
-        if self._running:
-            return
-        self._running = True
-        self._t0 = time.time()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self._running = False
-        self._thread = None
-
-    @property
-    def running(self):
-        return self._running
-
-    def _loop(self):
-        while self._running:
-            t = time.time() - self._t0
-            frac = t / self.period
-            kl = int(round(self.low + (self.high - self.low) * (frac - int(frac))))
-            try:
-                if self.lic.active:
-                    self.lic.set_kernel_length(kl)
-                    self.scene.render()
-            except Exception:
-                # Scene torn down (e.g. tab closed) — stop quietly.
-                self._running = False
-                break
-            time.sleep(1.0 / self._fps)
 
 
 class FunctionComponent(WebgpuTab):
@@ -181,11 +122,10 @@ class FunctionComponent(WebgpuTab):
         self.lic_contrast = Observable(
             s.get("lic_contrast", 1.0), "lic_contrast", converter=float
         )
-        self.lic_resolution = Observable(
-            s.get("lic_resolution", 256), "lic_resolution", converter=int
+        # Supersampling (SSAA) checkbox: off → 1 sample, on → 2 samples.
+        self.lic_supersample = Observable(
+            s.get("lic_supersample", False), "lic_supersample"
         )
-        # Animation is transient: always starts off (never restored on reload).
-        self.lic_animate = Observable(False, "lic_animate")
         self.vector_grid_size = Observable(
             (cv if not isinstance(cv, bool) else None)
             or (sv if not isinstance(sv, bool) else None)
@@ -276,8 +216,7 @@ class FunctionComponent(WebgpuTab):
         self.lic_oriented.on_change(self._apply_lic_oriented)
         self.lic_thickness.on_change(self._apply_lic_thickness)
         self.lic_contrast.on_change(self._apply_lic_contrast)
-        self.lic_resolution.on_change(self._apply_lic_resolution)
-        self.lic_animate.on_change(self._apply_lic_animate)
+        self.lic_supersample.on_change(self._apply_lic_supersample)
         self.vector_grid_size.on_change(self._apply_vector_grid_size)
         self.vector_scale.on_change(self._apply_vector_scale)
         self.vector_scale_by_value.on_change(self._apply_vector_scale_by_value)
@@ -379,28 +318,11 @@ class FunctionComponent(WebgpuTab):
             self.lic.set_contrast(val)
         self.wgpu.scene.render()
 
-    def _apply_lic_resolution(self, val, _old):
+    def _apply_lic_supersample(self, val, _old):
         if self.lic is not None:
-            self.lic.set_resolution(val)
+            # Checkbox toggles between 1 (off) and 2 (on) samples per pixel.
+            self.lic.set_supersample(2 if val else 1)
         self.wgpu.scene.render()
-
-    def _apply_lic_animate(self, val, _old):
-        if self.lic is None:
-            return
-        if val:
-            if self._lic_animation is None:
-                self._lic_animation = _LicKernelAnimation(
-                    self.lic, self.wgpu.scene,
-                    get_kernel_length=lambda: self.lic_kernel_length.value,
-                    low = 5, high=80,
-                )
-            self._lic_animation.start()
-        else:
-            if self._lic_animation is not None:
-                self._lic_animation.stop()
-            # Restore the configured kernel length the animation was overriding.
-            self.lic.set_kernel_length(self.lic_kernel_length.value)
-            self.wgpu.scene.render()
 
     def _apply_vector_grid_size(self, val, _old):
         if self.clipping_vectors is not None:
@@ -762,10 +684,6 @@ class FunctionComponent(WebgpuTab):
         # True when self.lic is a SurfaceLIC (2D) that REPLACES the flat surface
         # field, vs a ClippingLIC (3D) that overlays the cutting plane.
         self._lic_is_surface = False
-        # Stop any animation from a previous draw() before dropping the renderer.
-        if getattr(self, "_lic_animation", None) is not None:
-            self._lic_animation.stop()
-        self._lic_animation = None
         if self.cf.dim == self.mesh.dim:
             vec3 = self.cf
             if self.cf.dim == 2:
@@ -795,7 +713,7 @@ class FunctionComponent(WebgpuTab):
                     oriented=self.lic_oriented.value,
                     thickness=self.lic_thickness.value,
                     contrast=self.lic_contrast.value,
-                    resolution=self.lic_resolution.value,
+                    supersample=2 if self.lic_supersample.value else 1,
                 )
                 self.lic.active = self.lic_visible.value
                 self._lic_is_surface = True
@@ -839,7 +757,7 @@ class FunctionComponent(WebgpuTab):
                     oriented=self.lic_oriented.value,
                     thickness=self.lic_thickness.value,
                     contrast=self.lic_contrast.value,
-                    resolution=self.lic_resolution.value,
+                    supersample=2 if self.lic_supersample.value else 1,
                 )
                 self.lic.active = self.lic_visible.value
         else:
@@ -966,18 +884,17 @@ from .sections import (
     ClippingSection,
     DeformationSection,
     VectorsFlowSection,
-    LicSection,
     ComplexSection,
     EntityNumbersSection,
 )
 
 # Colormap/colorbar lives in the always-visible FieldSummary (property_summary),
-# not as a section — matching the designer's function panel.
+# not as a section — matching the designer's function panel. LIC is folded into
+# VectorsFlowSection (grouped with streamlines), so it has no section of its own.
 FunctionComponent.property_sections = [
     FunctionDisplaySection,
     DeformationSection,
     VectorsFlowSection,
-    LicSection,
     ComplexSection,
     EntityNumbersSection,
 ]

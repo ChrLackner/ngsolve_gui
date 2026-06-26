@@ -837,12 +837,29 @@ axis_label = _cls(
 # Layout utilities (compose with Quasar's row/column/items-center/no-wrap).
 gap_xs = _cls("cb-gap-xs", gap="var(--sp-2)")   # 4px
 gap_sm = _cls("cb-gap-sm", gap="var(--sp-3)")   # 8px
+gap_md = _cls("cb-gap-md", gap="var(--sp-4)")   # 12px
 grow = _cls("cb-grow", flex="1", min_width="0")
 nowrap = _cls("cb-nowrap", white_space="nowrap")
 input_compact = _cls("cb-input-compact", max_width="88px")
 input_tiny = _cls("cb-input-tiny", max_width="56px")
 avatar_min = _cls("cb-avatar-min", min_width="32px")
 overlay_tr = _cls("cb-overlay-tr", position="absolute", top="10px", right="10px")
+
+# ── Flow sub-features (streamlines + LIC) ────────────────────────────────────
+# A faint inset card; each flow feature gets its own, and the shared style (plus
+# a plain gap between cards) signals they are related siblings inside the
+# Vectors & Flow section, without the weight of a full section header.
+flow_group = _cls(
+    "cb-flow-group",
+    display="flex", flex_direction="column", gap="10px",
+    padding="8px 10px 10px", border_radius="var(--r-sm)",
+    border="1px solid var(--border)", background="var(--bg-muted)",
+)
+# One sub-feature (toggle header + its collapsible settings body).
+flow_sub = _cls("cb-flow-sub", display="flex", flex_direction="column", gap="10px")
+flow_sub_body = _cls(
+    "cb-flow-sub-body", display="flex", flex_direction="column", gap="11px",
+)
 
 # Quality histogram: a full-height clickable column (so even tiny bars are easy
 # to hit); the colored bar sits at the bottom inside it.

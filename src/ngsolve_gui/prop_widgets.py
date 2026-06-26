@@ -140,6 +140,24 @@ class Toggle(Div):
         self._obs.value = not self._obs.value
 
 
+class SubToggleBlock(Div):
+    """A flow sub-feature inside the grouped flow card: a label+switch header
+    whose settings body is shown only while the feature is enabled.
+
+    Collapsing the body when off keeps the grouped block compact (matching the
+    switchable-section behaviour used elsewhere in the panel)."""
+
+    def __init__(self, label, observable, *body):
+        self._obs = observable
+        self._toggle = Toggle(label, observable)
+        self._body = Div(*body, ui_class=cb.flow_sub_body)
+        self._body.ui_hidden = not bool(observable.value)
+        super().__init__(self._toggle, self._body, ui_class=cb.flow_sub)
+        observable.on_change(
+            lambda v, _o: setattr(self._body, "ui_hidden", not bool(v))
+        )
+
+
 class PickPill(Div):
     """A small round pill (e.g. S / F / E / V) bound to an Observable."""
 
