@@ -467,10 +467,12 @@ class WebgpuTab(PropertyPanelMixin, Div):
                 "v",
                 "View",
                 [
-                    ("x", lambda: self.set_view("yz"), "View from X (YZ plane)"),
-                    ("y", lambda: self.set_view("xz"), "View from Y (XZ plane)"),
-                    ("z", lambda: self.set_view("xy"), "View from Z (XY plane)"),
-                    ("r", self.reset_camera, "Reset camera"),
+                    ("x", lambda: self.set_view("yz"), "Look along X"),
+                    ("y", lambda: self.set_view("xz"), "Look along Y"),
+                    ("z", lambda: self.set_view("xy"), "Look along Z"),
+                    ("o", lambda: self.set_orthographic(True), "Orthographic"),
+                    ("p", lambda: self.set_orthographic(False), "Perspective"),
+                    ("r", self.reset_camera, "Reset"),
                 ],
             ),
         ]
@@ -488,9 +490,27 @@ class WebgpuTab(PropertyPanelMixin, Div):
         ]
 
     def set_view(self, plane):
-        """Set camera to a standard view (``"xy"``, ``"xz"``, or ``"yz"``)."""
+        """Set camera to a standard view (``"xy"``, ``"xz"``, or ``"yz"``).
+
+        Repeating the same view flips to look from the opposite side, like the
+        clipping-plane axis shortcuts.
+        """
         camera = self.scene.options.camera
-        getattr(camera, f"reset_{plane}")()
+        if getattr(self, "_last_view_plane", None) == plane:
+            flip = not getattr(self, "_last_view_flip", False)
+        else:
+            flip = False
+        getattr(camera, f"reset_{plane}")(flip=flip)
+        self._last_view_plane = plane
+        self._last_view_flip = flip
+        self.scene.render()
+
+    def set_orthographic(self, value):
+        """Switch between orthographic and perspective camera projection."""
+        camera = self.scene.options.camera
+        if camera.orthographic == value:
+            return
+        camera.set_orthographic(value)
         self.scene.render()
 
     def _apply_clipping_enabled(self, val, _old):
