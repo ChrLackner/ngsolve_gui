@@ -340,7 +340,6 @@ class FunctionComponent(WebgpuTab):
         self.wgpu.scene.render()
 
     def _apply_vector_scale_by_value(self, val, _old):
-        print("apply vector scale by value", val, _old)
         for r in self._vector_renderers:
             r.scale_by_value = val
             r.set_needs_update()
