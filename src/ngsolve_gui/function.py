@@ -117,7 +117,7 @@ class FunctionComponent(WebgpuTab):
             s.get("lic_oriented", False), "lic_oriented"
         )
         self.lic_thickness = Observable(
-            s.get("lic_thickness", 10), "lic_thickness", converter=int
+            s.get("lic_thickness", 2), "lic_thickness", converter=int
         )
         self.lic_contrast = Observable(
             s.get("lic_contrast", 1.0), "lic_contrast", converter=float
