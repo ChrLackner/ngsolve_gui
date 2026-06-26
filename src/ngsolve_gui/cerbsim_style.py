@@ -1164,8 +1164,12 @@ pk_h = _cls(
 )
 css.add_rule(".cb-pk-h .q-icon", Style(font_size="13px"))
 pk_r = _cls("cb-pk-r", display="flex", justify_content="space-between", gap="14px")
-pk_v = _cls("cb-pk-v", color="var(--fg)", font_weight="500")
-pk_v_accent = _cls("cb-pk-v-accent", color="var(--accent)", font_weight="600")
+pk_v = _cls("cb-pk-v", color="var(--fg)", font_weight="500",
+            font_family="var(--font-mono)", white_space="pre",
+            font_variant_numeric="tabular-nums")
+pk_v_accent = _cls("cb-pk-v-accent", color="var(--accent)", font_weight="600",
+                   font_family="var(--font-mono)", white_space="pre",
+                   font_variant_numeric="tabular-nums")
 
 
 # Tables (QTable / QMarkupTable) — follow the theme tokens so they look right

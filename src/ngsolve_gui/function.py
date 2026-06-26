@@ -9,6 +9,22 @@ import threading
 import time
 
 
+def _fmt_value(v):
+    """Fixed-width numeric format for the pick overlay.
+
+    Scientific notation keeps very large/small magnitudes readable; fixed-point
+    is used in the [1e-2, 1e2) range. The result is padded to a constant width
+    so the value doesn't jitter horizontally as it updates while hovering.
+    """
+    v = float(v)
+    a = abs(v)
+    if a != 0 and (a < 1e-2 or a >= 1e2):
+        s = f"{v: .4e}"   # e.g. ' 1.2345e+05' / '-1.2345e+05'
+    else:
+        s = f"{v: .5f}"   # e.g. ' 12.34567'
+    return s.rjust(11)
+
+
 class _LicKernelAnimation:
     """Animate a LIC renderer by looping its kernel length.
 
@@ -425,9 +441,9 @@ class FunctionComponent(WebgpuTab):
         val = self._eval_cf(self._probe_mesh_point(result.world_pos))
         if val is not None:
             if val.size == 1:
-                rows.append(("value", f"{float(val):.5g}"))
+                rows.append(("value", _fmt_value(val)))
             else:
-                rows.append(("value", "[" + ", ".join(f"{float(v):.3g}" for v in val.flat) + "]"))
+                rows.append(("value", "[" + ", ".join(_fmt_value(v) for v in val.flat) + "]"))
             return ("Picked value", rows, True)
         return ("Picked value", rows, False)
 
