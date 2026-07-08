@@ -221,11 +221,39 @@ def fill_input(page: Page, label: str, value: str) -> None:
     page.wait_for_timeout(100)
 
 
+def _expand_advanced(page: Page) -> None:
+    """Expand any collapsed 'Advanced' (MoreDisclosure) sections.
+
+    Several designer sections tuck extra controls behind an 'Advanced' inline
+    disclosure that is collapsed by default; their contents are in the DOM but
+    hidden, so a click on them would hang on actionability. Clicking the first
+    collapsed one each pass drops it from the set, so this terminates."""
+    while True:
+        adv = page.locator(".cb-psec-more.cb-collapsed").filter(has_text="Advanced")
+        if adv.count() == 0:
+            break
+        adv.first.click()
+        page.wait_for_timeout(200)
+
+
 def click_curving_checkbox(page: Page) -> None:
-    """Toggle the 'Curved display' switch in the mesh Display section."""
+    """Toggle the 'Curved display' switch in the mesh Display section.
+
+    'Curved display' lives inside the Display section's 'Advanced' disclosure,
+    collapsed by default, so it must be expanded before the switch is clickable.
+
+    Toggling curved display triggers a full scene rebuild (``MeshComponent.draw``)
+    which transiently drops the WebGPU canvas. The e2e helper's short "already
+    initialised" settle doesn't re-check for the canvas, so the next readback can
+    hit ``scene.canvas is None``. Forget the initialised-scene marker so the next
+    ``assert_matches_baseline`` re-runs the full first-time readiness polling
+    (which waits for the canvas to come back)."""
+    _expand_advanced(page)
     page.locator(".cb-toggle").filter(has_text="Curved display").first \
         .locator(".cb-switch").click()
     page.wait_for_timeout(500)
+    import ngapp.e2e_webgpu as e2e
+    e2e._initialised_scenes.clear()
 
 
 def set_slider(

@@ -129,8 +129,8 @@ class Toggle(Div):
     def __init__(self, label, observable):
         self._obs = observable
         self._switch = Div(ui_class=self._scls(bool(observable.value)))
-        self._switch.on("click", lambda e=None: self._toggle())
         super().__init__(Div(label), self._switch, ui_class=cb.prop_toggle)
+        self.on("click", lambda e=None: self._toggle())
         observable.on_change(lambda v, _o: setattr(self._switch, "ui_class", self._scls(bool(v))))
 
     def _scls(self, on):

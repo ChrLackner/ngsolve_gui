@@ -793,6 +793,7 @@ prop_toggle = _cls(
     "cb-toggle",
     display="flex", align_items="center", justify_content="space-between",
     gap="10px", font_size="12.5px", color="var(--fg)", min_height="24px",
+    cursor="pointer",
 )
 
 # ── Pick pills (S / F / E / V) ───────────────────────────────────────────────
