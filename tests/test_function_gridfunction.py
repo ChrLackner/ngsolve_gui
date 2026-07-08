@@ -14,9 +14,9 @@ from .helpers import (
     make_mesh_2d,
     make_mesh_3d,
     expand_section,
-    collapse_section,
     click_checkbox,
     set_slider,
+    toggle_clipping,
 )
 
 
@@ -61,12 +61,10 @@ def test_function_3d_options(page: Page, app) -> None:
     comp = app.tab_panel.comp
 
     # 1. Enable clipping so the clipping plane is visible
-    expand_section(page, "Clipping")
-    click_checkbox(page, "Enable")
+    toggle_clipping(page)
     assert_matches_baseline(page, comp.wgpu, "func_3d_options_clipped.png")
 
     # 2. Hide surface solution (clipping plane still visible)
-    collapse_section(page, "Clipping")
     click_checkbox(page, "Surface")
     assert_matches_baseline(page, comp.wgpu, "func_3d_options_no_surface.png")
 

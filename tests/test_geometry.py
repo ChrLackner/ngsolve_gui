@@ -14,8 +14,8 @@ from ngapp.e2e_webgpu import assert_matches_baseline
 from .helpers import (
     _draw,
     make_geometry,
-    expand_section,
     click_checkbox,
+    toggle_clipping,
 )
 
 
@@ -32,8 +32,7 @@ def test_geometry_box(page: Page, app) -> None:
     click_checkbox(page, "Edges")
     assert_matches_baseline(page, comp.wgpu, "geometry_box_no_edges.png")
 
-    # 3. Re-enable edges, enable clipping plane via UI
+    # 3. Re-enable edges, enable clipping plane via the viewport tool
     click_checkbox(page, "Edges")
-    expand_section(page, "Clipping")
-    click_checkbox(page, "Enable")
+    toggle_clipping(page)
     assert_matches_baseline(page, comp.wgpu, "geometry_box_clipped.png")

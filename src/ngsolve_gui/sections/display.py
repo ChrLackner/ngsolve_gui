@@ -6,7 +6,7 @@ Always the FIRST section, always expanded. Toggles are rendered as option chips
 
 from ngapp.components import *
 
-from ..prop_widgets import Section, Chip, chip_row, Toggle, field
+from ..prop_widgets import Section, Chip, chip_row, Toggle, field, MoreDisclosure
 from ..cerbsim_style import prop_flab, input_tiny, gap_sm
 
 
@@ -59,13 +59,37 @@ class MeshDisplaySection(Section):
             lambda val, _old: setattr(curve_order, "ui_disable", not val)
         )
 
-        super().__init__(
-            chip_row(*chips),
-            field("Shrink", shrink),
+        subdiv = QInput(
+            ui_type="number", ui_model_value=comp.subdivision,
+            ui_dense=True, ui_class=input_tiny,
+        )
+
+        advanced = [
             Toggle("Curved display", comp.mesh_curvature_enabled),
             field("Curve order", curve_order),
-            icon="mdi-eye", title="Display", opened=True,
-        )
+            field(
+                f"Subdivision (-1 auto, 0 linear, max {comp.SUBDIVISION_MAX})",
+                subdiv,
+            ),
+        ]
+
+        if comp.mesh.dim == 3:
+            subdiv3d = QInput(
+                ui_type="number", ui_model_value=comp.elements3d_subdivision,
+                ui_dense=True, ui_class=input_tiny,
+            )
+            advanced.append(field(
+                f"3D subdivision (-1 auto, 0 linear, max {comp.ELEMENTS3D_SUBDIV_MAX})",
+                subdiv3d,
+            ))
+
+        items = [
+            chip_row(*chips),
+            field("Shrink", shrink),
+            MoreDisclosure(*advanced, label_more="Advanced", label_less="Advanced"),
+        ]
+
+        super().__init__(*items, icon="mdi-eye", title="Display", opened=True)
 
 
 class FunctionDisplaySection(Section):
@@ -87,22 +111,30 @@ class FunctionDisplaySection(Section):
 
         items = [chip_row(*primary)]
 
-        # Advanced (less-used) toggles behind an inline "More options" disclosure.
-        advanced = []
-        if comp.facet_renderer is not None:
-            advanced.append(Chip("ElementBND", "mdi-vector-polyline", comp.facet_visible))
-        if comp.contact is not None:
-            advanced.append(Chip("Contact Pairs", "mdi-vector-intersection", comp.contact_enabled))
+        subdiv = QInput(
+            ui_type="number", ui_model_value=comp.subdivision,
+            ui_dense=True, ui_class=input_tiny,
+        )
+        more_items = [field(
+            f"Subdivision (-1 auto, 0 linear, max {comp.SUBDIVISION_MAX})",
+            subdiv,
+        )]
 
-        if advanced:
-            from ..prop_widgets import MoreDisclosure
-            more_items = [chip_row(*advanced)]
-            if comp.facet_renderer is not None:
-                thickness = QSlider(
-                    ui_model_value=comp.facet_thickness,
-                    ui_min=0.001, ui_max=0.05, ui_step=0.001, ui_dense=True, ui_label=True,
-                )
-                more_items.append(field("ElementBND thickness", thickness))
-            items.append(MoreDisclosure(*more_items))
+        chips_adv = []
+        if comp.facet_renderer is not None:
+            chips_adv.append(Chip("ElementBND", "mdi-vector-polyline", comp.facet_visible))
+        if comp.contact is not None:
+            chips_adv.append(Chip("Contact Pairs", "mdi-vector-intersection", comp.contact_enabled))
+        if chips_adv:
+            more_items.append(chip_row(*chips_adv))
+        if comp.facet_renderer is not None:
+            thickness = QSlider(
+                ui_model_value=comp.facet_thickness,
+                ui_min=0.001, ui_max=0.05, ui_step=0.001, ui_dense=True, ui_label=True,
+            )
+            more_items.append(field("ElementBND thickness", thickness))
+
+        items.append(MoreDisclosure(
+            *more_items, label_more="Advanced", label_less="Advanced"))
 
         super().__init__(*items, icon="mdi-eye", title="Display", opened=True)

@@ -4,7 +4,7 @@ import ngsolve as ngs
 from ngsolve_webgpu.mesh import *
 from webgpu.labels import Labels
 
-from .webgpu_tab import WebgpuTab
+from .webgpu_tab import WebgpuTab, _usersettings
 import netgen.occ as ngocc
 from ngsolve_webgpu import EntityNumbers
 
@@ -53,11 +53,25 @@ class MeshComponent(WebgpuTab):
         self.shrink_value = Observable(
             saved.get("shrink", 1.0), "shrink", converter=float
         )
+        self.subdivision = Observable(
+            saved.get("subdivision",
+                      data.get("subdivision",
+                               int(_usersettings.get("default_subdivision", -1)))),
+            "subdivision", converter=int,
+        )
+        self.elements3d_subdivision = Observable(
+            saved.get("elements3d_subdivision",
+                      int(_usersettings.get("default_elements3d_subdivision", -1))),
+            "elements3d_subdivision", converter=int,
+        )
+        actual_curve_order = self.mesh.GetCurveOrder()
         self.mesh_curvature_enabled = Observable(
-            saved.get("mesh_curvature_enabled", False), "mesh_curvature_enabled"
+            saved.get("mesh_curvature_enabled", actual_curve_order > 1),
+            "mesh_curvature_enabled",
         )
         self.mesh_curvature_order = Observable(
-            saved.get("mesh_curvature_order", 2), "mesh_curvature_order", converter=int
+            saved.get("mesh_curvature_order", max(2, actual_curve_order)),
+            "mesh_curvature_order", converter=int,
         )
         self.edge_colors = Observable(
             saved.get("edge_colors", {}), "edge_colors"
@@ -86,6 +100,8 @@ class MeshComponent(WebgpuTab):
         self.elements3d_visible.on_change(self._apply_elements3d)
         self.identifications_visible.on_change(self._apply_identifications)
         self.shrink_value.on_change(self._apply_shrink)
+        self.subdivision.on_change(self._apply_subdivision)
+        self.elements3d_subdivision.on_change(self._apply_elements3d_subdivision)
         self.mesh_curvature_enabled.on_change(self._apply_curvature)
         self.mesh_curvature_order.on_change(self._apply_curvature_order)
         for entity in self.entity_number_entities:
@@ -111,6 +127,7 @@ class MeshComponent(WebgpuTab):
         if self.elements3d is None:
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
             self.elements3d.shrink = self.shrink_value.value
+            self.elements3d.subdivision = self._elements3d_subdiv_override()
             self.scene.render_objects.append(self.elements3d)
             self._add_pickable(self.elements3d, "volume")
         self.elements3d.active = val
@@ -126,7 +143,40 @@ class MeshComponent(WebgpuTab):
             self.elements3d.shrink = val
         self.wgpu.scene.render()
 
+    SUBDIVISION_MAX = 5
+
+    def _subdivision_override(self):
+        v = int(self.subdivision.value)
+        v = max(-1, min(self.SUBDIVISION_MAX, v))
+        return None if v < 0 else v + 1
+
+    def _apply_subdivision(self, val, _old):
+        clamped = max(-1, min(self.SUBDIVISION_MAX, int(val)))
+        if clamped != int(val):
+            self.subdivision.value = clamped
+            return
+        self.mdata.set_needs_update()
+        self.draw()
+
+    ELEMENTS3D_SUBDIV_MAX = 3
+
+    def _elements3d_subdiv_override(self):
+        v = int(self.elements3d_subdivision.value)
+        v = max(-1, min(self.ELEMENTS3D_SUBDIV_MAX, v))
+        return None if v < 0 else v + 1
+
+    def _apply_elements3d_subdivision(self, val, _old):
+        clamped = max(-1, min(self.ELEMENTS3D_SUBDIV_MAX, int(val)))
+        if clamped != int(val):
+            self.elements3d_subdivision.value = clamped
+            return
+        if self.elements3d is not None:
+            self.elements3d.subdivision = self._elements3d_subdiv_override()
+        self.wgpu.scene.render()
+
     def _apply_curvature(self, val, _old):
+        if not val:
+            self.mesh.Curve(1)
         self.mdata.set_needs_update()
         self.draw()
 
@@ -334,14 +384,18 @@ class MeshComponent(WebgpuTab):
         else:
             self.mdata = self.app_data.get_mesh_gpu_data(self.region_or_mesh)
 
-        actual_order = self.mesh.GetCurveOrder()
-        if actual_order > 3:
-            subdiv = (actual_order + 2) // 3 + 1
-        elif actual_order > 1:
-            subdiv = 3
+        override = self._subdivision_override()
+        if override is not None:
+            self.mdata.subdivision = override
         else:
-            subdiv = 1
-        self.mdata.subdivision = subdiv
+            actual_order = self.mesh.GetCurveOrder()
+            if actual_order > 3:
+                subdiv = (actual_order + 2) // 3 + 1
+            elif actual_order > 1:
+                subdiv = 3
+            else:
+                subdiv = 1
+            self.mdata.subdivision = subdiv
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.wireframe_visible.value
         saved_edge_colors = self.edge_colors.value
@@ -359,6 +413,7 @@ class MeshComponent(WebgpuTab):
         if self.elements3d_visible.value:
             self.elements3d = MeshElements3d(self.mdata, clipping=self.clipping)
             self.elements3d.shrink = self.shrink_value.value
+            self.elements3d.subdivision = self._elements3d_subdiv_override()
         else:
             self.elements3d = None
 

@@ -16,10 +16,9 @@ from .helpers import (
     _draw,
     make_mesh_2d,
     make_mesh_3d,
-    expand_section,
-    collapse_section,
     click_checkbox,
     set_slider,
+    toggle_clipping,
 )
 
 
@@ -55,14 +54,12 @@ def test_mesh_3d(page: Page, app) -> None:
     click_checkbox(page, "Wireframe")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_no_wireframe.png")
 
-    # 3. Wireframe back on, enable clipping plane via UI
+    # 3. Wireframe back on, enable clipping plane via the viewport tool
     click_checkbox(page, "Wireframe")
-    expand_section(page, "Clipping")
-    click_checkbox(page, "Enable")
+    toggle_clipping(page)
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_clipped.png")
 
     # 4. Enable volume elements (shrunk) via UI
-    collapse_section(page, "Clipping")
     click_checkbox(page, "Elements 3D")
     set_slider(page, 0.8, label="Shrink")
     assert_matches_baseline(page, comp.wgpu, "mesh_3d_volume_shrink.png")

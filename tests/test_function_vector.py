@@ -14,9 +14,8 @@ from .helpers import (
     _draw,
     make_mesh_2d,
     make_mesh_3d,
-    expand_section,
-    collapse_section,
-    click_checkbox,
+    click_in_section,
+    toggle_clipping,
 )
 
 
@@ -30,7 +29,7 @@ def test_function_vector_2d(page: Page, app) -> None:
 
     assert_matches_baseline(page, comp.wgpu, "func_vector_2d_default.png")
 
-    click_checkbox(page, "Surf. Vectors")
+    click_in_section(page, "Vectors & Flow", "Surface")
     assert_matches_baseline(page, comp.wgpu, "func_vector_2d_surface_vectors.png")
 
 
@@ -45,18 +44,16 @@ def test_function_vector_3d(page: Page, app) -> None:
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_default.png")
 
     # Enable clipping first so the clipping plane is visible
-    expand_section(page, "Clipping")
-    click_checkbox(page, "Enable")
+    toggle_clipping(page)
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_clipped.png")
 
     # Show clipping vectors (only meaningful with clipping enabled)
-    collapse_section(page, "Clipping")
-    click_checkbox(page, "Clip. Vectors")
+    click_in_section(page, "Vectors & Flow", "Clip")
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_clipping_vectors.png")
 
     # Switch to surface vectors
-    click_checkbox(page, "Clip. Vectors")
-    click_checkbox(page, "Surf. Vectors")
+    click_in_section(page, "Vectors & Flow", "Clip")
+    click_in_section(page, "Vectors & Flow", "Surface")
     assert_matches_baseline(page, comp.wgpu, "func_vector_3d_surface_vectors.png")
 
 
@@ -69,6 +66,5 @@ def test_function_fieldlines_2d(page: Page, app) -> None:
     comp = app.tab_panel.comp
 
     np.random.seed(42)
-    expand_section(page, "More")
-    click_checkbox(page, "Field Lines")
+    click_in_section(page, "Vectors & Flow", "Streamlines")
     assert_matches_baseline(page, comp.wgpu, "func_fieldlines_2d.png")

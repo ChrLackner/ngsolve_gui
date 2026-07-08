@@ -21,9 +21,12 @@ from .helpers import (
     _draw,
     make_mesh_2d,
     make_mesh_3d,
-    expand_section,
     click_checkbox,
-    fill_input,
+    toggle_clipping,
+    toggle_deformation,
+    open_colorbar_options,
+    toggle_autoscale,
+    set_colorbar_range,
 )
 
 
@@ -42,10 +45,10 @@ def test_function_scalar_2d(page: Page, app) -> None:
     click_checkbox(page, "Wireframe")
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_no_wireframe.png")
 
-    # 3. Turn wireframe back on, disable deformation via UI
+    # 3. Turn wireframe back on, disable deformation via UI (the Deformation
+    #    section header is itself the on/off switch in the redesign)
     click_checkbox(page, "Wireframe")
-    expand_section(page, "Deformation")
-    click_checkbox(page, "Enable Deformation")
+    toggle_deformation(page)
     assert_matches_baseline(page, comp.wgpu, "func_scalar_2d_flat.png")
 
 
@@ -59,9 +62,8 @@ def test_function_scalar_3d(page: Page, app) -> None:
     # 1. Default rendering
     assert_matches_baseline(page, comp.wgpu, "func_scalar_3d_default.png")
 
-    # 2. Enable clipping plane via UI
-    expand_section(page, "Clipping")
-    click_checkbox(page, "Enable")
+    # 2. Enable clipping plane via the viewport tool
+    toggle_clipping(page)
     assert_matches_baseline(page, comp.wgpu, "func_scalar_3d_clipped.png")
 
 
@@ -75,14 +77,14 @@ def test_function_colormap(page: Page, app) -> None:
     # 1. Default colormap (jet, autoscale)
     assert_matches_baseline(page, comp.wgpu, "func_colormap_default.png")
 
-    # 2. Enable discrete mode via UI
-    expand_section(page, "Advanced")
+    # 2. Enable discrete mode via the colorbar legend's options popover
+    open_colorbar_options(page)
     click_checkbox(page, "Discrete")
     assert_matches_baseline(page, comp.wgpu, "func_colormap_discrete.png")
 
-    # 3. Disable discrete, disable autoscale, set custom min/max via UI
+    # 3. Disable discrete, disable autoscale, set custom min/max via the
+    #    in-viewport colorbar legend
     click_checkbox(page, "Discrete")
-    click_checkbox(page, "Auto")
-    fill_input(page, "Min", "0.5")
-    fill_input(page, "Max", "2.0")
+    toggle_autoscale(page)
+    set_colorbar_range(page, minval=0.5, maxval=2.0)
     assert_matches_baseline(page, comp.wgpu, "func_colormap_custom_range.png")

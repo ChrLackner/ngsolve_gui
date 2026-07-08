@@ -87,6 +87,12 @@ class FunctionComponent(WebgpuTab):
         self.elements2d_visible = Observable(
             s.get("elements2d_visible", True), "elements2d_visible"
         )
+        self.subdivision = Observable(
+            s.get("subdivision",
+                  data.get("subdivision",
+                           int(_usersettings.get("default_subdivision", -1)))),
+            "subdivision", converter=int,
+        )
         self.facet_visible = Observable(
             bool(self.facet) if self.facet is not None else s.get("facet_visible", False),
             "facet_visible",
@@ -206,6 +212,7 @@ class FunctionComponent(WebgpuTab):
         # -- Wire GPU side-effects -----------------------------------------
         self.wireframe_visible.on_change(self._apply_wireframe)
         self.elements2d_visible.on_change(self._apply_elements2d)
+        self.subdivision.on_change(self._apply_subdivision)
         self.facet_visible.on_change(self._apply_facet)
         self.facet_thickness.on_change(self._apply_facet_thickness)
         self.clipping_vectors_visible.on_change(self._apply_clipping_vectors)
@@ -245,6 +252,33 @@ class FunctionComponent(WebgpuTab):
 
     def _apply_elements2d(self, val, _old):
         self._sync_surface_elements()
+        self.wgpu.scene.render()
+
+    SUBDIVISION_MAX = 40
+
+    def _subdivision_override(self):
+        """UI subdivision → MeshData.subdivision. -1 = auto (None, derived from
+        the mesh curve/deformation order); 0 = linear (subdivision 1); N =
+        subdivision N+1. Raising it tessellates each element into more render
+        triangles, so a high-order function renders smoothly instead of
+        piecewise-flat."""
+        v = int(self.subdivision.value)
+        v = max(-1, min(self.SUBDIVISION_MAX, v))
+        return None if v < 0 else v + 1
+
+    def _apply_subdivision(self, val, _old):
+        clamped = max(-1, min(self.SUBDIVISION_MAX, int(val)))
+        if clamped != int(val):
+            self.subdivision.value = clamped
+            return
+        func_data = getattr(self, "func_data", None)
+        if func_data is None:
+            return
+        mdata = func_data.mesh_data
+        mdata.subdivision = self._subdivision_override()
+        mdata.set_needs_update()
+        for obj in self.scene.render_objects:
+            obj.set_needs_update()
         self.wgpu.scene.render()
 
     def _sync_surface_elements(self):
@@ -670,6 +704,7 @@ class FunctionComponent(WebgpuTab):
             if not self.deformation_enabled.value:
                 mdata.deformation_scale = 0.0
             func_data.mesh_data = mdata
+        mdata.subdivision = self._subdivision_override()
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.wireframe_visible.value
 

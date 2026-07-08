@@ -93,6 +93,23 @@ class Settings(QMenu):
         )
         vecdensity.on_update_model_value(us.update("default_vector_grid_size"))
 
+        subdiv = QInput(
+            QTooltip("Default subdivision for curved surface elements "
+                     "(-1 auto, 0 linear, higher = finer)."),
+            ui_type="number", ui_dense=True,
+            ui_model_value=int(us.get("default_subdivision", -1)),
+            ui_style="width: 72px;",
+        )
+        subdiv.on_update_model_value(us.update("default_subdivision"))
+        subdiv3d = QInput(
+            QTooltip("Default tessellation for curved 3D (volume) elements "
+                     "(-1 auto, 0 linear, higher = finer)."),
+            ui_type="number", ui_dense=True,
+            ui_model_value=int(us.get("default_elements3d_subdivision", -1)),
+            ui_style="width: 72px;",
+        )
+        subdiv3d.on_update_model_value(us.update("default_elements3d_subdivision"))
+
         nthreads = QInput(
             QTooltip("Threads used by NGSolve (0 = all cores). Restart to apply."),
             ui_type="number", ui_dense=True, ui_model_value=us.get("nthreads", 0),
@@ -131,6 +148,10 @@ class Settings(QMenu):
             self._row("Show axes", self._switch("axes_visible", True)),
             self._row("Show navigation cube", self._switch("navcube_visible", False)),
             self._row("Default vector density", vecdensity),
+            Div(ui_class=cb.menu_sep),
+            Div("Rendering", ui_class=cb.menu_h),
+            self._row("Default subdivision", subdiv),
+            self._row("Default 3D subdivision", subdiv3d),
             Div(ui_class=cb.menu_sep),
             Div("Performance", ui_class=cb.menu_h),
             self._row("Worker threads", nthreads),

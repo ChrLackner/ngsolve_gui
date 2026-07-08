@@ -110,6 +110,85 @@ def collapse_section(page: Page, name: str) -> None:
     expand_section(page, name)
 
 
+def click_in_section(page: Page, section: str, name: str) -> None:
+    """Click a chip/toggle by label *inside* a named property section.
+
+    Disambiguates labels that exist in more than one section - e.g. "Surface"
+    is both the Display surface-field chip and the Vectors & Flow surface-arrows
+    chip. Expands the section first so its controls are visible/clickable.
+    """
+    sec = page.locator(".cb-psec").filter(
+        has=page.locator(".cb-psec-title").filter(has_text=section)
+    ).first
+    head = sec.locator(".cb-psec-head")
+    if "cb-collapsed" in (head.first.get_attribute("class") or ""):
+        head.first.locator(".cb-psec-head-main").click()
+        page.wait_for_timeout(300)
+    sec.locator(".cb-opt-chip, .cb-toggle").filter(has_text=name).first.click()
+    page.wait_for_timeout(150)
+
+
+def toggle_clipping(page: Page) -> None:
+    """Toggle the clipping plane via the viewport tool dock.
+
+    In the v1.0.0 redesign clipping is no longer a property-panel section with
+    an "Enable" switch; it's the scissors tool (mdi-content-cut) in the floating
+    viewport tool dock.
+    """
+    page.locator(".cb-vp-tool").filter(
+        has=page.locator(".mdi-content-cut")
+    ).first.click()
+    page.wait_for_timeout(400)
+
+
+def toggle_deformation(page: Page) -> None:
+    """Toggle the switchable 'Deformation' section via its header switch.
+
+    The redesigned Deformation section has no inner "Enable Deformation"
+    checkbox; the section header itself carries the on/off switch.
+    """
+    head = page.locator(".cb-psec-head").filter(has_text="Deformation").first
+    head.locator(".cb-psec-head-main").click()
+    page.wait_for_timeout(300)
+
+
+def open_colorbar_options(page: Page) -> None:
+    """Open the colorbar legend's options popover (colormap / discrete / ncolors).
+
+    Clicking the gradient bar toggles the popover; the 'Discrete' chip lives
+    inside it and is hidden (unclickable) until the popover is open.
+    """
+    page.locator(".cb-legend-bar").first.click()
+    page.wait_for_timeout(300)
+
+
+def toggle_autoscale(page: Page) -> None:
+    """Toggle the colorbar legend's 'Auto' (autoscale) pill.
+
+    The colormap range controls moved from the side panel into the in-viewport
+    colorbar legend (ColorbarLegend) in the v1.0.0 redesign.
+    """
+    page.locator(".cb-ps-auto").first.click()
+    page.wait_for_timeout(200)
+
+
+def set_colorbar_range(page: Page, *, minval=None, maxval=None) -> None:
+    """Set colormap min/max via the in-viewport colorbar legend inputs.
+
+    In the legend ticks row the max input comes first and the min input last.
+    """
+    inputs = page.locator(".cb-legend-ticks").first.locator("input")
+    if maxval is not None:
+        inp = inputs.first
+        inp.fill(str(maxval))
+        inp.press("Enter")
+    if minval is not None:
+        inp = inputs.last
+        inp.fill(str(minval))
+        inp.press("Enter")
+    page.wait_for_timeout(200)
+
+
 def click_checkbox(page: Page, name: str) -> None:
     """Toggle a boolean control by its label.
 
