@@ -92,6 +92,81 @@ def _build_progress_stdout():
     return _ProgressStdoutProxy(raw=True)
 
 
+# Set to the thread running the embedded IPython shell, so ``input()`` can tell
+# a call from the user script apart from a call inside an interactive cell.
+_shell_thread: threading.Thread | None = None
+
+
+def _install_coordinated_input():
+    """Make the builtin ``input()`` cooperate with a live prompt_toolkit REPL.
+
+    The user script runs in a background thread while the embedded IPython
+    shell runs its prompt_toolkit application in another. Both want the
+    terminal: a plain ``input()`` from the script thread reads stdin at the
+    same time the REPL issues a cursor-position request (CPR), so the CPR
+    reply gets stolen, prompt_toolkit warns that the terminal "doesn't support
+    CPR", and prompt/output interleave.
+
+    When an application is running we route ``input()`` through prompt_toolkit's
+    ``run_in_terminal``, scheduled on that app's event loop. That suspends the
+    REPL, drains pending CPRs, detaches its input reader and puts the tty in
+    cooked mode, runs the real ``input()``, then repaints the prompt.
+
+    The tricky case is the startup race: the script often calls ``input()``
+    before the shell has finished coming up, so no app is running yet. Falling
+    back to a raw read there is exactly what steals the shell's startup CPR
+    reply. Instead, when called from the script thread we wait for the app to
+    appear, leaving the terminal untouched so its CPR handshake completes, then
+    route through ``run_in_terminal``. A call from the shell thread (``input()``
+    inside a cell) must not wait -- the app is deliberately idle mid-cell and
+    would never appear -- so there we read directly.
+    """
+    import builtins
+
+    real_input = builtins.input
+    if getattr(real_input, "_ngs_coordinated", False):
+        return
+
+    def _live_app():
+        from prompt_toolkit.application.current import get_app_or_none
+
+        app = get_app_or_none()
+        if app is not None and getattr(app, "loop", None) is not None and app.is_running:
+            return app
+        return None
+
+    def coordinated_input(prompt=""):
+        import asyncio
+        import time
+        from prompt_toolkit.application import run_in_terminal
+
+        app = _live_app()
+        if app is None and threading.current_thread() is not _shell_thread:
+            # Startup race: the REPL is still coming up. Wait for it (instead of
+            # racing its CPR handshake with a raw read) but give up eventually
+            # so a missing/failed shell can't hang the script forever.
+            deadline = time.monotonic() + 10.0
+            while app is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+                app = _live_app()
+
+        if app is None:
+            return real_input(prompt)
+
+        async def _read():
+            return await run_in_terminal(lambda: real_input(prompt))
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(_read(), app.loop)
+        except RuntimeError:
+            # App's loop stopped between the check above and scheduling.
+            return real_input(prompt)
+        return future.result()
+
+    coordinated_input._ngs_coordinated = True
+    builtins.input = coordinated_input
+
+
 @contextmanager
 def _progress_patch_stdout(raw: bool = True):
     """Drop-in replacement for prompt_toolkit's ``patch_stdout``.
@@ -120,6 +195,7 @@ def _launch_interactive_shell(
 
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
+    _install_coordinated_input()
     from IPython.terminal.embed import InteractiveShellEmbed
 
     ipshell = [None]
@@ -149,7 +225,9 @@ def _launch_interactive_shell(
         ipshell[0] = InteractiveShellEmbed(user_ns=script_globals)
         ipshell[0].mainloop()
 
+    global _shell_thread
     t = threading.Thread(target=launch_shell, name="IPythonEmbedder", daemon=True)
+    _shell_thread = t
     t.start()
 
     def exit_shell():
