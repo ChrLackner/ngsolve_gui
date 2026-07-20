@@ -8,5 +8,6 @@ from .mesh_generation import MeshGenerationSection
 from .mesh_colors import MeshColorSection
 from .geometry_selection import GeometrySelectionSection
 from .entity_numbers import EntityNumbersSection
+from .regions import RegionsSection
 
 ColormapSection = ColorbarSection

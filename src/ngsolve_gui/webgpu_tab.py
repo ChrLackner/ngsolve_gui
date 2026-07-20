@@ -14,6 +14,7 @@ import math
 from .pick_overlay import PickOverlay
 from .property_panel import PropertyPanelMixin
 from .prop_widgets import Segmented
+from .undo import UndoStack
 from . import cerbsim_style as cb
 from .cerbsim_style import overlay_tr, VIEWPORT_CLEAR, VIEWPORT_TEXT
 
@@ -50,6 +51,9 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self.wgpu = WebgpuComponent()
         self.wgpu.ui_class = "fit"
         self.icon = "mdi-vector-triangle"
+
+        self.undo_stack = UndoStack()
+        self._last_pick = None
 
         # -- Gizmo visibility (persisted in user settings) --
         self.axes_visible = Observable(
@@ -207,6 +211,12 @@ class WebgpuTab(PropertyPanelMixin, Div):
     def toggle_picking(self):
         self.picking_enabled.toggle()
 
+    def undo_last(self):
+        """Revert the most recent undoable action (region hides etc.)."""
+        label = self.undo_stack.undo()
+        if label:
+            self.pick_overlay.show_info("Undone", [("action", label)])
+
     def _apply_picking_enabled(self, val, _old):
         if not getattr(self, '_picking_always_active', False):
             _usersettings.set("picking_enabled", val)
@@ -336,11 +346,13 @@ class WebgpuTab(PropertyPanelMixin, Div):
     def _on_pick_out(self, ev):
         if not hasattr(self, '_pick_mesh'):
             return
+        self._last_pick = None
         self._clear_highlight()
         self.pick_overlay.hide()
         self.scene.render()
 
     def _on_pick_background(self, ev):
+        self._last_pick = None
         self._clear_highlight()
         self.pick_overlay.hide()
         self.scene._render_highlight()
@@ -348,6 +360,7 @@ class WebgpuTab(PropertyPanelMixin, Div):
     def _on_pick_select(self, event, kind="surface"):
         try:
             result = MeshPickResult(event, self._pick_mesh, self.scene.options, kind=kind)
+            self._last_pick = result
             header, rows, accent = self._pick_info(result)
             if rows:
                 self.pick_overlay.show_info(header, rows, accent_last=accent)
@@ -461,6 +474,7 @@ class WebgpuTab(PropertyPanelMixin, Div):
         """
         flat = [
             ("r", self.reset_camera, "Reset camera", "General"),
+            ("u", self.undo_last, "Undo last action", "General"),
         ]
         modes = [
             (

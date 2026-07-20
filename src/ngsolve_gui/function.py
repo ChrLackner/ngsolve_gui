@@ -1,6 +1,7 @@
 from ngapp.components import *
 from ngsolve_webgpu import *
 from .webgpu_tab import WebgpuTab, _usersettings
+from .region_state import RegionState
 from . import cerbsim_style as cb
 import ngsolve as ngs
 import copy
@@ -184,6 +185,13 @@ class FunctionComponent(WebgpuTab):
             s.get("fieldlines_direction", 0), "fieldlines_direction", converter=int
         )
 
+        self.hidden_regions = Observable(
+            list(s.get("hidden_regions", [])), "hidden_regions"
+        )
+        self.boundary_overrides = Observable(
+            dict(s.get("boundary_overrides", {})), "boundary_overrides"
+        )
+
         if self.cf.is_complex:
             self.complex_mode = Observable(
                 s.get("complex_mode", "real"), "complex_mode"
@@ -243,6 +251,8 @@ class FunctionComponent(WebgpuTab):
             obs = getattr(self, f"{entity}_numbers_visible")
             obs.on_change(lambda val, _old, e=entity: self._apply_entity_numbers(e, val))
         self.numbers_one_based.on_change(self._apply_numbers_one_based)
+        self.hidden_regions.on_change(self._apply_region_change)
+        self.boundary_overrides.on_change(self._apply_region_change)
 
     # -- GPU side-effect handlers -------------------------------------------
 
@@ -440,6 +450,190 @@ class FunctionComponent(WebgpuTab):
             r.set_needs_update()
         self.wgpu.scene.render()
 
+    def _sync_region_state(self):
+        self.region_state.hidden = set(self.hidden_regions.value)
+        self.region_state.overrides = dict(self.boundary_overrides.value)
+
+    def _apply_region_change(self, _val=None, _old=None):
+        """Push the current region state to the GPU alpha buffer and re-render.
+
+        The alpha buffer write is a compute-pass trigger for the clip fill and
+        the arrow generators; the LIC field texture is dispatched Python-side,
+        so poke it explicitly. With autoscale on, the colormap range follows
+        the visible regions only.
+        """
+        self._sync_region_state()
+        st = self.region_state
+        self.region_visibility.set_alphas(
+            vol=st.vol_alphas(), surf=st.surf_alphas()
+        )
+        if self.lic is not None:
+            self.lic._refresh()
+        self._update_autoscale_range()
+        self.wgpu.scene.render()
+
+    def _push_region_undo(self, label):
+        prev_hidden = list(self.hidden_regions.value)
+        prev_overrides = dict(self.boundary_overrides.value)
+
+        def restore():
+            with observable_batch():
+                self.hidden_regions.value = prev_hidden
+                self.boundary_overrides.value = prev_overrides
+
+        self.undo_stack.push(label, restore)
+
+    def set_region_visible(self, name, visible):
+        hidden = set(self.hidden_regions.value)
+        if (name not in hidden) == bool(visible):
+            return
+        self._push_region_undo(("show " if visible else "hide ") + name)
+        if visible:
+            hidden.discard(name)
+        else:
+            hidden.add(name)
+        self.hidden_regions.value = sorted(hidden)
+
+    def set_boundary_override(self, name, state):
+        """state: True = force show, False = force hide, None = auto."""
+        overrides = dict(self.boundary_overrides.value)
+        if overrides.get(name) == state:
+            return
+        word = "auto" if state is None else ("show" if state else "hide")
+        self._push_region_undo(f"boundary {name}: {word}")
+        if state is None:
+            overrides.pop(name, None)
+        else:
+            overrides[name] = state
+        self.boundary_overrides.value = overrides
+
+    def show_all_regions(self):
+        if not self.hidden_regions.value and not self.boundary_overrides.value:
+            return
+        self._push_region_undo("show all")
+        with observable_batch():
+            self.hidden_regions.value = []
+            self.boundary_overrides.value = {}
+
+    def _region_under_cursor(self):
+        """Volume region name under the cursor (via the last hover pick)."""
+        result = self._last_pick
+        if result is None:
+            return None
+        st = self.region_state
+        if self.mesh.dim == 2 or result.kind == "clipping":
+            return st.material_name(result.region_index)
+        if result.kind == "surface":
+            # Boundary pick: resolve through the fd adjacency, preferring a
+            # currently visible adjacent volume region (hiding the visible one
+            # is what "hide what I see" means on an interface).
+            if result.region_index >= len(st.fd_doms):
+                return None
+            doms = st.fd_doms[result.region_index]
+            names = [st.material_name(d - 1) for d in doms if d >= 1]
+            names = [n for n in names if n is not None]
+            visible = [n for n in names if n not in st.hidden]
+            return (visible or names or [None])[0]
+        return None
+
+    def hide_region_under_cursor(self):
+        name = self._region_under_cursor()
+        if name is not None:
+            self.set_region_visible(name, False)
+
+    def isolate_region_under_cursor(self):
+        name = self._region_under_cursor()
+        if name is None:
+            return
+        others = sorted(m for m in self.region_state.unique_materials if m != name)
+        if others == sorted(self.hidden_regions.value):
+            return
+        self._push_region_undo(f"isolate {name}")
+        self.hidden_regions.value = others
+
+    # -- Autoscale over visible regions --------------------------------------
+
+    def _update_autoscale_range(self):
+        """Scope the function range to the visible regions.
+
+        The renderers re-widen the colormap from ``func_data.minval/maxval``
+        every frame when autoscale is on, so overriding those (and restoring
+        the cached full range when nothing is hidden) is all it takes.
+        """
+        func_data = getattr(self, "func_data", None)
+        if func_data is None:
+            return
+        if self._full_range is None and func_data._timestamp >= 0:
+            self._full_range = (list(func_data.minval), list(func_data.maxval))
+        if not self.region_state.any_hidden():
+            if self._full_range is not None:
+                func_data.minval, func_data.maxval = (
+                    list(self._full_range[0]), list(self._full_range[1]))
+        else:
+            mm = self._visible_minmax()
+            if mm is not None:
+                func_data.minval, func_data.maxval = mm
+        if self.colormap_autoscale.value:
+            self.wgpu.scene.redraw(blocking=True)
+            self.colormap_min.value = float(self.colormap.minval)
+            self.colormap_max.value = float(self.colormap.maxval)
+
+    def _visible_minmax(self):
+        """(minval, maxval) lists ([norm, comp0, ...]) over the visible
+        regions, evaluated like ``evaluate_cf`` does; None if not computable."""
+        import numpy as np
+        import re
+
+        st = self.region_state
+        visible_mats = [m for m in st.unique_materials if m not in st.hidden]
+        if not visible_mats:
+            return None
+        regions = []
+        mat_pattern = "|".join(re.escape(m) for m in visible_mats)
+        if self.mesh.dim == 3:
+            if self.clippingcf is not None and self.clipping_visible.value:
+                regions.append((self.mesh.Materials(mat_pattern),
+                                (ngs.ET.TET, ngs.ET.HEX, ngs.ET.PRISM, ngs.ET.PYRAMID)))
+            if self.elements2d is not None and self.elements2d_visible.value:
+                bnd_names = st.visible_boundary_names()
+                if bnd_names:
+                    bnd_pattern = "|".join(re.escape(b) for b in bnd_names)
+                    regions.append((self.mesh.Boundaries(bnd_pattern),
+                                    (ngs.ET.TRIG, ngs.ET.QUAD)))
+            if not regions:
+                regions.append((self.mesh.Materials(mat_pattern),
+                                (ngs.ET.TET, ngs.ET.HEX, ngs.ET.PRISM, ngs.ET.PYRAMID)))
+        else:
+            regions.append((self.mesh.Materials(mat_pattern),
+                            (ngs.ET.TRIG, ngs.ET.QUAD)))
+
+        order = max(2 * self.order, 2)
+        minval = None
+        maxval = None
+        for region, eltypes in regions:
+            try:
+                rules = {et: ngs.IntegrationRule(et, order) for et in eltypes}
+                with ngs.TaskManager():
+                    pts = self.mesh.MapToAllElements(rules, region)
+                    vals = self.cf(pts)
+            except Exception:
+                continue
+            vals = np.asarray(vals).reshape(len(pts), -1)
+            comps = np.abs(vals) if self.cf.is_complex else np.real(vals)
+            if comps.size == 0:
+                continue
+            norm = np.linalg.norm(comps, axis=1)
+            mn = [float(np.min(norm))] + [float(v) for v in np.min(comps, axis=0)]
+            mx = [float(np.max(norm))] + [float(v) for v in np.max(comps, axis=0)]
+            if minval is None:
+                minval, maxval = mn, mx
+            else:
+                minval = [min(a, b) for a, b in zip(minval, mn)]
+                maxval = [max(a, b) for a, b in zip(maxval, mx)]
+        if minval is None:
+            return None
+        return minval, maxval
+
     # -- Keybinding support -------------------------------------------------
 
     _COLORMAPS = ["rainbow", "turbo", "viridis", "plasma", "cet_l20", "matlab:jet", "matplotlib:coolwarm"]
@@ -519,6 +713,20 @@ class FunctionComponent(WebgpuTab):
                         ("a", lambda: setattr(self.complex_mode, 'value', 'abs'), "Absolute value"),
                         ("p", lambda: setattr(self.complex_mode, 'value', 'arg'), "Phase/Arg"),
                         ("space", lambda: self.complex_animate.toggle(), "Toggle animation"),
+                    ],
+                )
+            )
+
+        # g → Regions (hide/isolate what's under the cursor; u undoes)
+        if len(self.region_state.unique_materials) > 1:
+            kb["modes"].append(
+                (
+                    "g",
+                    "Regions",
+                    [
+                        ("h", self.hide_region_under_cursor, "Hide region under cursor"),
+                        ("i", self.isolate_region_under_cursor, "Isolate region under cursor"),
+                        ("a", self.show_all_regions, "Show all regions"),
                     ],
                 )
             )
@@ -684,6 +892,18 @@ class FunctionComponent(WebgpuTab):
         )
 
     def draw(self):
+        # Per-tab region visibility: shared alpha buffer (like clipping /
+        # colormap), fed from the saved hidden-regions state.
+        if not hasattr(self, "region_state"):
+            self.region_state = RegionState(self.mesh)
+            self.region_visibility = RegionVisibility()
+            self._full_range = None
+        self._sync_region_state()
+        self.region_visibility.set_alphas(
+            vol=self.region_state.vol_alphas(),
+            surf=self.region_state.surf_alphas(),
+        )
+
         func_data = self.app_data.get_function_gpu_data(
             self.cf, self.region_or_mesh, order=self.order
         )
@@ -869,6 +1089,12 @@ class FunctionComponent(WebgpuTab):
                 )
             self.contact_pairs.active = self.contact_enabled.value
 
+        for r in [self.wireframe, self.elements2d, self.clippingcf,
+                  self.clipping_vectors, self.surface_vectors, self.lic,
+                  self.facet_renderer]:
+            if r is not None:
+                r.region_visibility = self.region_visibility
+
         render_objects = [
             obj
             for obj in [
@@ -922,6 +1148,7 @@ from .sections import (
     VectorsFlowSection,
     ComplexSection,
     EntityNumbersSection,
+    RegionsSection,
 )
 
 # Colormap/colorbar lives in the always-visible FieldSummary (property_summary),
@@ -929,6 +1156,7 @@ from .sections import (
 # VectorsFlowSection (grouped with streamlines), so it has no section of its own.
 FunctionComponent.property_sections = [
     FunctionDisplaySection,
+    RegionsSection,
     DeformationSection,
     VectorsFlowSection,
     ComplexSection,
