@@ -31,6 +31,8 @@ class GeometryComponent(WebgpuTab):
         self.pick_edges = Observable(True, "pick_edges")
         self.pick_vertices = Observable(False, "pick_vertices")
         self._hidden_solids = set()  # set of hidden solid indices
+        self._hidden_edges = set()  # set of explicitly hidden edge indices
+        self._hidden_vertices = set()  # set of explicitly hidden vertex indices
         self._face_to_solids = defaultdict(set)  # face_idx -> set of solid indices
         super().__init__(name, data, app_data)
         self.show_edges.on_change(self._apply_show_edges)
@@ -78,6 +80,7 @@ class GeometryComponent(WebgpuTab):
 
     def _apply_show_edges(self, val, _old):
         self.geo_renderer.edges.active = val
+        self.geo_renderer.edges.set_needs_update()
         self.scene.render()
 
     def toggle_faces(self):
@@ -85,6 +88,7 @@ class GeometryComponent(WebgpuTab):
 
     def _apply_show_faces(self, val, _old):
         self.geo_renderer.faces.active = val
+        self.geo_renderer.faces.set_needs_update()
         self.scene.render()
 
     def toggle_vertices(self):
@@ -92,6 +96,7 @@ class GeometryComponent(WebgpuTab):
 
     def _apply_show_vertices(self, val, _old):
         self.geo_renderer.vertices.active = val or self.pick_vertices.value
+        self.geo_renderer.vertices.set_needs_update()
         self.scene.render()
 
     def _create_meshing_geo(self):
@@ -166,6 +171,8 @@ class GeometryComponent(WebgpuTab):
 
     def _show_all_shapes(self):
         self._hidden_solids.clear()
+        self._hidden_edges.clear()
+        self._hidden_vertices.clear()
         colors = self.geo_renderer.faces.colors
         for i in range(len(colors) // 4):
             colors[i * 4 + 3] = 1.0
@@ -240,20 +247,18 @@ class GeometryComponent(WebgpuTab):
 
         self._build_edge_to_faces()
         edge_colors = self.geo_renderer.edges.colors
-        for ei, faces in self._edge_to_faces.items():
-            if faces and faces.issubset(hidden_faces):
-                edge_colors[ei * 4 + 3] = 0.0
-            else:
-                edge_colors[ei * 4 + 3] = 1.0
+        for ei in range(len(edge_colors) // 4):
+            faces = self._edge_to_faces.get(ei, set())
+            hidden = ei in self._hidden_edges or (faces and faces.issubset(hidden_faces))
+            edge_colors[ei * 4 + 3] = 0.0 if hidden else 1.0
         self.geo_renderer.edges.set_colors(edge_colors)
 
         self._build_vertex_to_faces()
         vert_colors = self.geo_renderer.vertices.colors
-        for vi, faces in self._vertex_to_faces.items():
-            if faces and faces.issubset(hidden_faces):
-                vert_colors[vi * 4 + 3] = 0.0
-            else:
-                vert_colors[vi * 4 + 3] = 1.0
+        for vi in range(len(vert_colors) // 4):
+            faces = self._vertex_to_faces.get(vi, set())
+            hidden = vi in self._hidden_vertices or (faces and faces.issubset(hidden_faces))
+            vert_colors[vi * 4 + 3] = 0.0 if hidden else 1.0
         self.geo_renderer.vertices.set_colors(vert_colors)
 
     def _get_entity(self, kind, index):
@@ -315,9 +320,9 @@ class GeometryComponent(WebgpuTab):
             if kind == "face":
                 face_colors[idx * 4 + 3] = 0.0
             elif kind == "edge":
-                edge_colors = self.geo_renderer.edges.colors
-                edge_colors[idx * 4 + 3] = 0.0
-                self.geo_renderer.edges.set_colors(edge_colors)
+                self._hidden_edges.add(idx)
+            elif kind == "vertex":
+                self._hidden_vertices.add(idx)
             elif kind == "solid":
                 self._hidden_solids.add(idx)
         # For solids: hide faces only if ALL their solids are hidden
@@ -569,6 +574,7 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer.edges._select_active = edges
         self.geo_renderer.vertices._select_active = vertices
         self.geo_renderer.vertices.active = vertices or self.show_vertices.value
+        self.geo_renderer.vertices.set_needs_update()
         if hasattr(self.scene, '_select_buffer_valid'):
             self.scene._select_buffer_valid = False
         self.scene.render()
