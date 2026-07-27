@@ -71,7 +71,7 @@ class FunctionComponent(WebgpuTab):
             if isinstance(cf, ngs.GridFunction):
                 self.order = min(2, cf.space.globalorder)
         self.deformation = self._resolve_deformation(data.get("deformation", None))
-        self.deformation_order = data.get("deformation_order", 1)
+        self.deformation_order = data.get("deformation_order", self.order)
         self.facet = data.get("facet", None)
         self.contact = data.get("contact", None)
         self.contact_pairs = None
