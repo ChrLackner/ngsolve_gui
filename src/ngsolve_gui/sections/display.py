@@ -121,13 +121,13 @@ class FunctionDisplaySection(Section):
         )]
 
         chips_adv = []
-        if comp.facet_renderer is not None:
+        if comp._facet_supported:
             chips_adv.append(Chip("ElementBND", "mdi-vector-polyline", comp.facet_visible))
         if comp.contact is not None:
             chips_adv.append(Chip("Contact Pairs", "mdi-vector-intersection", comp.contact_enabled))
         if chips_adv:
             more_items.append(chip_row(*chips_adv))
-        if comp.facet_renderer is not None:
+        if comp._facet_supported:
             thickness = QSlider(
                 ui_model_value=comp.facet_thickness,
                 ui_min=0.001, ui_max=0.05, ui_step=0.001, ui_dense=True, ui_label=True,

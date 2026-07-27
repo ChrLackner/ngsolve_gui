@@ -25,6 +25,32 @@ def _fmt_value(v):
 
 
 class FunctionComponent(WebgpuTab):
+    def _resolve_deformation(self, deform):
+        """Normalize the ``deformation`` Draw argument into a 3d displacement CF."""
+        if deform is None or deform is False:
+            return None
+        if deform is True:
+            deform = self.cf
+        if not isinstance(deform, ngs.CoefficientFunction):
+            print(f"Warning: ignoring deformation of type {type(deform).__name__}")
+            return None
+        # FacetFESpace functions can't be evaluated inside elements
+        if isinstance(deform, ngs.GridFunction) and isinstance(
+            deform.space, ngs.FacetFESpace
+        ):
+            return None
+        if deform.dim == 3:
+            return deform
+        if deform.dim == 2:
+            return ngs.CF((deform[0], deform[1], 0))
+        if deform.dim == 1 and self.mesh.dim < 3:
+            return ngs.CF((0, 0, deform))
+        print(
+            f"Warning: cannot use a {deform.dim}-dimensional field as deformation "
+            f"on a {self.mesh.dim}d mesh"
+        )
+        return None
+
     def __init__(self, name, data, app_data):
         self.app_data = app_data
         cf = data["obj"]
@@ -44,11 +70,13 @@ class FunctionComponent(WebgpuTab):
             self.order = 2
             if isinstance(cf, ngs.GridFunction):
                 self.order = min(2, cf.space.globalorder)
-        self.deformation = data.get("deformation", None)
+        self.deformation = self._resolve_deformation(data.get("deformation", None))
         self.deformation_order = data.get("deformation_order", 1)
         self.facet = data.get("facet", None)
         self.contact = data.get("contact", None)
         self.contact_pairs = None
+        self.facet_renderer = None
+        self._facet_supported = bool(self.draw_vol) and self.mesh.dim in (2, 3)
 
         # -- Resolve initial values from data args + saved settings ---------
         tab = app_data.get_tab(name)
@@ -70,10 +98,7 @@ class FunctionComponent(WebgpuTab):
             and self.cf.dim == 1
             and self.mesh.dim < 3
         ):
-            # Skip auto-deformation for FacetFESpace (can't evaluate on elements)
-            is_facet = isinstance(self.cf, ngs.GridFunction) and isinstance(self.cf.space, ngs.FacetFESpace)
-            if not is_facet:
-                self.deformation = ngs.CF((0, 0, self.cf))
+            self.deformation = self._resolve_deformation(True)
 
         cv = data.get("clipping_vectors", False)
         sv = data.get("surface_vectors", False)
@@ -147,7 +172,7 @@ class FunctionComponent(WebgpuTab):
             s.get("vector_scale_by_value", False), "vector_scale_by_value",
         )
         self.deformation_enabled = Observable(
-            data.get("deformation", None) is not None
+            ("deformation" in data and self.deformation is not None)
             or s.get("deformation_enabled", False),
             "deformation_enabled",
         )
@@ -306,7 +331,51 @@ class FunctionComponent(WebgpuTab):
         )
         self.elements2d.active = self.elements2d_visible.value and not hide_for_lic
 
+    def _create_facet_renderer(self):
+        """Build the element-boundary renderer on demand.
+
+        Extracting the CF on all element boundaries is expensive, so this only
+        runs once the user actually switches element-boundary rendering on."""
+        if self.facet_renderer is not None or not self._facet_supported:
+            return self.facet_renderer
+        facet_cf = (
+            self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
+        )
+        try:
+            if self.mesh.dim == 2:
+                # deformation is baked in unconditionally; the deformation_scale
+                # uniform (0 when disabled) switches it on and off
+                facet_data = FacetFunctionData(
+                    self._mesh_data, facet_cf, order=self.order,
+                    deformation_cf=self.deformation,
+                )
+                self.facet_renderer = FacetCFRenderer(
+                    facet_data, colormap=self.colormap, clipping=self.clipping,
+                    thickness=self.facet_thickness.value,
+                )
+            else:
+                from ngsolve_webgpu.facet_cf import FacetCFRenderer3D
+
+                self.facet_renderer = FacetCFRenderer3D(
+                    self._mesh_data, facet_cf, order=self.order,
+                    colormap=self.colormap, clipping=self.clipping,
+                )
+        except Exception as e:
+            import traceback
+            print(f"Warning: facet renderer creation failed: {e}")
+            traceback.print_exc()
+            self.facet_renderer = None
+            return None
+        self.facet_renderer.region_visibility = self.region_visibility
+        return self.facet_renderer
+
     def _apply_facet(self, visible, _old):
+        if getattr(self, "_mesh_data", None) is None:
+            return
+        if visible and self.facet_renderer is None:
+            if self._create_facet_renderer() is None:
+                return
+            self.scene.render_objects.append(self.facet_renderer)
         if self.facet_renderer is not None:
             self.facet_renderer.active = visible
             self.wgpu.scene.render()
@@ -399,9 +468,7 @@ class FunctionComponent(WebgpuTab):
             )
         else:
             self.mdata.deformation_scale = 0.0
-        if self.clippingcf is not None:
-            self.clippingcf.set_needs_update()
-        self.wgpu.scene.render()
+        self._refresh_deformed_renderers()
 
     def _apply_deformation_scale(self, _val, _old):
         if self.mdata is None:
@@ -410,9 +477,16 @@ class FunctionComponent(WebgpuTab):
             self.mdata.deformation_scale = (
                 self.deformation_scale.value * self.deformation_scale2.value
             )
-            if self.clippingcf is not None:
-                self.clippingcf.set_needs_update()
-            self.wgpu.scene.render()
+            self._refresh_deformed_renderers()
+
+    def _refresh_deformed_renderers(self):
+        """Renderers that read the deformation scale on their own (i.e. not via
+        the shared mesh uniform) need an explicit update."""
+        if self.clippingcf is not None:
+            self.clippingcf.set_needs_update()
+        if self.facet_renderer is not None:
+            self.facet_renderer.set_needs_update()
+        self.wgpu.scene.render()
 
     def _pick_info(self, result):
         """Element / region / position / value — value uses the *undeformed*
@@ -646,7 +720,7 @@ class FunctionComponent(WebgpuTab):
         show = [("w", self.toggle_wireframe, "Toggle wireframe")]
         if self.draw_surf:
             show.append(("s", self.toggle_surface_solution, "Toggle surface"))
-        if self.facet_renderer is not None:
+        if self._facet_supported:
             show.append(("e", self.toggle_facet, "Toggle element boundaries"))
         if self.surface_vectors is not None:
             show.append(("v", self.toggle_surface_vectors, "Toggle surface vectors"))
@@ -1029,37 +1103,10 @@ class FunctionComponent(WebgpuTab):
         else:
             self.elements2d = None
 
-        # Facet rendering (element-boundary CF visualization)
         self.facet_renderer = None
-        if self.mesh.dim == 2 and self.draw_vol:
-            facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
-            try:
-                facet_data = FacetFunctionData(
-                    mdata, facet_cf, order=self.order,
-                    deformation_cf=self.deformation if self.deformation is not None and self.deformation_enabled.value else None,
-                )
-                self.facet_renderer = FacetCFRenderer(
-                    facet_data, colormap=self.colormap, clipping=self.clipping,
-                    thickness=self.facet_thickness.value,
-                )
-            except Exception as e:
-                import traceback
-                print(f"Warning: facet renderer creation failed: {e}")
-                traceback.print_exc()
-        elif self.mesh.dim == 3 and self.draw_vol:
-            try:
-                from ngsolve_webgpu.facet_cf import FacetCFRenderer3D
-                facet_cf = self.facet if isinstance(self.facet, ngs.CoefficientFunction) else self.cf
-                self.facet_renderer = FacetCFRenderer3D(
-                    mdata, facet_cf, order=self.order,
-                    colormap=self.colormap, clipping=self.clipping,
-                )
-            except Exception as e:
-                import traceback
-                print(f"Warning: 3D facet renderer creation failed: {e}")
-                traceback.print_exc()
-        if self.facet_renderer is not None:
-            self.facet_renderer.active = self.facet_visible.value
+        self._mesh_data = mdata
+        if self.facet_visible.value and self._create_facet_renderer() is not None:
+            self.facet_renderer.active = True
         if self.cf.is_complex:
             for r in self._complex_renderers:
                 r._scene = self.scene
@@ -1090,8 +1137,7 @@ class FunctionComponent(WebgpuTab):
             self.contact_pairs.active = self.contact_enabled.value
 
         for r in [self.wireframe, self.elements2d, self.clippingcf,
-                  self.clipping_vectors, self.surface_vectors, self.lic,
-                  self.facet_renderer]:
+                  self.clipping_vectors, self.surface_vectors, self.lic]:
             if r is not None:
                 r.region_visibility = self.region_visibility
 
