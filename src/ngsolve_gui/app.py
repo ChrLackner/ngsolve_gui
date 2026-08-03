@@ -195,8 +195,9 @@ class Settings(QMenu):
 
 
 class NGSolveGui(App):
-    def __init__(self, filename=None, local_path=None):
+    def __init__(self, filename=None, local_path=None, script_args=None):
         self._local_path = local_path
+        self.script_args = list(script_args or [])
         self.app_data = AppData()
 
         # -- Toolbar buttons (compact flat icon buttons, muted like the designer) --

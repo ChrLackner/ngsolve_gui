@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -27,21 +28,22 @@ def _file_extension_matches(path: Path, suffixes: Iterable[str]) -> bool:
     return any(lower_path.endswith(suffix) for suffix in suffixes)
 
 
-def _build_loader_snippet(filename: str, name: str) -> str:
-    """Return the Python snippet used to load a supported file."""
+def _build_loader_snippet(filename: str, name: str) -> tuple[str, str]:
+    """Return ``(source, compile_name)`` for a supported file.
+    """
     path = Path(filename)
     ext = path.suffix.lower()
 
     if _file_extension_matches(path, (".vol", ".vol.gz")):
         return f"""import ngsolve
 mesh = ngsolve.Mesh('{filename}')
-ngsolve.Draw(mesh, '{name}')"""
+ngsolve.Draw(mesh, '{name}')""", "<ngsolve_gui:mesh>"
 
     if ext in {".step", ".iges", ".stp", ".brep"}:
         return f"""import netgen.occ
 import ngsolve
 geometry = netgen.occ.OCCGeometry("{filename}")
-ngsolve.Draw(geometry, name='{name}')"""
+ngsolve.Draw(geometry, name='{name}')""", "<ngsolve_gui:geometry>"
 
     if ext == ".pkl":
         return f"""import netgen.occ
@@ -52,12 +54,12 @@ print("Loaded object of type", type(obj))
 if isinstance(obj, netgen.occ.TopoDS_Shape):
     obj = netgen.occ.OCCGeometry(obj)
 print("Loaded object of type", type(obj))
-ngsolve.Draw(obj, name='{name}')"""
+ngsolve.Draw(obj, name='{name}')""", "<ngsolve_gui:pickle>"
 
     if ext == ".py":
         import tokenize
         with tokenize.open(filename) as f:
-            return f.read()
+            return f.read(), str(path)
 
     raise ValueError(f"Unsupported file type: {ext.lstrip('.')}")
 
@@ -204,7 +206,7 @@ def _launch_interactive_shell(
         _lower_thread_priority()
         _force_headless_matplotlib()
         try:
-            exec(compile(code, "<embedded>", "exec"), script_globals)
+            exec(code, script_globals)
         except (SystemExit, KeyboardInterrupt):
             pass
         except Exception:
@@ -418,10 +420,22 @@ def load_file(filename, app):
         if loader(filename, app):
             return None
 
-    path = Path(filename)
+    path = Path(filename).resolve()
     name = path.stem
-    code = _build_loader_snippet(filename, name)
-    script_globals = {"__name__": "__main__"}
+    source, compile_name = _build_loader_snippet(str(path), name)
+
+    script_globals = {
+        "__name__": "__main__",
+        "__file__": str(path),
+        "__builtins__": __builtins__,
+    }
+    script_dir = str(path.parent)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+
+    sys.argv = [str(path)] + list(getattr(app, "script_args", None) or [])
+
+    code = compile(source, compile_name, "exec")
     return _run_script(code, script_globals, app)
 
 

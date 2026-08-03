@@ -49,11 +49,21 @@ def main():
         nargs=argparse.REMAINDER,
         help="Run a module as `python -m MODULE ...`; remaining args are passed to it",
     )
+    parser.add_argument(
+        "--args",
+        dest="script_args",
+        nargs=argparse.REMAINDER,
+        default=[],
+        help="Arguments for the loaded script; become its sys.argv[1:] "
+        "(e.g. `ngsolve_gui bench.py --args --ra 1e5 --n 16`)",
+    )
     # get absolute path of file from command line
     args = parser.parse_args()
     app_args = {}
     if args.filename:
         app_args["filename"] = [Path(f).resolve() for f in args.filename]
+    if args.script_args:
+        app_args["script_args"] = args.script_args
     if args.module:
         app_args["module"] = args.module[0]
         app_args["module_args"] = args.module[1:]
