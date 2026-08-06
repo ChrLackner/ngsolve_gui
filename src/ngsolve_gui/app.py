@@ -6,6 +6,7 @@ from ngapp.app import App
 from ngapp.components import *
 
 from .app_data import AppData
+from .controls import ControlBar
 from .file_loader import load_file
 from ngapp.keybindings import KeybindingManager, keybinding_styles
 from .navigator import Navigator
@@ -17,7 +18,45 @@ from .system_monitor import SystemMonitor
 from .footer import StatusFooter
 
 
-class Panel(Div):
+class StackHost(Div):
+    """Hosts several panels, keeping them mounted and showing only one.
+
+    Swapping ``ui_children`` unmounts the old subtree, and every (re)mounted
+    component costs a websocket round trip — for a viewport that also means a
+    full WebGPU canvas teardown and scene reconnect. So panels are built once
+    and switching only toggles ``ui_hidden``.
+    """
+
+    def __init__(self, **kwargs):
+        self._panels = {}
+        super().__init__(**kwargs)
+
+    def show(self, key, factory=None):
+        comp = self._panels.get(key)
+        if comp is None and factory is not None:
+            self._panels[key] = comp = factory()
+            self._sync_children()
+        for k, c in self._panels.items():
+            c.ui_hidden = k != key
+        return comp
+
+    def discard(self, key):
+        if self._panels.pop(key, None) is not None:
+            self._sync_children()
+
+    def prune(self, keep):
+        """Drop panels whose key is gone (``None`` is the placeholder key)."""
+        stale = [k for k in self._panels if k is not None and k not in keep]
+        for key in stale:
+            del self._panels[key]
+        if stale:
+            self._sync_children()
+
+    def _sync_children(self):
+        self.ui_children = list(self._panels.values())
+
+
+class Panel(StackHost):
     def __init__(self, app_data):
         self.app_data = app_data
         self.comp = None
@@ -26,24 +65,21 @@ class Panel(Div):
 
     def set_tab(self):
         name = self.app_data.active_tab
-        if name is None:
-            self.ui_children = []
-            return
-        tab = self.app_data.get_tab(name)
+        tab = self.app_data.get_tab(name) if name is not None else None
         if tab is None:
-            self.ui_children = []
+            self.comp = None
+            self.show(None)
+            self.prune(set(self.app_data.get_tabs()))
             return
-        if "component" in tab:
-            self.comp = comp = tab["component"]
-        else:
+        comp = tab.get("component")
+        if comp is None:
             cls = self._resolve_class(tab["type"])
-            self.comp = comp = cls(
-                tab["name"],
-                tab["data"],
-                app_data=self.app_data,
-            )
+            comp = cls(tab["name"], tab["data"], app_data=self.app_data)
             tab["component"] = comp
-        self.ui_children = [comp]
+        if self._panels.get(name) is not comp:
+            self.discard(name)   # tab reloaded under the same name
+        self.comp = self.show(name, lambda: comp)
+        self.prune(set(self.app_data.get_tabs()))
 
     def _resolve_class(self, type_key):
         from .registry import get_component_info
@@ -263,8 +299,10 @@ class NGSolveGui(App):
         self.navigator = Navigator(self.app_data, self._click_tab, self._load_file)
         # The property panel is owned by each component; this host swaps in the
         # active component's own panel (built via comp.build_property_panel()).
-        self.property_host = Div(empty_property_panel(), ui_class=panel_full)
+        self.property_host = StackHost(ui_class=panel_full)
+        self.property_host.show(None, empty_property_panel)
         self.tab_panel = Panel(self.app_data)
+        self.controls = ControlBar()
         self.footer = StatusFooter()
 
         from .meshing_preview import install as _install_meshing_preview
@@ -289,7 +327,7 @@ class NGSolveGui(App):
                 "before": [Div(self.tab_panel, ui_class=flex_fill)],
                 "after": [self.property_host],
             },
-            ui_class=cb.body_height,
+            ui_class=cb.body_inner,
         )
         self._inner_splitter.on_update_model_value(self._on_prop_width_change)
 
@@ -303,7 +341,7 @@ class NGSolveGui(App):
                 "before": [self.navigator],
                 "after": [self._inner_splitter],
             },
-            ui_class=cb.body_height,
+            ui_class=cb.body_fill,
         )
         self._outer_splitter.on_update_model_value(self._on_nav_width_change)
 
@@ -323,8 +361,9 @@ class NGSolveGui(App):
         ))
 
         super().__init__(
-            bar, page, self.footer, self._timer_dialog,
+            bar, page, self.controls, self.footer, self._timer_dialog,
             self.kb.indicator, self.kb.help_overlay,
+            ui_class=str(cb.app_root),
         )
 
         # Keep the footer's mode indicator in sync with the keybinding manager.
@@ -400,6 +439,7 @@ class NGSolveGui(App):
     def _load_with_status(self, filename):
         if not filename:
             return
+        self.controls.clear()
         result = load_file(filename, self)
         if result:
             thread, done_event = result
@@ -417,22 +457,34 @@ class NGSolveGui(App):
         self.app_data._update = self._update
 
     def _click_tab(self, tabname):
+        if tabname == self.app_data.active_tab and self.tab_panel.comp is not None:
+            return
         self.app_data.active_tab = tabname
         self.tab_panel.set_tab()
         self.navigator.update()
+        self._activate(tabname)
+
+    def _activate(self, tabname):
+        """Point property panel, footer and keybindings at the active tab."""
         comp = self.tab_panel.comp
-        tab = self.app_data.get_tab(tabname)
-        type_key = tab.get("type", "") if tab else ""
+        tab = self.app_data.get_tab(tabname) if tabname else None
         self._show_property_panel(comp)
-        self.footer.set_component(comp, type_key)
+        self.footer.set_component(comp, tab.get("type", "") if tab else "")
         self.kb.set_component(comp)
 
     def _show_property_panel(self, comp):
-        """Host the active component's own property panel (or a placeholder)."""
-        if comp is not None and hasattr(comp, "build_property_panel"):
-            self.property_host.ui_children = [comp.build_property_panel()]
-        else:
-            self.property_host.ui_children = [empty_property_panel()]
+        """Host the active component's own property panel (or a placeholder).
+
+        Panels are kept mounted per component (keyed by the component itself) —
+        rebuilding one means re-creating every section on every tab click.
+        """
+        live = {t["component"] for t in self.app_data.get_tabs().values()
+                if "component" in t}
+        self.property_host.prune(live)
+        if comp is None or not hasattr(comp, "build_property_panel"):
+            self.property_host.show(None, empty_property_panel)
+            return
+        self.property_host.show(comp, comp.build_property_panel)
 
     def _toggle_navigator(self):
         self._nav_visible = not self._nav_visible
@@ -576,15 +628,4 @@ class NGSolveGui(App):
     def _update(self):
         self.navigator.update()
         self.tab_panel.set_tab()
-        active = self.app_data.active_tab
-        if active:
-            comp = self.tab_panel.comp
-            tab = self.app_data.get_tab(active)
-            type_key = tab.get("type", "") if tab else ""
-            self._show_property_panel(comp)
-            self.footer.set_component(comp, type_key)
-            self.kb.set_component(comp)
-        else:
-            self._show_property_panel(None)
-            self.footer.set_component(None, "")
-            self.kb.set_component(None)
+        self._activate(self.app_data.active_tab)

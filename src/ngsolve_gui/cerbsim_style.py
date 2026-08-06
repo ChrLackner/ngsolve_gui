@@ -221,7 +221,7 @@ def _cls(name, **props):
 # Top app bar
 app_bar = _cls(
     "cb-app-bar",
-    display="flex", align_items="center", gap="6px",
+    display="flex", align_items="center", gap="6px", flex="none",
     height="48px", min_height="48px", padding="0 8px 0 12px",
     background="var(--panel-header)",
     color="var(--fg)",
@@ -1006,8 +1006,15 @@ probe_del = _cls(
 )
 css.add_rule(".cb-probe-del:hover", Style(color="var(--danger)", background="var(--danger-bg)"))
 css.add_rule(".cb-probe-del .q-icon", Style(font_size="13px"))
-# Body height = viewport minus top app bar (48px) and bottom status bar (28px).
-body_height = _cls("cb-body-height", height="calc(100vh - 76px)")
+app_root = _cls(
+    "cb-app-root",
+    display="flex", flex_direction="column", height="100vh", overflow="hidden",
+)
+# The body: takes whatever the fixed-height siblings leave.  `min-height: 0` is
+# what lets it actually shrink; a flex item's floor is its content otherwise.
+body_fill = _cls("cb-body-fill", flex="1 1 auto", min_height="0")
+# The nested splitter fills the outer splitter's panel, which is already sized.
+body_inner = _cls("cb-body-inner", height="100%", min_height="0")
 # Responsive checkbox grid.
 toggle_grid = _cls(
     "cb-toggle-grid",
@@ -1072,10 +1079,70 @@ status_fill_indeterminate = _cls(
     background="var(--accent)", animation="cb-indeterminate 1.4s ease infinite",
 )
 
+# ── Script control bar (ngsolve_gui.controls) ────────────────────────────────
+# Sits between the viewport and the status bar, app-level rather than per-tab:
+# a script's control drives every drawn object at once. Hidden while empty.
+# `flex: none` because it is a child of `cb-app-root`: it keeps its content
+# height (one row, or two once it wraps) and the body gives up the difference.
+ctlbar = _cls(
+    "cb-ctlbar",
+    display="flex", align_items="center", gap="16px", flex_wrap="wrap",
+    flex="none", min_height="38px", padding="5px 12px",
+    background="var(--panel-header)",
+    border_top="1px solid var(--border)", font_size="12px",
+    color="var(--fg-muted)",
+)
+ctl_group = _cls(
+    "cb-ctl-group",
+    display="flex", align_items="center", gap="8px", flex="none",
+)
+ctl_grow = _cls("cb-ctl-grow", flex="1", min_width="260px")
+ctl_label = _cls(
+    "cb-ctl-label", font_size="12px", font_weight="600", color="var(--fg)",
+    white_space="nowrap", flex="none",
+)
+ctl_val = _cls(
+    "cb-ctl-val", font_family="var(--font-mono)", font_size="11.5px",
+    color="var(--fg)", min_width="86px", text_align="right", flex="none",
+    font_variant_numeric="tabular-nums",
+)
+ctl_wide = _cls("cb-ctl-wide", min_width="0", text_align="left")
+ctl_slider = _cls("cb-ctl-slider", flex="1", min_width="140px")
+ctl_btn = _cls("cb-ctl-btn", color="var(--fg-muted)")
+# Fixed choices (playback rate, a mode): the property panel's segmented pills,
+# shrunk to the bar's height.  Monospaced, because these are usually numbers.
+ctl_seg = _cls(
+    "cb-ctl-seg", display="flex", flex="none",
+    border="1px solid var(--border-strong)", border_radius="var(--r-sm)",
+    overflow="hidden",
+)
+ctl_seg_btn = _cls(
+    "cb-ctl-seg-btn",
+    display="flex", align_items="center", justify_content="center",
+    height="24px", padding="0 8px", font_size="11px",
+    font_family="var(--font-mono)", font_variant_numeric="tabular-nums",
+    color="var(--fg-muted)", cursor="pointer", user_select="none",
+    background="var(--surface)", white_space="nowrap",
+)
+css.add_rule(".cb-ctl-seg-btn + .cb-ctl-seg-btn",
+             Style(border_left="1px solid var(--border)"))
+css.add_rule(".cb-ctl-seg-btn:not(.cb-ctl-seg-btn-on):hover",
+             Style(color="var(--fg)", background="var(--bg-muted)"))
+# The selected one.  Its own class rather than `cb-seg-btn-on`: same-specificity
+# rules are settled by source order, and that one is declared further up, so it
+# would lose to the background above.
+ctl_seg_btn_on = _cls(
+    "cb-ctl-seg-btn-on",
+    background="var(--accent-subtle)", color="var(--accent)", font_weight="600",
+)
+css.add_rule(".cb-ctl-btn:hover", Style(color="var(--fg)",
+                                        background="var(--bg-muted)"))
+
 # Bottom status bar (footer) — object info, stats, mode indicator, ready chip.
 statusbar = _cls(
     "cb-statusbar",
-    display="flex", align_items="center", height="28px", min_height="28px",
+    display="flex", align_items="center", flex="none",
+    height="28px", min_height="28px",
     padding="0 12px", background="var(--panel-header)",
     border_top="1px solid var(--border)",
     font_size="11.5px", color="var(--fg-muted)",
