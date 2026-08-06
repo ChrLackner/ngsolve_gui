@@ -6,6 +6,7 @@ _usersettings = UserSettings(app_id="NGSolve GUI")
 from webgpu import Scene
 from ngsolve_webgpu.pick import MeshPickResult
 from webgpu.webgpu_api import Color
+from webgpu.camera import Camera
 from webgpu import Background
 from webgpu.labels import Labels
 import copy
@@ -25,6 +26,16 @@ def sync_default_viewport_clear():
     from webgpu.canvas import set_default_clear_color
     key = "dark" if cb._active_theme == "dark" else "light"
     set_default_clear_color(Color(*VIEWPORT_CLEAR[key], 1))
+
+
+def _unregister_observer(camera, callback):
+    """Drop *callback* from the camera's observers.
+
+    ``Camera.unregister_observer`` compares with ``is``, which never matches a
+    freshly bound method, so removing ``scene._on_camera_changed`` needs equality.
+    """
+    with camera._observers_lock:
+        camera._observers = [cb for cb in camera._observers if cb != callback]
 
 
 def _theme_scene(scene, bg_rgb, text_rgb):
@@ -55,6 +66,17 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self.undo_stack = UndoStack()
         self._last_pick = None
 
+        tab = app_data.get_tab(name)
+        saved_settings = tab.get("settings", {}) if tab else {}
+        self._camera_group = self._resolve_camera_group()
+        detached = bool(data.get("detached_camera", False)) if isinstance(data, dict) else False
+        self.camera_shared = Observable(
+            saved_settings.get("camera_shared", not detached), "camera_shared"
+        )
+        self._shared_camera, fresh = app_data.get_shared_camera(self._camera_group)
+        self._own_camera = None if self.camera_shared.value else Camera()
+        self._camera_needs_fit = fresh or not self.camera_shared.value
+
         # -- Gizmo visibility (persisted in user settings) --
         self.axes_visible = Observable(
             _usersettings.get("axes_visible", True), "axes_visible"
@@ -78,13 +100,11 @@ class WebgpuTab(PropertyPanelMixin, Div):
 
         # Observable for clipping state
         if not hasattr(self, 'clipping_enabled'):
-            tab = app_data.get_tab(name)
-            saved = tab.get("settings", {}) if tab else {}
             self.clipping_enabled = Observable(
-                saved.get("clipping_enabled", False), "clipping_enabled"
+                saved_settings.get("clipping_enabled", False), "clipping_enabled"
             )
             self.use_global_clipping = Observable(
-                saved.get("use_global_clipping", True), "use_global_clipping"
+                saved_settings.get("use_global_clipping", True), "use_global_clipping"
             )
 
         self.pick_overlay = PickOverlay()
@@ -112,8 +132,10 @@ class WebgpuTab(PropertyPanelMixin, Div):
         super().__init__(*overlays, ui_class="relative-position fit")
 
         self.draw()
-        self.reset_camera()
+        if self._camera_needs_fit:
+            self.reset_camera()
         self._sync_clip_ui(self.clipping_enabled.value, None)
+        self._sync_camera_link_ui(self.camera_shared.value, None)
 
         # Enable selection on right-click (needed for nav cube)
         def _on_click_select(event):
@@ -149,6 +171,8 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self.axes_visible.on_change(self._apply_axes_visible)
         self.navcube_visible.on_change(self._apply_navcube_visible)
         self.picking_enabled.on_change(self._apply_picking_enabled)
+        self.camera_shared.on_change(self._apply_camera_shared)
+        self.camera_shared.on_change(self._sync_camera_link_ui)
 
         # Wire nav cube face selection
         self.navigation_cube.faces.on_select(self._on_navcube_select)
@@ -455,7 +479,95 @@ class WebgpuTab(PropertyPanelMixin, Div):
 
     @property
     def camera(self):
-        return self.app_data.camera
+        """The camera driving this view: the mesh/geometry-wide one, or — when
+        detached — this view's own."""
+        if self.camera_shared.value:
+            return self._shared_camera
+        if self._own_camera is None:
+            self._own_camera = Camera()
+        return self._own_camera
+
+    def _resolve_camera_group(self):
+        """The object all views sharing this camera have in common: the geometry
+        a mesh was generated from, else the mesh itself (``None`` = no sharing).
+        """
+        geo = getattr(self, "geo", None)
+        if geo is not None:
+            return geo
+        mesh = getattr(self, "mesh", None)
+        if mesh is None:
+            return None
+        try:
+            from netgen.meshing import NetgenGeometry
+
+            geo = mesh.ngmesh.GetGeometry()
+            # Meshes without a geometry all report the same dummy base object.
+            if geo is not None and type(geo) is not NetgenGeometry:
+                return geo
+        except Exception:
+            pass
+        return mesh
+
+    def toggle_camera_link(self):
+        """Link this view's camera to the other views on this mesh, or detach it."""
+        self.camera_shared.toggle()
+
+    def _apply_camera_shared(self, val, _old):
+        if not val:
+            # Detach from the current view, not from wherever the own camera was.
+            cam = Camera()
+            cam.transform = self._shared_camera.transform.copy()
+            cam.orthographic = self._shared_camera.orthographic
+            self._own_camera = cam
+        self._swap_scene_camera(self.camera)
+
+    def _swap_scene_camera(self, camera):
+        """Point the live scene at *camera* (moving observers and input wiring)."""
+        scene = self.scene
+        if scene is None or scene.options.camera is camera:
+            return
+        old = scene.options.camera
+        old.unregister_callbacks(scene.input_handler)
+        _unregister_observer(old, scene._on_camera_changed)
+        scene.options.camera = camera
+        camera.register_observer(scene._on_camera_changed)
+        scene._wire_input(camera)
+        self.sync_camera()
+
+    def sync_camera(self):
+        """Push this view's camera state into its live scene.
+
+        While a scene is visible the JS engine owns the camera, so moves made in
+        one tab only reach the other views sharing that camera when they are
+        shown again — the app calls this on tab activation.
+        """
+        scene = self.scene
+        if scene is None or scene.canvas is None:
+            return
+        camera = self.camera
+        if scene.options.camera is not camera:
+            self._swap_scene_camera(camera)
+            return
+        if scene._render_mutex is not None:
+            with scene._render_mutex:
+                scene._select_buffer_valid = False
+        engine = getattr(scene, "_js_engine", None)
+        if engine is None:
+            scene.options.update_buffers()
+            return
+        camera.register_observer(scene._on_camera_changed)
+        scene._wire_input(camera)
+        import webgpu.platform as platform
+
+        t = camera.transform
+        center = t._center.tolist() if hasattr(t._center, "tolist") else list(t._center)
+        try:
+            engine.setCameraTransform(
+                platform.toJS(t._mat.flatten().tolist()), platform.toJS(list(center))
+            )
+            engine.setProjection(camera.orthographic)
+        except Exception as e:
+            print(f"warning: camera sync failed: {e}")
 
     @property
     def title(self):
@@ -487,6 +599,7 @@ class WebgpuTab(PropertyPanelMixin, Div):
                     ("o", lambda: self.set_orthographic(True), "Orthographic"),
                     ("p", lambda: self.set_orthographic(False), "Perspective"),
                     ("r", self.reset_camera, "Reset"),
+                    ("l", self.toggle_camera_link, "Share/detach camera"),
                 ],
             ),
         ]
@@ -557,6 +670,9 @@ class WebgpuTab(PropertyPanelMixin, Div):
         self._wf_tool = None
         self._clip_tool = None
         tools = [self._vtool("mdi-overscan", "Fit view  ·  r", self.reset_camera)]
+        self._link_tool = self._build_camera_link_tool()
+        if self._link_tool is not None:
+            tools.append(self._link_tool)
         if hasattr(self, "wireframe_visible"):
             self._wf_tool = self._vtool("mdi-grid", "Wireframe  ·  w", self.toggle_wireframe)
             self._set_tool_active(self._wf_tool, self.wireframe_visible.value)
@@ -578,6 +694,26 @@ class WebgpuTab(PropertyPanelMixin, Div):
                                   self._toggle_fullscreen))
         tools.append(self._build_bookmark_tool())
         return Div(*tools, ui_class=str(cb.vp_dock))
+
+    def _build_camera_link_tool(self):
+        """Toggle between the mesh/geometry-wide camera and one just for this view."""
+        if self._camera_group is None:
+            return None
+        self._link_icon = QIcon(ui_name="mdi-link-variant")
+        self._link_tip = QTooltip("")
+        btn = Div(self._link_icon, self._link_tip, ui_class=str(cb.vp_tool))
+        btn.on("click", lambda e=None: self.toggle_camera_link())
+        return btn
+
+    def _sync_camera_link_ui(self, val, _old):
+        if getattr(self, "_link_tool", None) is None:
+            return
+        self._link_icon.ui_name = "mdi-link-variant" if val else "mdi-link-variant-off"
+        self._link_tip.ui_children = [
+            "Camera shared with other views of this mesh  ·  click to detach"
+            if val else "Camera detached  ·  click to share again"
+        ]
+        self._set_tool_active(self._link_tool, val)
 
     def _build_bookmark_tool(self):
         self._bookmarks = []  # list of (name, camera-transform snapshot)

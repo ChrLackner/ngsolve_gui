@@ -378,7 +378,7 @@ class GeometryComponent(WebgpuTab):
         self.geo_renderer = GeometryRenderer(self.geo, clipping=self.clipping)
         self.geo_renderer.edges.active = self.show_edges.value
         self.geo_renderer.faces.active = self.show_faces.value
-        scene = self.wgpu.draw([self.geo_renderer, self.coordinate_axes, self.navigation_cube], camera=self.app_data.camera)
+        scene = self.wgpu.draw([self.geo_renderer, self.coordinate_axes, self.navigation_cube], camera=self.camera)
         self.clipping.center = 0.5 * (scene.bounding_box[1] + scene.bounding_box[0])
 
         # Hover picking: overlay + highlight on mousemove

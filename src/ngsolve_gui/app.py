@@ -468,6 +468,8 @@ class NGSolveGui(App):
         """Point property panel, footer and keybindings at the active tab."""
         comp = self.tab_panel.comp
         tab = self.app_data.get_tab(tabname) if tabname else None
+        if comp is not None and hasattr(comp, "sync_camera"):
+            comp.sync_camera()
         self._show_property_panel(comp)
         self.footer.set_component(comp, tab.get("type", "") if tab else "")
         self.kb.set_component(comp)

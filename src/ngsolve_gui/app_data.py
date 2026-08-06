@@ -6,22 +6,34 @@ class AppData:
     _data: dict
     _gpu_cache: dict
     _clipping: Clipping
-    _camera: Camera
+    _cameras: dict
 
     def __init__(self):
         self._data = {"tabs": {}, "active_tab": None}
         self._update = None
         self._gpu_cache = {}
         self._clipping = Clipping()
-        self._camera = Camera()
+        self._cameras = {}
 
     @property
     def clipping(self):
         return self._clipping
 
-    @property
-    def camera(self):
-        return self._camera
+    def get_shared_camera(self, group):
+        """Camera shared by all views of the same mesh/geometry.
+
+        *group* is the object identifying the sharing group (a geometry, or a
+        mesh without one); ``None`` means "no sharing". Returns
+        ``(camera, is_new)`` - with *is_new* True the caller owns the initial
+        fit, otherwise it adopts the view the group already has.
+        """
+        if group is None:
+            return Camera(), True
+        entry = self._cameras.get(id(group))
+        if entry is None:
+            self._cameras[id(group)] = [group, Camera()]
+            return self._cameras[id(group)][1], True
+        return entry[1], False
 
     def get_mesh_gpu_data(self, mesh):
         key = repr(mesh)

@@ -998,7 +998,10 @@ class FunctionComponent(WebgpuTab):
             if not self.deformation_enabled.value:
                 mdata.deformation_scale = 0.0
             func_data.mesh_data = mdata
-        mdata.subdivision = self._subdivision_override()
+        subdiv = self._subdivision_override()
+        if subdiv is None or subdiv != mdata.subdivision:
+            mdata.subdivision = subdiv
+            mdata.set_needs_update()
         self.wireframe = MeshWireframe2d(mdata, clipping=self.clipping)
         self.wireframe.active = self.wireframe_visible.value
 

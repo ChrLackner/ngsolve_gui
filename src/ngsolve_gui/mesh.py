@@ -386,7 +386,7 @@ class MeshComponent(WebgpuTab):
 
         override = self._subdivision_override()
         if override is not None:
-            self.mdata.subdivision = override
+            subdiv = override
         else:
             actual_order = self.mesh.GetCurveOrder()
             if actual_order > 3:
@@ -395,7 +395,9 @@ class MeshComponent(WebgpuTab):
                 subdiv = 3
             else:
                 subdiv = 1
+        if subdiv != self.mdata.subdivision:
             self.mdata.subdivision = subdiv
+            self.mdata.set_needs_update()
         self.wireframe = MeshWireframe2d(self.mdata, clipping=self.clipping)
         self.wireframe.active = self.wireframe_visible.value
         saved_edge_colors = self.edge_colors.value
