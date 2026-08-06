@@ -68,12 +68,18 @@ class WebgpuTab(PropertyPanelMixin, Div):
 
         tab = app_data.get_tab(name)
         saved_settings = tab.get("settings", {}) if tab else {}
-        self._camera_group = self._resolve_camera_group()
         detached = bool(data.get("detached_camera", False)) if isinstance(data, dict) else False
         self.camera_shared = Observable(
             saved_settings.get("camera_shared", not detached), "camera_shared"
         )
-        self._shared_camera, fresh = app_data.get_shared_camera(self._camera_group)
+        get_shared = getattr(app_data, "get_shared_camera", None)
+        if get_shared is None:
+            self._camera_group = None
+            self._shared_camera = getattr(app_data, "camera", None) or Camera()
+            fresh = True
+        else:
+            self._camera_group = self._resolve_camera_group()
+            self._shared_camera, fresh = get_shared(self._camera_group)
         self._own_camera = None if self.camera_shared.value else Camera()
         self._camera_needs_fit = fresh or not self.camera_shared.value
 
